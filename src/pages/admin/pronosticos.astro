@@ -13,8 +13,6 @@ if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cooki
 const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
 if (!navProfile?.es_referi) return Astro.redirect('/dashboard');
 
-const ahora = new Date(betaNowMs()).toISOString();
-
 const [
   { data: rawMatches },
   { data: rawPlayers },
@@ -26,7 +24,6 @@ const [
 const allMatches = rawMatches ?? [];
 const players    = rawPlayers ?? [];
 
-// Cargar todos los pronósticos
 const allMatchIds = allMatches.map((m: any) => m.id);
 const rawPreds = allMatchIds.length
   ? (await supabaseAdmin.from('predictions')
@@ -35,7 +32,6 @@ const rawPreds = allMatchIds.length
     ).data ?? []
   : [];
 
-// predMap: match_id → user_id → pred
 const predMap: Record<string, Record<string, any>> = {};
 for (const p of rawPreds) {
   if (!predMap[p.match_id]) predMap[p.match_id] = {};
@@ -51,6 +47,30 @@ for (const m of allMatches) {
   jornadaMatches[k].push(m);
 }
 
+// Datos para compartir via WhatsApp
+const shareData = jornadaOrder.map((jornada) => ({
+  jornada,
+  matches: jornadaMatches[jornada].map((m: any) => ({
+    id: m.id,
+    home: m.home_team,
+    away: m.away_team,
+    hs: m.home_score,
+    as_: m.away_score,
+    finished: m.is_finished,
+    players: players.map((pl: any) => {
+      const pred = predMap[m.id]?.[pl.id];
+      return {
+        name: pl.username,
+        uh: pred?.user_home   ?? null,
+        ua: pred?.user_away   ?? null,
+        uhp: pred?.user_home_pen ?? null,
+        uap: pred?.user_away_pen ?? null,
+        pts: pred?.points_earned ?? null,
+      };
+    }),
+  })),
+}));
+
 function predLabel(pred: any, m: any): string {
   if (!pred) return '—';
   const s = `${pred.user_home}–${pred.user_away}`;
@@ -65,7 +85,7 @@ function predClass(pred: any, m: any): string {
   if (pred.points_earned === null) return 'text-slate-500';
   if (pred.user_home === m.home_score && pred.user_away === m.away_score) return 'text-gold font-bold';
   const pr = pred.user_home > pred.user_away ? 'H' : pred.user_home < pred.user_away ? 'A' : 'E';
-  const mr = m.home_score  > m.away_score  ? 'H' : m.home_score  < m.away_score  ? 'A' : 'E';
+  const mr = m.home_score  > m.away_score   ? 'H' : m.home_score  < m.away_score   ? 'A' : 'E';
   if (pr === mr) return 'text-gol';
   return 'text-slate-500';
 }
@@ -74,6 +94,8 @@ function ptsLabel(pred: any, m: any): string {
   if (!pred || !m.is_finished || pred.points_earned === null) return '';
   return `${pred.points_earned}p`;
 }
+
+const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.118 1.525 5.847L0 24l6.335-1.502A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.794 9.794 0 01-5.001-1.371l-.359-.214-3.723.883.939-3.63-.234-.374A9.775 9.775 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/></svg>`;
 ---
 
 <Layout title="Pronósticos" navProfile={navProfile} isAuthed={true}>
@@ -96,7 +118,7 @@ function ptsLabel(pred: any, m: any): string {
       </div>
     )}
 
-    {jornadaOrder.map((jornada) => {
+    {jornadaOrder.map((jornada, ji) => {
       const matches = jornadaMatches[jornada];
       const allFinished = matches.every((m: any) => m.is_finished);
       const anyFinished = matches.some((m: any) => m.is_finished);
@@ -118,8 +140,8 @@ function ptsLabel(pred: any, m: any): string {
           </summary>
 
           <div class="border-t border-brand-800">
-            {matches.map((m: any) => {
-              const preds = predMap[m.id] ?? {};
+            {matches.map((m: any, mi: number) => {
+              const preds    = predMap[m.id] ?? {};
               const submitted = players.filter((pl: any) => preds[pl.id]);
               const missing   = players.filter((pl: any) => !preds[pl.id]);
               const isClosed  = new Date(m.match_date).getTime() - 7200000 < betaNowMs();
@@ -134,7 +156,7 @@ function ptsLabel(pred: any, m: any): string {
                       </span>
                       <span class="text-sm font-semibold text-white truncate">{m.away_team}</span>
                     </div>
-                    <div class="flex items-center gap-2 flex-shrink-0 text-xs">
+                    <div class="flex items-center gap-2 flex-shrink-0 text-xs flex-wrap justify-end">
                       <span class="text-slate-600">
                         {new Date(m.match_date).toLocaleDateString('es-CL', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
                       </span>
@@ -144,7 +166,15 @@ function ptsLabel(pred: any, m: any): string {
                         ? <span class="text-gold bg-gold/10 border border-gold/20 px-2 py-0.5 rounded-full">🔒 Cerrado</span>
                         : <span class="text-slate-500 bg-brand-800 border border-brand-700 px-2 py-0.5 rounded-full">Abierto</span>
                       }
-                      <span class="text-slate-500">{submitted.length}/{players.length} apostaron</span>
+                      <span class="text-slate-500">{submitted.length}/{players.length}</span>
+                      {/* Botón WA por partido */}
+                      <button
+                        onclick={`shareMatch(${ji}, ${mi})`}
+                        class="flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full font-medium"
+                        title="Compartir en WhatsApp"
+                      >
+                        <Fragment set:html={WA_ICON} /> WA
+                      </button>
                     </div>
                   </div>
 
@@ -186,5 +216,70 @@ function ptsLabel(pred: any, m: any): string {
       );
     })}
 
+    {jornadaOrder.length > 0 && (
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600 pb-4">
+        <div class="flex items-center gap-1.5"><span class="text-gold font-bold font-mono">2–1</span><span>Exacto</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-gol font-mono">1–0</span><span>Resultado correcto</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-slate-500 font-mono">0–2</span><span>Incorrecto</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-slate-300 font-mono">1–1</span><span>Pendiente</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-slate-700 font-mono">—</span><span>Sin pronóstico</span></div>
+      </div>
+    )}
+
   </div>
 </Layout>
+
+<script type="application/json" id="pronosticos-data" set:html={JSON.stringify(shareData)} />
+
+<script>
+  type Player = { name: string; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; pts: number|null };
+  type MatchData = { id: string; home: string; away: string; hs: number|null; as_: number|null; finished: boolean; players: Player[] };
+  type JornadaData = { jornada: string; matches: MatchData[] };
+
+  function getData(): JornadaData[] {
+    return JSON.parse(document.getElementById('pronosticos-data')?.textContent ?? '[]');
+  }
+
+  function shareMatch(ji: number, mi: number) {
+    const data = getData();
+    const jornada = data[ji];
+    const m = jornada?.matches[mi];
+    if (!m) return;
+
+    const scoreStr = m.finished && m.hs !== null ? `${m.hs}–${m.as_}` : 'vs';
+    let text = `⚽ *${m.home} ${scoreStr} ${m.away}*\n`;
+    text += `_${jornada.jornada} · Polla 2026_\n\n`;
+
+    const sorted = m.finished
+      ? [...m.players].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0))
+      : m.players;
+
+    for (const pl of sorted) {
+      if (pl.uh === null || pl.ua === null) {
+        text += `➖ ${pl.name}\n`;
+      } else {
+        let predStr = `${pl.uh}–${pl.ua}`;
+        if (pl.uhp !== null && pl.uap !== null) predStr += ` (pen ${pl.uhp}–${pl.uap})`;
+
+        if (m.finished && m.hs !== null) {
+          const isExact = pl.uh === m.hs && pl.ua === m.as_;
+          const pR = pl.uh > pl.ua ? 'H' : pl.uh < pl.ua ? 'A' : 'E';
+          const rR = (m.hs ?? 0) > (m.as_ ?? 0) ? 'H' : (m.hs ?? 0) < (m.as_ ?? 0) ? 'A' : 'E';
+          const icon = isExact ? '⭐' : pR === rR ? '✅' : '❌';
+          text += `${icon} ${pl.name} → ${predStr} (${pl.pts ?? 0}pts)\n`;
+        } else {
+          text += `🎯 ${pl.name} → ${predStr}\n`;
+        }
+      }
+    }
+
+    if (m.finished) {
+      const total = sorted.reduce((s, p) => s + (p.pts ?? 0), 0);
+      if (total > 0) text += `\n_Total puntos en juego: ${total}_`;
+    }
+
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  }
+
+  (window as any).shareMatch = shareMatch;
+</script>
