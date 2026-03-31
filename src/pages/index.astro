@@ -95,18 +95,27 @@ const pozo = totalJugadores * 100;
 
   <!-- Stats dinámicas -->
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-12">
-    {[
-      { icon: '👥', label: 'Participantes',   value: totalJugadores.toString() },
-      { icon: '💰', label: 'Pozo acumulado',  value: `${pozo} Bs` },
-      { icon: '⚽', label: 'Partidos',         value: '104'  },
-      { icon: '🎟️', label: 'Inscripción',       value: '120 Bs' },
-    ].map(({ icon, label, value }) => (
-      <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
-        <div class="text-2xl mb-2">{icon}</div>
-        <div class="text-2xl sm:text-3xl font-display text-gold">{value}</div>
-        <div class="text-xs text-slate-500 mt-1">{label}</div>
-      </div>
-    ))}
+    <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
+      <div class="text-2xl mb-2">👥</div>
+      <div class="text-2xl sm:text-3xl font-display text-gold">{totalJugadores}</div>
+      <div class="text-xs text-slate-500 mt-1">Inscriptos</div>
+    </div>
+    <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
+      <div class="text-2xl mb-2">💰</div>
+      <div class="text-2xl sm:text-3xl font-display text-gold">{pozo} Bs</div>
+      <div class="text-xs text-slate-500 mt-1">Pozo estimado</div>
+      <div class="text-xs text-slate-600 mt-0.5">* sujeto a confirmación</div>
+    </div>
+    <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
+      <div class="text-2xl mb-2">⚽</div>
+      <div class="text-2xl sm:text-3xl font-display text-gold">104</div>
+      <div class="text-xs text-slate-500 mt-1">Partidos</div>
+    </div>
+    <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
+      <div class="text-2xl mb-2">🎟️</div>
+      <div class="text-2xl sm:text-3xl font-display text-gold">120 Bs</div>
+      <div class="text-xs text-slate-500 mt-1">Inscripción</div>
+    </div>
   </div>
 
   <!-- Cómo funciona -->
