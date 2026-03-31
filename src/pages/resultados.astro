@@ -1,7 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { isoForTeam } from '@/lib/isoFlags';
+import { teamFlag, isoForTeam } from '@/lib/isoFlags';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -151,7 +151,7 @@ function predStyle(pred: any, m: any): string {
                   </div>
                 </div>
                 <div class="flex items-center justify-center gap-3 mt-2">
-                  <span class="text-sm font-semibold text-white flex-1 text-right truncate">{m.home_team}</span>
+                  <span class="text-sm font-semibold text-white flex-1 text-right truncate">{m.home_team} {teamFlag(m.home_team)}</span>
                   <div class="text-center min-w-[56px]">
                     <div class="font-display text-2xl text-white leading-none">
                       {m.home_score} – {m.away_score}
@@ -165,7 +165,7 @@ function predStyle(pred: any, m: any): string {
                       </div>
                     )}
                   </div>
-                  <span class="text-sm font-semibold text-white flex-1 text-left truncate">{m.away_team}</span>
+                  <span class="text-sm font-semibold text-white flex-1 text-left truncate">{teamFlag(m.away_team)} {m.away_team}</span>
                 </div>
               </div>
 

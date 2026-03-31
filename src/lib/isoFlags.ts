@@ -59,3 +59,16 @@ function norm(s: string): string {
 export function isoForTeam(name: string): string {
   return ISO_CODES[name] ?? ISO_CODES[norm(name)] ?? '';
 }
+
+/** Devuelve el emoji de bandera para un código ISO (funciona en servidor y cliente) */
+export function flagEmoji(iso: string): string {
+  if (!iso) return '';
+  const code = iso.includes('-') ? iso.split('-')[0] : iso;
+  const base = 0x1F1E6 - 65;
+  return String.fromCodePoint(code.charCodeAt(0) + base, code.charCodeAt(1) + base);
+}
+
+/** Bandera a partir del nombre del equipo */
+export function teamFlag(name: string): string {
+  return flagEmoji(isoForTeam(name));
+}
