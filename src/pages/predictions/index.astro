@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
+import { isoForTeam } from '@/lib/isoFlags';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -33,61 +34,6 @@ function formatDate(dateStr: string): string {
   });
 }
 
-// Mapa de codigos ISO — emojis generados en cliente
-// Incluye nombres en español E inglés (football-data.org devuelve en inglés)
-const ISO_CODES: Record<string, string> = {
-  // ── América ──
-  'Mexico':'MX','Ecuador':'EC','Panama':'PA','Canada':'CA',
-  'Jamaica':'JM','Argentina':'AR','Bolivia':'BO','Brasil':'BR',
-  'Brazil':'BR','Uruguay':'UY','Colombia':'CO','Peru':'PE',
-  'Paraguay':'PY','Haiti':'HT','Curazao':'CW','Curacao':'CW','Surinam':'SR',
-  'Venezuela':'VE','Chile':'CL','Costa Rica':'CR','Honduras':'HN',
-  'El Salvador':'SV','Guatemala':'GT','Trinidad and Tobago':'TT',
-  'Cuba':'CU','Nicaragua':'NI','Bermuda':'BM','Barbados':'BB',
-  'United States':'US','Estados Unidos':'US',
-  // ── Europa ──
-  'Alemania':'DE','Germany':'DE','Francia':'FR','France':'FR',
-  'Espana':'ES','Spain':'ES','Portugal':'PT','Croacia':'HR',
-  'Croatia':'HR','Belgica':'BE','Belgium':'BE','Paises Bajos':'NL',
-  'Netherlands':'NL','Suiza':'CH','Switzerland':'CH','Austria':'AT',
-  'Polonia':'PL','Poland':'PL','Dinamarca':'DK','Denmark':'DK',
-  'Suecia':'SE','Sweden':'SE','Noruega':'NO','Norway':'NO',
-  'Escocia':'GB-SCT','Scotland':'GB-SCT','Inglaterra':'GB-ENG','England':'GB-ENG',
-  'Gales':'GB-WLS','Wales':'GB-WLS','Rep. de Irlanda':'IE','Ireland':'IE',
-  'Italia':'IT','Italy':'IT','Ucrania':'UA','Ukraine':'UA',
-  'Rumania':'RO','Romania':'RO','Eslovaquia':'SK','Slovakia':'SK',
-  'Albania':'AL','Turquia':'TR','Turkey':'TR','Kosovo':'XK',
-  'Macedonia del Norte':'MK','North Macedonia':'MK',
-  'Rep. Checa':'CZ','Czech Republic':'CZ','Czechia':'CZ',
-  'Serbia':'RS','Hungria':'HU','Hungary':'HU','Eslovenia':'SI','Slovenia':'SI',
-  'Grecia':'GR','Greece':'GR','Finlandia':'FI','Finland':'FI',
-  'Bosnia and Herzegovina':'BA','Bosnia':'BA','Georgia':'GE',
-  // ── África ──
-  'Senegal':'SN','Marruecos':'MA','Morocco':'MA','Ghana':'GH',
-  'Sudafrica':'ZA','South Africa':'ZA','Argelia':'DZ','Algeria':'DZ',
-  'Egipto':'EG','Egypt':'EG','Tunez':'TN','Tunisia':'TN',
-  'Nigeria':'NG','Camerun':'CM','Cameroon':'CM','Costa de Marfil':'CI',
-  'Ivory Coast':'CI',"Cote d'Ivoire":'CI','Cabo Verde':'CV','Cape Verde':'CV','Cape Verde Islands':'CV',
-  'Congo DR':'CD','DR Congo':'CD','Mali':'ML','Burkina Faso':'BF',
-  'Guinea':'GN','Zimbabwe':'ZW','Tanzania':'TZ','Zambia':'ZM',
-  'Uganda':'UG','Kenya':'KE','Ethiopia':'ET','Rwanda':'RW',
-  'Angola':'AO','Mozambique':'MZ','Namibia':'NA','Benin':'BJ',
-  // ── Asia ──
-  'Japon':'JP','Japan':'JP','Corea del Sur':'KR','South Korea':'KR',
-  'Australia':'AU','Iran':'IR','Arabia Saudita':'SA','Saudi Arabia':'SA',
-  'Catar':'QA','Qatar':'QA','Jordania':'JO','Jordan':'JO',
-  'Uzbekistan':'UZ','Iraq':'IQ','China':'CN','India':'IN',
-  'Vietnam':'VN','Thailand':'TH','Indonesia':'ID','Philippines':'PH',
-  'Filipinas':'PH','Bahrain':'BH','Kuwait':'KW','Oman':'OM',
-  'United Arab Emirates':'AE','Emiratos Arabes Unidos':'AE',
-  // ── Oceanía ──
-  'Nueva Zelanda':'NZ','New Zealand':'NZ','Nueva Caledonia':'NC','New Caledonia':'NC',
-  'Fiji':'FJ','Papua New Guinea':'PG',
-};
-
-function normalize(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
 
 type MatchRow = {
   id: string;
@@ -127,8 +73,8 @@ function buildShareData(dayMatches: MatchRow[], username: string) {
       const pred = predMap.get(m.id)!;
       return {
         home: m.home_team, away: m.away_team,
-        homeISO: ISO_CODES[normalize(m.home_team)] ?? '',
-        awayISO: ISO_CODES[normalize(m.away_team)] ?? '',
+        homeISO: isoForTeam(m.home_team),
+        awayISO: isoForTeam(m.away_team),
         uh: pred.user_home, ua: pred.user_away,
         pen: pred.user_winner_penalties ?? null,
       };
@@ -257,8 +203,8 @@ let globalFormIdx = 0;
 
               {jornadaMatches.map((m) => {
                 const existing = predMap.get(m.id);
-                const homeISO = ISO_CODES[normalize(m.home_team)] ?? '';
-                const awayISO = ISO_CODES[normalize(m.away_team)] ?? '';
+                const homeISO = isoForTeam(m.home_team);
+                const awayISO = isoForTeam(m.away_team);
                 const idx = existing ? -1 : globalFormIdx++;
                 const isKnockout = m.stage === 'knockout';
 
@@ -382,8 +328,8 @@ let globalFormIdx = 0;
             <div class="space-y-2">
               {jornadaMatches.map((m) => {
                 const existing = predMap.get(m.id);
-                const homeISO = ISO_CODES[normalize(m.home_team)] ?? '';
-                const awayISO = ISO_CODES[normalize(m.away_team)] ?? '';
+                const homeISO = isoForTeam(m.home_team);
+                const awayISO = isoForTeam(m.away_team);
                 return (
                   <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : 'border-fifared/30 bg-fifared/5'}`}>
                     <div class="flex items-center justify-between mb-2 text-xs">
@@ -496,25 +442,23 @@ let globalFormIdx = 0;
     username: string; cutoff: string;
     items: Array<{ home: string; away: string; homeISO: string; awayISO: string; uh: number; ua: number; pen: string | null }>;
   }) {
-    const ball = String.fromCodePoint(0x26BD);
-    const trophy = String.fromCodePoint(0x1F3C6);
     const lines = [
-      `${ball} *Pronosticos de ${data.username}*`,
-      `*Cierre: ${data.cutoff}*`,
+      `\u26BD *Pron\u00f3sticos de ${data.username}*`,
+      `_Cierre: ${data.cutoff}_`,
       '',
     ];
-    data.items.forEach((item, i) => {
+    data.items.forEach(item => {
       const hf = item.homeISO ? flagFromISO(item.homeISO) : '';
       const af = item.awayISO ? flagFromISO(item.awayISO) : '';
-      lines.push(`*Partido ${i + 1}*`);
-      lines.push(`${hf} ${item.home} (${item.uh}) vs (${item.ua}) ${item.away} ${af}`.trim());
+      lines.push(`${item.home} ${hf}(${item.uh}) vs (${item.ua}) ${af}${item.away}`);
       if (item.pen) {
-        const winner = item.pen === 'home' ? item.home : item.away;
-        lines.push(`*Penales: ${item.pen === 'home' ? hf : af} ${winner}*`.trim());
+        const wf  = item.pen === 'home' ? hf : af;
+        const wName = item.pen === 'home' ? item.home : item.away;
+        lines.push(`_Penales: ${wf} ${wName}_`);
       }
       lines.push('');
     });
-    lines.push(`_Polla Mundial 2026_ ${trophy}`);
+    lines.push(`_Polla Mundial 2026_ \uD83C\uDFC6`);
     return lines.join('\n');
   }
 

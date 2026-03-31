@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
+import { isoForTeam } from '@/lib/isoFlags';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -54,6 +55,8 @@ const shareData = jornadaOrder.map((jornada) => ({
     id: m.id,
     home: m.home_team,
     away: m.away_team,
+    homeISO: isoForTeam(m.home_team),
+    awayISO: isoForTeam(m.away_team),
     hs: m.home_score,
     as_: m.away_score,
     finished: m.is_finished,
@@ -246,8 +249,15 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
   }
 
+  function flagFromISO(iso: string): string {
+    if (!iso) return '';
+    const code = iso.includes('-') ? iso.split('-')[0] : iso;
+    const base = 0x1F1E6 - 65;
+    return String.fromCodePoint(code.charCodeAt(0) + base, code.charCodeAt(1) + base);
+  }
+
   type Player = { name: string; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; pts: number|null };
-  type MatchData = { id: string; home: string; away: string; hs: number|null; as_: number|null; finished: boolean; players: Player[] };
+  type MatchData = { id: string; home: string; away: string; homeISO: string; awayISO: string; hs: number|null; as_: number|null; finished: boolean; players: Player[] };
   type JornadaData = { jornada: string; matches: MatchData[] };
 
   function getData(): JornadaData[] {
@@ -260,9 +270,14 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     const m = jornada?.matches[mi];
     if (!m) return;
 
-    const scoreStr = m.finished && m.hs !== null ? `${m.hs}–${m.as_}` : 'vs';
-    let text = `⚽ *${m.home} ${scoreStr} ${m.away}*\n`;
-    text += `_${jornada.jornada} · Polla 2026_\n\n`;
+    const hf = flagFromISO(m.homeISO);
+    const af = flagFromISO(m.awayISO);
+    const scoreStr = m.finished && m.hs !== null
+      ? `${hf} ${m.hs}\u2013${m.as_} ${af}`
+      : `${hf} vs ${af}`;
+
+    let text = `\u26BD *${m.home} ${scoreStr} ${m.away}*\n`;
+    text += `_${jornada.jornada} \u00B7 Polla 2026_\n\n`;
 
     const sorted = m.finished
       ? [...m.players].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0))
@@ -270,26 +285,29 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 
     for (const pl of sorted) {
       if (pl.uh === null || pl.ua === null) {
-        text += `➖ ${pl.name}\n`;
+        text += `\u2796 ${pl.name}\n`;
       } else {
-        let predStr = `${pl.uh}–${pl.ua}`;
-        if (pl.uhp !== null && pl.uap !== null) predStr += ` (pen ${pl.uhp}–${pl.uap})`;
+        let predStr = `${pl.uh}\u2013${pl.ua}`;
+        if (pl.uhp !== null && pl.uap !== null) {
+          const penWinnerFlag = pl.uhp > pl.uap ? hf : af;
+          predStr += ` (pen ${penWinnerFlag})`;
+        }
 
         if (m.finished && m.hs !== null) {
           const isExact = pl.uh === m.hs && pl.ua === m.as_;
           const pR = pl.uh > pl.ua ? 'H' : pl.uh < pl.ua ? 'A' : 'E';
           const rR = (m.hs ?? 0) > (m.as_ ?? 0) ? 'H' : (m.hs ?? 0) < (m.as_ ?? 0) ? 'A' : 'E';
-          const icon = isExact ? '⭐' : pR === rR ? '✅' : '❌';
-          text += `${icon} ${pl.name} → ${predStr} (${pl.pts ?? 0}pts)\n`;
+          const icon = isExact ? '\u2B50' : pR === rR ? '\u2705' : '\u274C';
+          text += `${icon} ${pl.name} \u2192 ${predStr} (${pl.pts ?? 0}pts)\n`;
         } else {
-          text += `🎯 ${pl.name} → ${predStr}\n`;
+          text += `\uD83C\uDFAF ${pl.name} \u2192 ${predStr}\n`;
         }
       }
     }
 
     if (m.finished) {
       const total = sorted.reduce((s, p) => s + (p.pts ?? 0), 0);
-      if (total > 0) text += `\n_Total puntos en juego: ${total}_`;
+      if (total > 0) text += `\n_Total: ${total}pts_`;
     }
 
     waShare(text);
