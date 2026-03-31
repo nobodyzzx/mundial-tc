@@ -17,8 +17,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const username  = form.get('username')?.toString()?.trim();
   const email     = form.get('email')?.toString()?.trim().toLowerCase();
   const password  = form.get('password')?.toString()?.trim();
-  const esReferi  = form.get('es_referi') === 'on';
-  const participa = form.get('participa') === 'on';
+  const esReferi     = form.get('es_referi') === 'on';
+  const hasParticipa = form.get('has_participa') === '1';
+  const participa    = form.get('participa') === 'on';
 
   if (!targetId || !username || !email) {
     return redirect('/admin/usuarios?err=Datos+incompletos');
@@ -34,10 +35,19 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   // No permitir quitarse el rol de réferi a uno mismo
   const finalEsReferi = targetId === user.id ? true : esReferi;
 
-  // Actualizar perfil
-  // Solo el réferi editándose a sí mismo puede cambiar 'participa'
-  // Para jugadores normales siempre es true
-  const finalParticipa = finalEsReferi ? participa : true;
+  // Para jugadores normales, participa siempre es true.
+  // Para réferis, solo actualizamos participa si el formulario incluye ese campo
+  // (la forma de réferis tiene has_participa=1; la de jugadores no).
+  // Si el formulario no incluye participa (al convertir jugador→réferi), conservamos el valor actual de la DB.
+  let finalParticipa: boolean;
+  if (!finalEsReferi) {
+    finalParticipa = true;
+  } else if (hasParticipa) {
+    finalParticipa = participa;
+  } else {
+    const { data: cur } = await supabaseAdmin.from('profiles').select('participa').eq('id', targetId).single();
+    finalParticipa = cur?.participa ?? true;
+  }
 
   const { error: profileErr } = await supabaseAdmin
     .from('profiles')

@@ -36,6 +36,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     id: created.user.id,
     username,
     es_referi: esReferi,
+    participa: !esReferi,
     puntos_totales: 0,
     expulsado: false,
     pago_70: false,
