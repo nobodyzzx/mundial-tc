@@ -79,18 +79,25 @@ const hasMatchInProgress = (startedMatchData ?? []).some(m => !m.is_finished);
 
 function isJornadaClosed(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  // Cierre normal: menos de 2h para el primer partido del día
+  // 2h rule: demasiado cerca del primer partido
   if (firstTime - now < 2 * 3600 * 1000) return true;
-  // Mismo día: si ya hubo un partido de este día (aunque terminó), bloquear los restantes
+  // Mismo día: ya hubo un partido de este día (aunque terminó)
   if (daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date))) return true;
-  // Día siguiente: si hay algún partido en curso, bloquear futuros
-  if (hasMatchInProgress && firstTime > now) return true;
+  // Día anterior sin terminar: si existe algún partido abierto con fecha anterior a este día → bloqueado
+  if ((matches ?? []).some(m => new Date(m.match_date).getTime() < firstTime)) return true;
   return false;
+}
+
+function isPrevDayPending(jornadaMatches: MatchRow[]): boolean {
+  const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
+  if (firstTime - now < 2 * 3600 * 1000) return false;
+  if (daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date))) return false;
+  return (matches ?? []).some(m => new Date(m.match_date).getTime() < firstTime);
 }
 
 function isLockedByOngoing(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  if (firstTime - now < 2 * 3600 * 1000) return false; // ya lo maneja el estado cerrado normal
+  if (firstTime - now < 2 * 3600 * 1000) return false;
   return daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date)) || hasMatchInProgress;
 }
 
@@ -182,6 +189,7 @@ let globalFormIdx = 0;
 
     {(import.meta.env.PUBLIC_BETA === 'true' || (navProfile?.pago_70 && navProfile?.pago_50)) && [...grouped.entries()].map(([jornadaKey, jornadaMatches]) => {
       const closed = isJornadaClosed(jornadaMatches);
+      const prevPending = isPrevDayPending(jornadaMatches);
       const ongoingLock = isLockedByOngoing(jornadaMatches);
       const predCount = jornadaMatches.filter(m => predMap.has(m.id)).length;
       const allDone = predCount === jornadaMatches.length;
@@ -199,15 +207,18 @@ let globalFormIdx = 0;
 
           {/* ── Encabezado de jornada ── */}
           <div class={`flex items-center justify-between px-4 py-3 rounded-xl border ${
-            ongoingLock ? 'bg-amber-900/10 border-amber-500/30' :
-            closed ? 'bg-fifared/8 border-fifared/30' :
-            allDone ? 'bg-gol/8 border-gol/30' :
-            'bg-brand-800/60 border-brand-700/60'
+            prevPending  ? 'bg-brand-900 border-brand-700/40' :
+            ongoingLock  ? 'bg-amber-900/10 border-amber-500/30' :
+            closed       ? 'bg-fifared/8 border-fifared/30' :
+            allDone      ? 'bg-gol/8 border-gol/30' :
+                           'bg-brand-800/60 border-brand-700/60'
           }`}>
             <div>
-              <h2 class="font-display text-xl text-white tracking-wide capitalize">{jornadaKey}</h2>
-              <p class={`text-xs mt-0.5 ${ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
-                {ongoingLock
+              <h2 class={`font-display text-xl tracking-wide capitalize ${prevPending ? 'text-slate-500' : 'text-white'}`}>{jornadaKey}</h2>
+              <p class={`text-xs mt-0.5 ${prevPending ? 'text-slate-600' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
+                {prevPending
+                  ? '🔒 Disponible cuando terminen los partidos anteriores'
+                  : ongoingLock
                   ? '⏳ Esperá que termine el partido de hoy'
                   : closed
                   ? '🔒 Cerrada'

@@ -40,26 +40,35 @@ const { data: jornadaMatches } = await jornadaQuery;
 const firstMatchTime = Math.min(...(jornadaMatches ?? []).map(m => new Date(m.match_date).getTime()));
 const isClosed = firstMatchTime - now < 2 * 3600 * 1000;
 
-// Bloqueo por partido del día o en curso:
-// - Mismo día: si ya hubo algún partido de este día (terminado o no) → bloqueado
-// - Día siguiente: si hay algún partido activo (no terminado) → bloqueado
-const { data: startedMatches } = await supabase
+// Bloqueo por día anterior sin terminar o partido en curso del mismo día
+const thisMatchTime = new Date(match.match_date).getTime();
+const thisMatchNotStarted = thisMatchTime > now;
+
+// Partidos abiertos con fecha anterior a este partido (día anterior sin terminar)
+const { data: unfinishedBefore } = await supabase
   .from('matches')
-  .select('match_date, is_finished')
-  .lte('match_date', new Date(now).toISOString());
-const thisMatchNotStarted = new Date(match.match_date).getTime() > now;
-const thisMatchDay = new Date(match.match_date).toLocaleDateString('es-BO', {
-  weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
-});
-const isLockedByStarted = thisMatchNotStarted && (startedMatches ?? []).some(m => {
-  const mDay = new Date(m.match_date).toLocaleDateString('es-BO', {
-    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
-  });
-  return mDay === thisMatchDay || !m.is_finished; // mismo día o en curso
-});
+  .select('id')
+  .eq('is_finished', false)
+  .lt('match_date', match.match_date)
+  .limit(1);
+
+// Partidos del mismo día que ya empezaron
+const { data: startedSameDay } = await supabase
+  .from('matches')
+  .select('id')
+  .lte('match_date', new Date(now).toISOString())
+  .gte('match_date', (() => {
+    const d = new Date(match.match_date);
+    d.setUTCHours(0, 0, 0, 0); // inicio del día UTC como aproximación
+    return d.toISOString();
+  })())
+  .limit(1);
+
+const isLockedByPrevDay = thisMatchNotStarted && (unfinishedBefore ?? []).length > 0;
+const isLockedBySameDay = thisMatchNotStarted && (startedSameDay ?? []).length > 0;
 
 if (isClosed || match.is_finished) return Astro.redirect('/predictions?error=cerrado');
-if (isLockedByStarted) return Astro.redirect('/predictions?error=en_curso');
+if (isLockedByPrevDay || isLockedBySameDay) return Astro.redirect('/predictions?error=en_curso');
 
 const { data: existing } = await supabase
   .from('predictions')
