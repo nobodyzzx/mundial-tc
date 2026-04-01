@@ -84,17 +84,39 @@ const elTotals = Object.fromEntries(players.map((p: any) => [
 <Layout title="Resumen" navProfile={navProfile} isAuthed={true}>
 <style>
   @media print {
-    @page { size: A4 landscape; margin: 0.7cm; }
+    @page { size: A4 landscape; margin: 0.5cm; }
     .no-print, nav, header { display: none !important; }
     .tab-pane { display: none !important; }
-    .tab-pane.print-active { display: block !important; }
-    table { font-size: 8px !important; }
-    th, td { padding: 2px 3px !important; }
+    .tab-pane.print-active {
+      display: block !important;
+      overflow: visible !important;
+    }
+    .tab-pane.print-active table {
+      font-size: 7px !important;
+      width: 100% !important;
+      table-layout: fixed;
+    }
+    .tab-pane.print-active th,
+    .tab-pane.print-active td {
+      padding: 2px 2px !important;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .tab-pane.print-active th:first-child,
+    .tab-pane.print-active td:first-child { width: 15% !important; }
+    .tab-pane.print-active th:nth-child(2),
+    .tab-pane.print-active td:nth-child(2) { width: 8% !important; }
+    .player-th span { max-height: 55px; }
     body, html { background: white !important; color: black !important; }
-    .text-gold { color: #b8860b !important; }
+    .text-gold { color: #92660a !important; }
     .text-gol  { color: #166534 !important; }
+    .text-slate-300, .text-white { color: #111 !important; }
+    .text-slate-500, .text-slate-600 { color: #555 !important; }
     .bg-gold\/8 { background: #fef9c3 !important; }
     .bg-gol\/8  { background: #dcfce7 !important; }
+    .bg-brand-800\/60, .bg-brand-900, .bg-brand-800\/20 { background: #f8f8f8 !important; }
+    .border-brand-700, .border-brand-700\/40, .border-brand-800 { border-color: #ddd !important; }
+    .border-t-2 { border-top: 2px solid #999 !important; }
   }
   .player-th span {
     display: inline-block;
