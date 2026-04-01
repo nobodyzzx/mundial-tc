@@ -76,6 +76,7 @@ function buildShareData(dayMatches: MatchRow[], username: string) {
         homeISO: isoForTeam(m.home_team),
         awayISO: isoForTeam(m.away_team),
         uh: pred.user_home, ua: pred.user_away,
+        uhp: pred.user_home_pen ?? null, uap: pred.user_away_pen ?? null,
         pen: pred.user_winner_penalties ?? null,
       };
     });
@@ -448,7 +449,7 @@ let globalFormIdx = 0;
   // WhatsApp share
   function buildText(data: {
     username: string; cutoff: string;
-    items: Array<{ home: string; away: string; homeISO: string; awayISO: string; uh: number; ua: number; pen: string | null }>;
+    items: Array<{ home: string; away: string; homeISO: string; awayISO: string; uh: number; ua: number; uhp: number|null; uap: number|null; pen: string | null }>;
   }) {
     const lines = [
       `\u26BD *Pron\u00f3sticos de ${data.username}*`,
@@ -460,9 +461,10 @@ let globalFormIdx = 0;
       const af = item.awayISO ? flagFromISO(item.awayISO) : '';
       lines.push(`${item.home} ${hf} ${item.uh}\u2013${item.ua} ${af} ${item.away}`);
       if (item.pen) {
-        const wf   = item.pen === 'home' ? hf : af;
+        const wf    = item.pen === 'home' ? hf : af;
         const wName = item.pen === 'home' ? item.home : item.away;
-        lines.push(`_(pen \u00B7 clasifica ${wf} ${wName})_`);
+        const penScore = item.uhp !== null ? `${item.uhp}\u2013${item.uap} pen \u00B7 ` : '';
+        lines.push(`_(${penScore}clasifica ${wf} ${wName})_`);
       }
       lines.push('');
     });
