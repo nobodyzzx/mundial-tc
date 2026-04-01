@@ -34,6 +34,7 @@ const [
   { data: myProfile },
   { data: recentFinished },
   { data: settingsRows },
+  { data: startedMatchData },
 ] = await Promise.all([
   supabase.from('profiles').select('id, username, puntos_totales, pago_70, pago_50, es_referi, participa').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
   supabase.from('sanctions').select('user_id, type').eq('active', true),
@@ -41,6 +42,7 @@ const [
   supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single(),
   supabase.from('matches').select('id, home_team, away_team, home_score, away_score, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
   supabaseAdmin.from('settings').select('key, value'),
+  supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
 ]);
 
 const sMap = new Map((settingsRows ?? []).map((r: any) => [r.key, r.value as string | null]));
@@ -70,21 +72,47 @@ for (const s of sanctions ?? []) {
   sanctionMap.set(s.user_id, cur);
 }
 
-// Una sola query para los primeros partidos de TODAS las jornadas cercanas (elimina el N+1)
-const jornadasEnDashboard = [...new Set((proximosPartidos ?? []).map((m: any) => m.jornada).filter(Boolean))];
-const jornadaFirstMatchMap = new Map<string | null, number>();
-jornadaFirstMatchMap.set(null, Infinity);
+// Datos para calcular estados de bloqueo (igual que predictions/index.astro)
+function toBoliviaDay(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('es-BO', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
+  });
+}
 
-if (jornadasEnDashboard.length > 0) {
-  const { data: allJornadaMatches } = await supabase
-    .from('matches')
-    .select('jornada, match_date')
-    .in('jornada', jornadasEnDashboard);
-  for (const m of allJornadaMatches ?? []) {
-    const t = new Date(m.match_date).getTime();
-    const prev = jornadaFirstMatchMap.get(m.jornada) ?? Infinity;
-    jornadaFirstMatchMap.set(m.jornada, Math.min(prev, t));
-  }
+const daysWithStartedMatch = new Set(
+  (startedMatchData ?? []).map((m: any) => toBoliviaDay(m.match_date))
+);
+const hasMatchInProgress = (startedMatchData ?? []).some((m: any) => !m.is_finished);
+
+// Agrupa próximos partidos por día Bolivia para calcular primer partido del día
+const upcomingByDay = new Map<string, any[]>();
+for (const m of (proximosPartidos ?? [])) {
+  const key = toBoliviaDay(m.match_date);
+  if (!upcomingByDay.has(key)) upcomingByDay.set(key, []);
+  upcomingByDay.get(key)!.push(m);
+}
+
+function getMatchLockState(m: any): 'prevPending' | 'ongoingLock' | 'closed' | 'open' {
+  const dayKey = toBoliviaDay(m.match_date);
+  const dayMatches = upcomingByDay.get(dayKey) ?? [m];
+  const firstTime = Math.min(...dayMatches.map((dm: any) => new Date(dm.match_date).getTime()));
+  const nowMs = betaNowMs();
+
+  // Regla 2h → cerrado simple
+  if (firstTime - nowMs < 2 * 3600 * 1000) return 'closed';
+
+  // Mismo día ya empezó → ongoingLock
+  const sameDayStarted = daysWithStartedMatch.has(dayKey);
+
+  // Partido anterior sin terminar → prevPending (tiene prioridad sobre ongoingLock)
+  const hasPrevUnfinished = (startedMatchData ?? []).some(
+    (sm: any) => !sm.is_finished && new Date(sm.match_date).getTime() < firstTime
+  );
+  if (!sameDayStarted && hasPrevUnfinished) return 'prevPending';
+
+  if (sameDayStarted || hasMatchInProgress) return 'ongoingLock';
+
+  return 'open';
 }
 
 // Prediction status for upcoming matches
@@ -116,12 +144,6 @@ function tiempoRestante(matchDate: string): string {
   return `${h}h ${m}m`;
 }
 
-function cierre2h(jornada: string | null, matchDate: string): boolean {
-  const firstTime = jornada !== null
-    ? (jornadaFirstMatchMap.get(jornada) ?? new Date(matchDate).getTime())
-    : new Date(matchDate).getTime();
-  return firstTime - betaNowMs() < 2 * 3600 * 1000;
-}
 
 type StandingRow = {
   id: string;
@@ -441,17 +463,31 @@ function accentLine(i: number, isMe: boolean) {
         <h2 class="font-display text-2xl text-white tracking-wide">PRÓXIMOS PARTIDOS</h2>
         <div class="grid gap-3 sm:grid-cols-2">
           {proximosPartidos.map((m: any) => {
-            const closed = cierre2h(m.jornada, m.match_date);
+            const lockState = getMatchLockState(m);
+            const isOpen = lockState === 'open';
             const hasPredicted = predictedSet.has(m.id);
             return (
-              <div class={`bg-brand-900 border rounded-2xl p-4 space-y-3 transition ${closed ? 'border-fifared/40' : 'border-brand-700/60'}`}>
+              <div class={`bg-brand-900 border rounded-2xl p-4 space-y-3 transition ${
+                lockState === 'closed'      ? 'border-fifared/40' :
+                lockState === 'ongoingLock' ? 'border-amber-500/30' :
+                lockState === 'prevPending' ? 'border-brand-700/40' :
+                'border-brand-700/60'
+              }`}>
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-slate-500 uppercase tracking-wide">
                     {m.stage === 'group' ? `Grupo ${m.group_name}` : m.round}
                     {m.jornada && <span class="ml-1 text-brand-600">· {m.jornada}</span>}
                   </span>
-                  <span class={`font-semibold ${closed ? 'text-fifared' : 'text-gol'}`}>
-                    {closed ? '🔒 Cerrado' : `⏱ ${tiempoRestante(m.match_date)}`}
+                  <span class={`font-semibold ${
+                    lockState === 'closed'      ? 'text-fifared' :
+                    lockState === 'ongoingLock' ? 'text-amber-400' :
+                    lockState === 'prevPending' ? 'text-slate-500' :
+                    'text-gol'
+                  }`}>
+                    {lockState === 'closed'      ? '🔒 Cerrado' :
+                     lockState === 'ongoingLock' ? '⏳ En curso' :
+                     lockState === 'prevPending' ? '⏳ Pendiente' :
+                     `⏱ ${tiempoRestante(m.match_date)}`}
                   </span>
                 </div>
                 <div class="flex items-center justify-between text-base font-semibold text-white">
@@ -466,18 +502,28 @@ function accentLine(i: number, isMe: boolean) {
                       timeZone: 'America/La_Paz',
                     })}
                   </div>
-                  {!closed && hasPredicted && (
+                  {isOpen && hasPredicted && (
                     <span class="text-xs text-gol font-medium">✓ Pronosticado</span>
                   )}
-                  {!closed && !hasPredicted && (
+                  {isOpen && !hasPredicted && (
                     <span class="text-xs text-amarilla font-medium">⚠ Sin pronóstico</span>
                   )}
                 </div>
-                {!closed && (
+                {isOpen ? (
                   <a href={`/predictions/${m.id}`}
                     class={`block text-center text-sm font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px] flex items-center justify-center ${hasPredicted ? 'bg-brand-800 text-slate-300 border border-brand-700' : 'bg-gold text-brand-950'}`}>
                     {hasPredicted ? 'Editar pronóstico →' : 'Hacer pronóstico →'}
                   </a>
+                ) : (
+                  <div class={`text-center text-sm font-semibold py-3 rounded-xl min-h-12 flex items-center justify-center ${
+                    lockState === 'closed'      ? 'bg-fifared/10 text-fifared border border-fifared/30' :
+                    lockState === 'ongoingLock' ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' :
+                    'bg-brand-800/60 text-slate-600 border border-brand-700/40'
+                  }`}>
+                    {lockState === 'closed'      ? '🔒 Pronóstico cerrado' :
+                     lockState === 'ongoingLock' ? '⏳ Esperá que termine' :
+                     '⏳ Disponible al terminar los anteriores'}
+                  </div>
                 )}
               </div>
             );
