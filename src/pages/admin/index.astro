@@ -313,13 +313,13 @@ function formatDate(d: string) {
       })()}
 
       {/* Lista compacta */}
-      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden divide-y divide-brand-800/60">
+      <div class="flex flex-col gap-2">
         {(profiles ?? []).filter((p: any) => !p.es_referi).map((p: any) => {
           const isExpulsado = p.expulsado === true;
           const userSanctions = sanctionsByUser.get(p.id) ?? [];
           const hasActiveRed = userSanctions.some((s: any) => s.type === 'red' || s.type === 'double_red');
           return (
-            <div class={`px-3 py-2.5 space-y-2 ${isExpulsado ? 'bg-fifared/5' : ''}`}>
+            <div class={`rounded-xl border px-3 py-3 space-y-2.5 ${isExpulsado ? 'bg-fifared/5 border-fifared/20' : 'bg-brand-900 border-brand-700/60'}`}>
 
               {/* Fila 1: nombre + chips sanciones + pts + pago */}
               <div class="flex items-center gap-2 flex-wrap">
