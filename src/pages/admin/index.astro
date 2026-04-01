@@ -212,6 +212,7 @@ function formatDate(d: string) {
           <div id="test-results" class="hidden mt-3 space-y-1.5"></div>
         </div>
 
+        {import.meta.env.PUBLIC_BETA === 'true' && (
         <div class="border-t border-brand-800 pt-3 grid grid-cols-3 gap-2">
           <div class="space-y-1">
             <form method="POST" action="/api/admin/seed-demo" id="form-seed">
@@ -273,6 +274,26 @@ function formatDate(d: string) {
             <p class="text-xs text-slate-600 text-center">Consolidado</p>
           </div>
         </div>
+        )}
+
+        {import.meta.env.PUBLIC_BETA !== 'true' && (
+        <div class="border-t border-brand-800 pt-3 grid grid-cols-2 gap-2">
+          <div class="space-y-1">
+            <a href="/admin/usuarios"
+              class="flex items-center justify-center w-full bg-brand-800 border border-brand-700 text-slate-300 text-sm font-semibold px-2 py-3 rounded-xl transition hover:border-brand-600 min-h-[48px]">
+              👥 Usuarios
+            </a>
+            <p class="text-xs text-slate-600 text-center">Crear / eliminar</p>
+          </div>
+          <div class="space-y-1">
+            <a href="/admin/pronosticos"
+              class="flex items-center justify-center w-full bg-brand-800 border border-brand-700 text-slate-300 text-sm font-semibold px-2 py-3 rounded-xl transition hover:border-brand-600 min-h-[48px]">
+              📋 Pronósticos
+            </a>
+            <p class="text-xs text-slate-600 text-center">Consolidado</p>
+          </div>
+        </div>
+        )}
 
       </div>
     </section>
