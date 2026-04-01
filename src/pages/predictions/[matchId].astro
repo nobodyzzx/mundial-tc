@@ -35,10 +35,22 @@ const jornadaQuery = match.jornada
         .lt('match_date', new Date(start.getTime() + 24 * 3600 * 1000).toISOString());
     })();
 
+const now = betaNowMs();
 const { data: jornadaMatches } = await jornadaQuery;
 const firstMatchTime = Math.min(...(jornadaMatches ?? []).map(m => new Date(m.match_date).getTime()));
-const isClosed = firstMatchTime - betaNowMs() < 2 * 3600 * 1000;
-if (isClosed || match.is_finished) return Astro.redirect('/predictions?error=cerrado');
+const isClosed = firstMatchTime - now < 2 * 3600 * 1000;
+
+// Bloqueo por partido en curso: si hay algún partido que empezó pero no terminó,
+// y este partido todavía no empezó → bloqueado
+const { data: inProgressMatches } = await supabase
+  .from('matches')
+  .select('id')
+  .eq('is_finished', false)
+  .lte('match_date', new Date(now).toISOString());
+const thisMatchNotStarted = new Date(match.match_date).getTime() > now;
+const isLockedByInProgress = (inProgressMatches ?? []).length > 0 && thisMatchNotStarted;
+
+if (isClosed || match.is_finished || isLockedByInProgress) return Astro.redirect('/predictions?error=cerrado');
 
 const { data: existing } = await supabase
   .from('predictions')

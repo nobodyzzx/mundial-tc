@@ -58,9 +58,17 @@ for (const m of (matches ?? []) as MatchRow[]) {
   grouped.get(key)!.push(m);
 }
 
+const now = betaNowMs();
+// Partido en curso: ya empezó pero no terminó (matches solo trae is_finished=false)
+const hasMatchInProgress = (matches ?? []).some(m => new Date(m.match_date).getTime() <= now);
+
 function isJornadaClosed(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  return firstTime - betaNowMs() < 2 * 3600 * 1000;
+  // Cierre normal: menos de 2 horas para el primer partido del día
+  if (firstTime - now < 2 * 3600 * 1000) return true;
+  // Cierre por partido en curso: si hay un partido activo, los días siguientes se bloquean
+  if (hasMatchInProgress && firstTime > now) return true;
+  return false;
 }
 
 function buildShareData(dayMatches: MatchRow[], username: string) {
