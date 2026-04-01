@@ -285,7 +285,7 @@ function formatDate(d: string) {
 
       {/* Stats rápidas */}
       {(() => {
-        const jug = (profiles ?? []).filter((p: any) => !p.es_referi);
+        const jug = (profiles ?? []).filter((p: any) => p.participa);
         const pagados   = jug.filter((p: any) => p.pago_70 && p.pago_50).length;
         const parcial   = jug.filter((p: any) => p.pago_70 && !p.pago_50).length;
         const sancion   = jug.filter((p: any) => (sanctionsByUser.get(p.id) ?? []).length > 0).length;
@@ -314,7 +314,7 @@ function formatDate(d: string) {
 
       {/* Lista compacta */}
       <div class="flex flex-col gap-2">
-        {(profiles ?? []).filter((p: any) => !p.es_referi).map((p: any) => {
+        {(profiles ?? []).filter((p: any) => p.participa).map((p: any) => {
           const isExpulsado = p.expulsado === true;
           const userSanctions = sanctionsByUser.get(p.id) ?? [];
           const hasActiveRed = userSanctions.some((s: any) => s.type === 'red' || s.type === 'double_red');
