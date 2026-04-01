@@ -40,18 +40,26 @@ const { data: jornadaMatches } = await jornadaQuery;
 const firstMatchTime = Math.min(...(jornadaMatches ?? []).map(m => new Date(m.match_date).getTime()));
 const isClosed = firstMatchTime - now < 2 * 3600 * 1000;
 
-// Bloqueo por partido en curso: si hay algún partido que empezó pero no terminó,
-// y este partido todavía no empezó → bloqueado
-const { data: inProgressMatches } = await supabase
+// Bloqueo por partido del día o en curso:
+// - Mismo día: si ya hubo algún partido de este día (terminado o no) → bloqueado
+// - Día siguiente: si hay algún partido activo (no terminado) → bloqueado
+const { data: startedMatches } = await supabase
   .from('matches')
-  .select('id')
-  .eq('is_finished', false)
+  .select('match_date, is_finished')
   .lte('match_date', new Date(now).toISOString());
 const thisMatchNotStarted = new Date(match.match_date).getTime() > now;
-const isLockedByInProgress = (inProgressMatches ?? []).length > 0 && thisMatchNotStarted;
+const thisMatchDay = new Date(match.match_date).toLocaleDateString('es-BO', {
+  weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
+});
+const isLockedByStarted = thisMatchNotStarted && (startedMatches ?? []).some(m => {
+  const mDay = new Date(m.match_date).toLocaleDateString('es-BO', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
+  });
+  return mDay === thisMatchDay || !m.is_finished; // mismo día o en curso
+});
 
 if (isClosed || match.is_finished) return Astro.redirect('/predictions?error=cerrado');
-if (isLockedByInProgress) return Astro.redirect('/predictions?error=en_curso');
+if (isLockedByStarted) return Astro.redirect('/predictions?error=en_curso');
 
 const { data: existing } = await supabase
   .from('predictions')

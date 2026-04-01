@@ -14,14 +14,18 @@ const { data: { user } } = await supabase.auth.setSession({
 });
 if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
 
+const nowMs = betaNowMs();
+
 const [
   { data: matches },
   { data: navProfile },
   { data: myPredictions },
+  { data: startedMatchData },
 ] = await Promise.all([
   supabase.from('matches').select('*').eq('is_finished', false).not('home_team', 'ilike', 'TBD%').not('away_team', 'ilike', 'TBD%').not('home_team', 'ilike', 'Winner%').not('away_team', 'ilike', 'Winner%').order('match_date', { ascending: true }),
   supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50').eq('id', user.id).single(),
   supabase.from('predictions').select('match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties').eq('user_id', user.id),
+  supabase.from('matches').select('match_date, is_finished').lte('match_date', new Date(nowMs).toISOString()),
 ]);
 
 const predMap = new Map(myPredictions?.map(p => [p.match_id, p]) ?? []);
@@ -58,20 +62,36 @@ for (const m of (matches ?? []) as MatchRow[]) {
   grouped.get(key)!.push(m);
 }
 
-const now = betaNowMs();
-// Partido en curso: ya empezó pero no terminó (matches solo trae is_finished=false)
-const hasMatchInProgress = (matches ?? []).some(m => new Date(m.match_date).getTime() <= now);
+const now = nowMs;
+
+function toBoliviaDay(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('es-BO', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
+  });
+}
+
+// Días que ya tuvieron al menos un partido iniciado (terminado o en curso)
+const daysWithStartedMatch = new Set(
+  (startedMatchData ?? []).map(m => toBoliviaDay(m.match_date))
+);
+// Hay algún partido en curso ahora mismo (started + unfinished)
+const hasMatchInProgress = (startedMatchData ?? []).some(m => !m.is_finished);
 
 function isJornadaClosed(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
+  // Cierre normal: menos de 2h para el primer partido del día
   if (firstTime - now < 2 * 3600 * 1000) return true;
+  // Mismo día: si ya hubo un partido de este día (aunque terminó), bloquear los restantes
+  if (daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date))) return true;
+  // Día siguiente: si hay algún partido en curso, bloquear futuros
   if (hasMatchInProgress && firstTime > now) return true;
   return false;
 }
 
 function isLockedByOngoing(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  return hasMatchInProgress && firstTime > now && firstTime - now >= 2 * 3600 * 1000;
+  if (firstTime - now < 2 * 3600 * 1000) return false; // ya lo maneja el estado cerrado normal
+  return daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date)) || hasMatchInProgress;
 }
 
 function buildShareData(dayMatches: MatchRow[], username: string) {
