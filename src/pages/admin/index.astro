@@ -116,6 +116,12 @@ function formatDate(d: string) {
       </h2>
       <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-4 space-y-4">
 
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-500">Proveedor:</span>
+          <a href="https://www.football-data.org" target="_blank" rel="noopener"
+            class="text-xs text-gold/80 hover:text-gold transition font-mono">football-data.org</a>
+        </div>
+
         <div class="text-xs text-slate-500 space-y-1">
           <span class="text-slate-400">Códigos de torneo:</span>
           <span class="block">WC = Mundial · CL = Champions · PL = Premier · PD = La Liga · SA = Serie A</span>
@@ -427,8 +433,11 @@ function formatDate(d: string) {
           </span>
         </div>
         <p class="text-xs text-slate-600">
-          El cron se activa deployando la app y ejecutando la migración
-          <code class="text-slate-500 bg-brand-800 px-1 rounded">20260101000008_cron_sync.sql</code>
+          Cron via <span class="text-slate-500">pg_cron + pg_net</span> en Supabase —
+          <code class="text-slate-400 bg-brand-800 px-1 rounded">*/5 16-23,0-5 * * *</code>
+          (cada 5 min · 12:00–01:59 Bolivia · 2 llamadas/run a football-data.org).
+          Se activa ejecutando
+          <code class="text-slate-400 bg-brand-800 px-1 rounded">20260101000008_cron_sync.sql</code>
           en DataGrip con la URL de producción.
         </p>
         {lastSyncedMatch && (

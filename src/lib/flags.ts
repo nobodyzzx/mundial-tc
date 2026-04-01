@@ -26,7 +26,7 @@ export const ISO_CODES: Record<string, string> = {
   'Rep. Checa':'CZ','Czech Republic':'CZ','Czechia':'CZ',
   'Serbia':'RS','Hungria':'HU','Hungary':'HU','Eslovenia':'SI','Slovenia':'SI',
   'Grecia':'GR','Greece':'GR','Finlandia':'FI','Finland':'FI',
-  'Bosnia and Herzegovina':'BA','Bosnia':'BA','Georgia':'GE',
+  'Bosnia and Herzegovina':'BA','Bosnia-Herzegovina':'BA','Bosnia y Herzegovina':'BA','Bosnia':'BA','Georgia':'GE',
   // ── África ──
   'Senegal':'SN','Marruecos':'MA','Morocco':'MA','Ghana':'GH',
   'Sudafrica':'ZA','South Africa':'ZA','Argelia':'DZ','Algeria':'DZ',

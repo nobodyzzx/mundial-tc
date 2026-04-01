@@ -20,12 +20,13 @@ SELECT cron.unschedule('polla-sync-scores') WHERE EXISTS (
 );
 
 -- Crear el cron job:
--- Corre cada 5 minutos, solo en horario de partidos del Mundial
--- (11:00 - 23:59 UTC, que es 07:00 - 19:59 hora Bolivia UTC-4)
--- Ajustá el schedule según las jornadas del torneo.
+-- Corre cada 5 minutos en ventana de partidos del Mundial 2026.
+-- Partidos en Bolivia: 12:00 - 00:00 (más tarde con tiempos extra hasta ~01:30).
+-- 16:00-23:59 UTC = 12:00-19:59 Bolivia
+-- 00:00-05:59 UTC = 20:00-01:59 Bolivia (partidos nocturnos + buffer)
 SELECT cron.schedule(
   'polla-sync-scores',
-  '*/5 11-23 * * *',
+  '*/5 16-23,0-5 * * *',
   $$
   SELECT net.http_get(
     url     := 'https://TU-APP.vercel.app/api/cron/sync?secret=polla2026secret',
