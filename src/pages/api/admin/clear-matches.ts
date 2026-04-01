@@ -20,23 +20,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   console.warn(`[AUDIT] clear-matches ejecutado por ${admin.username} (${admin.user.id}) a las ${new Date().toISOString()}`);
 
-  const { error: predError } = await supabaseAdmin
-    .from('predictions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  if (predError) return redirect('/admin?err=' + encodeURIComponent('Error borrando predicciones'));
-
-  const { error: sanctionError } = await supabaseAdmin
-    .from('sanctions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  if (sanctionError) return redirect('/admin?err=' + encodeURIComponent('Error borrando sanciones'));
-
-  const { error: matchError } = await supabaseAdmin
-    .from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  if (matchError) return redirect('/admin?err=' + encodeURIComponent('Error borrando partidos'));
-
-  const { error: ptsError } = await supabaseAdmin
-    .from('profiles')
-    .update({ puntos_totales: 0, expulsado: false, pago_70: false, pago_50: false })
-    .neq('id', '00000000-0000-0000-0000-000000000000');
-  if (ptsError) return redirect('/admin?err=' + encodeURIComponent('Datos borrados pero error reseteando perfiles'));
+  // clear_competition() es SECURITY DEFINER — bypasea la RULE no_delete_predictions
+  const { error } = await supabaseAdmin.rpc('clear_competition');
+  if (error) return redirect('/admin?err=' + encodeURIComponent('Error al limpiar: ' + error.message));
 
   return redirect('/admin?msg=' + encodeURIComponent('Competición limpiada · partidos, pronósticos, sanciones y perfiles reseteados'));
 };
