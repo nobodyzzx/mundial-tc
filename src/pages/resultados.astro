@@ -81,6 +81,9 @@ const shareData = jornadaOrder.map((jornada) => ({
     awayISO: isoForTeam(m.away_team),
     hs: m.home_score,
     as_: m.away_score,
+    homePen: m.home_pen ?? null,
+    awayPen: m.away_pen ?? null,
+    winnerPen: m.winner_penalties ?? null,
     players: players.map((pl: any) => {
       const pred = predMap[m.id]?.[pl.id];
       return {
@@ -88,6 +91,9 @@ const shareData = jornadaOrder.map((jornada) => ({
         uh: pred?.user_home ?? null,
         ua: pred?.user_away ?? null,
         pts: pred?.points_earned ?? null,
+        uhp: pred?.user_home_pen ?? null,
+        uap: pred?.user_away_pen ?? null,
+        uwp: pred?.user_winner_penalties ?? null,
       };
     }),
   })),
@@ -333,7 +339,8 @@ function predStyle(pred: any, m: any): string {
   type MatchShare = {
     home: string; away: string; homeISO: string; awayISO: string;
     hs: number; as_: number;
-    players: Array<{ name: string; uh: number|null; ua: number|null; pts: number|null }>;
+    homePen: number|null; awayPen: number|null; winnerPen: string|null;
+    players: Array<{ name: string; uh: number|null; ua: number|null; pts: number|null; uhp: number|null; uap: number|null; uwp: string|null }>;
   };
   type JornadaShare = { jornada: string; matches: MatchShare[] };
 
@@ -348,6 +355,34 @@ function predStyle(pred: any, m: any): string {
     return pr === mr ? '✅' : '❌';
   }
 
+  function matchHeader(m: MatchShare, hf: string, af: string): string {
+    let line = `\u26BD *${m.home} ${hf} ${m.hs}\u2013${m.as_} ${af} ${m.away}*`;
+    if (m.winnerPen) {
+      const winner = m.winnerPen === 'home' ? m.home : m.away;
+      const penScore = m.homePen !== null ? `${m.homePen}\u2013${m.awayPen} pen` : 'pen';
+      line += `\n_(${penScore} \u00B7 clasifica ${winner})_`;
+    }
+    return line;
+  }
+
+  function playerLine(pl: MatchShare['players'][0], m: MatchShare): string {
+    if (pl.uh === null || pl.ua === null) return `\u2796 ${pl.name}`;
+    const icon = matchIcon(pl as any, m);
+    const score = `${pl.uh}\u2013${pl.ua}`;
+    const pts = pl.pts ?? 0;
+    // Solo agregar pen si el pronóstico fue empate
+    let penSuffix = '';
+    if (pl.uh === pl.ua && pl.uwp) {
+      if (pl.uhp !== null) {
+        penSuffix = ` (pen ${pl.uhp}\u2013${pl.uap})`;
+      } else {
+        const w = pl.uwp === 'home' ? m.home : m.away;
+        penSuffix = ` (pen ${w})`;
+      }
+    }
+    return `${icon} ${pl.name} \u2192 ${score}${penSuffix} (${pts}pts)`;
+  }
+
   function shareJornada(ji: number) {
     const data = getData();
     const j = data[ji];
@@ -360,16 +395,10 @@ function predStyle(pred: any, m: any): string {
     const playerTotals: Record<string, number> = {};
 
     for (const m of j.matches) {
-      text += `*${m.home} ${hf(m)} ${m.hs}\u2013${m.as_} ${af(m)} ${m.away}*\n`;
+      text += matchHeader(m, hf(m), af(m)) + '\n';
       for (const pl of m.players) {
-        if (pl.uh === null || pl.ua === null) {
-          text += `\u2796 ${pl.name}\n`;
-        } else {
-          const icon = matchIcon(pl as any, m);
-          const pts = pl.pts ?? 0;
-          text += `${icon} ${pl.name} \u2192 ${pl.uh}\u2013${pl.ua} (${pts}pts)\n`;
-          playerTotals[pl.name] = (playerTotals[pl.name] ?? 0) + pts;
-        }
+        text += playerLine(pl, m) + '\n';
+        if (pl.uh !== null) playerTotals[pl.name] = (playerTotals[pl.name] ?? 0) + (pl.pts ?? 0);
       }
       text += '\n';
     }
@@ -395,17 +424,12 @@ function predStyle(pred: any, m: any): string {
     const hf = flagFromISO(m.homeISO);
     const af = flagFromISO(m.awayISO);
 
-    let text = `\u26BD *${m.home} ${hf} ${m.hs}\u2013${m.as_} ${af} ${m.away}*\n`;
+    let text = matchHeader(m, hf, af) + '\n';
     text += `_${j.jornada} \u00B7 Polla 2026_\n\n`;
 
     const sorted = [...m.players].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0));
     for (const pl of sorted) {
-      if (pl.uh === null || pl.ua === null) {
-        text += `\u2796 ${pl.name}\n`;
-      } else {
-        const icon = matchIcon(pl as any, m);
-        text += `${icon} ${pl.name} \u2192 ${pl.uh}\u2013${pl.ua} (${pl.pts ?? 0}pts)\n`;
-      }
+      text += playerLine(pl, m) + '\n';
     }
 
     const total = sorted.reduce((s, p) => s + (p.pts ?? 0), 0);
