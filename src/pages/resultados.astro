@@ -173,8 +173,8 @@ function predStyle(pred: any, m: any): string {
                     {m.winner_penalties && (
                       <div class="text-xs text-gold/70 leading-none mt-0.5">
                         {m.home_pen !== null
-                          ? `pen ${m.home_pen}–${m.away_pen}`
-                          : `pen: ${m.winner_penalties === 'home' ? m.home_team : m.away_team}`
+                          ? `pen ${m.home_pen}–${m.away_pen} · ${m.winner_penalties === 'home' ? m.home_team : m.away_team}`
+                          : `pen · ${m.winner_penalties === 'home' ? m.home_team : m.away_team}`
                         }
                       </div>
                     )}
