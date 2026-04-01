@@ -160,6 +160,26 @@ function formatDate(d: string) {
       </span>
     </div>
 
+    <!-- ── ACCESOS RÁPIDOS ── -->
+    <div class="grid grid-cols-3 gap-3">
+      <a href="/admin/usuarios"
+        class="flex flex-col items-center justify-center gap-1.5 bg-brand-900 border border-brand-700/60 rounded-2xl py-4 px-2 hover:border-brand-600 transition min-h-[80px]">
+        <span class="text-2xl">👥</span>
+        <span class="text-xs font-semibold text-slate-300">Usuarios</span>
+      </a>
+      <a href="/admin/pronosticos"
+        class="flex flex-col items-center justify-center gap-1.5 bg-brand-900 border border-brand-700/60 rounded-2xl py-4 px-2 hover:border-brand-600 transition min-h-[80px]">
+        <span class="text-2xl">📋</span>
+        <span class="text-xs font-semibold text-slate-300">Pronósticos</span>
+      </a>
+      <button id="btn-run-tests-quick"
+        class="flex flex-col items-center justify-center gap-1.5 bg-brand-900 border border-brand-700/60 rounded-2xl py-4 px-2 hover:border-brand-600 transition min-h-[80px]">
+        <span class="text-2xl">🧪</span>
+        <span class="text-xs font-semibold text-slate-300">Tests</span>
+      </button>
+    </div>
+    <div id="test-results" class="hidden space-y-1.5"></div>
+
     <!-- ── API DE FÚTBOL ── -->
     <section class="space-y-3">
       <h2 class="font-display text-2xl text-white tracking-wide border-b border-brand-800 pb-2">
@@ -204,16 +224,8 @@ function formatDate(d: string) {
           </form>
         </div>
 
-        <div class="border-t border-brand-800 pt-3">
-          <button id="btn-run-tests"
-            class="w-full bg-brand-800/40 border border-brand-700/40 text-slate-400 text-sm font-semibold px-3 py-3 rounded-xl transition active:bg-brand-700 min-h-[48px]">
-            🧪 Correr Tests del Reglamento
-          </button>
-          <div id="test-results" class="hidden mt-3 space-y-1.5"></div>
-        </div>
-
         {import.meta.env.PUBLIC_BETA === 'true' && (
-        <div class="border-t border-brand-800 pt-3 grid grid-cols-3 gap-2">
+        <div class="border-t border-brand-800 pt-3 grid grid-cols-2 gap-2">
           <div class="space-y-1">
             <form method="POST" action="/api/admin/seed-demo" id="form-seed">
               <button type="submit"
@@ -242,53 +254,11 @@ function formatDate(d: string) {
             <p class="text-xs text-slate-600 text-center">Todo al pasado</p>
           </div>
           <div class="space-y-1">
-            <form method="POST" action="/api/admin/simulate-results" id="form-simulate-results">
-              <button type="submit"
-                class="w-full bg-gol/10 border border-gol/30 text-gol text-sm font-semibold px-2 py-3 rounded-xl transition active:bg-gol/20 min-h-[48px]">
-                ⚽ Simular Resultados
-              </button>
-            </form>
-            <p class="text-xs text-slate-600 text-center">Marca partidos jugados</p>
-          </div>
-          <div class="space-y-1">
             <button type="button" onclick="document.getElementById('modal-clear').classList.remove('hidden')"
               class="w-full bg-fifared/8 border border-fifared/30 text-fifared text-sm font-semibold px-2 py-3 rounded-xl transition active:bg-fifared/20 min-h-[48px]">
               🗑️ Limpiar Todo
             </button>
             <p class="text-xs text-slate-600 text-center">Resetea todo</p>
-          </div>
-          <div class="space-y-1">
-            <a href="/admin/usuarios"
-              class="flex items-center justify-center w-full bg-brand-800 border border-brand-700 text-slate-300 text-sm font-semibold px-2 py-3 rounded-xl transition hover:border-brand-600 min-h-[48px]">
-              👥 Usuarios
-            </a>
-            <p class="text-xs text-slate-600 text-center">Crear / eliminar</p>
-          </div>
-          <div class="space-y-1">
-            <a href="/admin/pronosticos"
-              class="flex items-center justify-center w-full bg-brand-800 border border-brand-700 text-slate-300 text-sm font-semibold px-2 py-3 rounded-xl transition hover:border-brand-600 min-h-[48px]">
-              📋 Pronósticos
-            </a>
-            <p class="text-xs text-slate-600 text-center">Consolidado</p>
-          </div>
-        </div>
-        )}
-
-        {import.meta.env.PUBLIC_BETA !== 'true' && (
-        <div class="border-t border-brand-800 pt-3 grid grid-cols-2 gap-2">
-          <div class="space-y-1">
-            <a href="/admin/usuarios"
-              class="flex items-center justify-center w-full bg-brand-800 border border-brand-700 text-slate-300 text-sm font-semibold px-2 py-3 rounded-xl transition hover:border-brand-600 min-h-[48px]">
-              👥 Usuarios
-            </a>
-            <p class="text-xs text-slate-600 text-center">Crear / eliminar</p>
-          </div>
-          <div class="space-y-1">
-            <a href="/admin/pronosticos"
-              class="flex items-center justify-center w-full bg-brand-800 border border-brand-700 text-slate-300 text-sm font-semibold px-2 py-3 rounded-xl transition hover:border-brand-600 min-h-[48px]">
-              📋 Pronósticos
-            </a>
-            <p class="text-xs text-slate-600 text-center">Consolidado</p>
           </div>
         </div>
         )}
@@ -844,12 +814,12 @@ function formatDate(d: string) {
     }
 
     // Tests del reglamento
-    const btnTests = document.getElementById('btn-run-tests');
+    const btnTests = document.getElementById('btn-run-tests-quick');
     const testResultsDiv = document.getElementById('test-results');
     if (btnTests && testResultsDiv && !btnTests._testsInit) {
       btnTests._testsInit = true;
       btnTests.addEventListener('click', async () => {
-        btnTests.textContent = '⏳ Corriendo tests…';
+        btnTests.querySelector('span:last-child').textContent = 'Calculando…';
         btnTests.disabled = true;
         testResultsDiv.classList.remove('hidden');
         testResultsDiv.innerHTML = '<p class="text-xs text-slate-500">Calculando…</p>';
@@ -880,7 +850,7 @@ function formatDate(d: string) {
         } catch (e) {
           testResultsDiv.innerHTML = `<p class="text-xs text-fifared">Error de red</p>`;
         }
-        btnTests.textContent = '🧪 Correr Tests del Reglamento';
+        btnTests.querySelector('span:last-child').textContent = 'Tests';
         btnTests.disabled = false;
       });
     }
