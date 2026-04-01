@@ -167,7 +167,7 @@ function predStyle(pred: any, m: any): string {
                 <div class="flex items-center justify-center gap-3 mt-2">
                   <span class="text-sm font-semibold text-white flex-1 text-right truncate">{m.home_team} {teamFlag(m.home_team)}</span>
                   <div class="text-center min-w-[56px]">
-                    <div class="font-display text-2xl text-white leading-none">
+                    <div class="font-display text-3xl text-white leading-none">
                       {m.home_score} – {m.away_score}
                     </div>
                     {m.winner_penalties && (
@@ -184,12 +184,12 @@ function predStyle(pred: any, m: any): string {
               </div>
 
               <div class="overflow-x-auto">
-                <table class="w-full text-xs">
+                <table class="w-full text-sm">
                   <thead>
                     <tr class="border-b border-brand-800">
-                      <th class="px-3 py-2 text-left text-slate-500 font-medium">Jugador</th>
-                      <th class="px-3 py-2 text-center text-slate-500 font-medium">Pronóstico</th>
-                      <th class="px-3 py-2 text-center text-slate-500 font-medium">Pts</th>
+                      <th class="px-3 py-2 text-left text-slate-500 font-medium text-xs">Jugador</th>
+                      <th class="px-3 py-2 text-center text-slate-500 font-medium text-xs">Pronóstico</th>
+                      <th class="px-3 py-2 text-center text-slate-500 font-medium text-xs">Pts</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -226,7 +226,7 @@ function predStyle(pred: any, m: any): string {
                             )}
                           </td>
                           <td class="px-3 py-2 text-center">
-                            <span class={`font-bold ${ptsColor(pred?.points_earned ?? null)}`}>
+                            <span class={`font-display text-lg font-bold ${ptsColor(pred?.points_earned ?? null)}`}>
                               {pred ? (pred.points_earned ?? 0) : '—'}
                             </span>
                           </td>
