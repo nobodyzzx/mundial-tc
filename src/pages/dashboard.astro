@@ -3,6 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
+import { spanishName } from '@/lib/isoFlags';
 
 // Auth guard
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -267,7 +268,7 @@ function accentLine(i: number, isMe: boolean) {
         <div class="bg-brand-900 border border-brand-800 rounded-2xl px-4 py-3 flex flex-col gap-1">
           <span class="text-xs text-slate-500 uppercase tracking-wide">Próximo partido</span>
           <span class="font-display text-3xl text-white">{countdownLabel(nextMatch.match_date)}</span>
-          <span class="text-xs text-slate-600 truncate">{nextMatch.home_team} vs {nextMatch.away_team}</span>
+          <span class="text-xs text-slate-600 truncate">{spanishName(nextMatch.home_team)} vs {spanishName(nextMatch.away_team)}</span>
         </div>
       ) : (
         <div class="bg-brand-900 border border-brand-800 rounded-2xl px-4 py-3 flex flex-col gap-1">
@@ -418,11 +419,11 @@ function accentLine(i: number, isMe: boolean) {
             <div class="bg-brand-900 border border-brand-800/60 rounded-xl px-4 py-3 flex items-center gap-3">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-2 text-sm font-semibold text-white">
-                  <span class="truncate flex-1">{m.home_team}</span>
+                  <span class="truncate flex-1">{spanishName(m.home_team)}</span>
                   <span class="font-display text-lg text-gold shrink-0 tabular-nums">
                     {m.home_score} – {m.away_score}
                   </span>
-                  <span class="truncate flex-1 text-right">{m.away_team}</span>
+                  <span class="truncate flex-1 text-right">{spanishName(m.away_team)}</span>
                 </div>
               </div>
             </div>
@@ -454,9 +455,9 @@ function accentLine(i: number, isMe: boolean) {
                   </span>
                 </div>
                 <div class="flex items-center justify-between text-base font-semibold text-white">
-                  <span class="flex-1">{m.home_team}</span>
+                  <span class="flex-1">{spanishName(m.home_team)}</span>
                   <span class="text-slate-600 text-xs px-2 font-normal">vs</span>
-                  <span class="flex-1 text-right">{m.away_team}</span>
+                  <span class="flex-1 text-right">{spanishName(m.away_team)}</span>
                 </div>
                 <div class="flex items-center justify-between">
                   <div class="text-xs text-slate-600">

@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { flagUrl } from '@/lib/flags';
+import { spanishName } from '@/lib/isoFlags';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -156,7 +157,7 @@ function fmtDateShort(d: string) {
                       <img src={flagUrl(t.team, '20x15')!} width="20" height="15" class="flex-shrink-0 rounded-sm" loading="lazy" />
                     )}
                     <span class={`text-sm font-semibold truncate ${classified ? 'text-white' : i < 2 ? 'text-slate-200' : 'text-slate-400'}`}>
-                      {t.team}
+                      {spanishName(t.team)}
                     </span>
                     {classified && (
                       <span class="text-[9px] text-gold/60 font-bold hidden sm:inline">✓</span>
@@ -192,7 +193,7 @@ function fmtDateShort(d: string) {
                   {matches.map((m: any) => (
                     <div class="px-4 py-2 flex items-center gap-2 text-xs">
                       <div class={`flex-1 flex items-center justify-end gap-1.5 min-w-0 ${m.is_finished ? 'text-slate-300' : 'text-slate-500'}`}>
-                        <span class="truncate">{m.home_team}</span>
+                        <span class="truncate">{spanishName(m.home_team)}</span>
                         {flagUrl(m.home_team, '16x12') && <img src={flagUrl(m.home_team, '16x12')!} width="16" height="12" class="flex-shrink-0 rounded-sm" loading="lazy" />}
                       </div>
                       <div class="flex-shrink-0 text-center w-20">
@@ -204,7 +205,7 @@ function fmtDateShort(d: string) {
                       </div>
                       <div class={`flex-1 flex items-center gap-1.5 min-w-0 ${m.is_finished ? 'text-slate-300' : 'text-slate-500'}`}>
                         {flagUrl(m.away_team, '16x12') && <img src={flagUrl(m.away_team, '16x12')!} width="16" height="12" class="flex-shrink-0 rounded-sm" loading="lazy" />}
-                        <span class="truncate">{m.away_team}</span>
+                        <span class="truncate">{spanishName(m.away_team)}</span>
                       </div>
                     </div>
                   ))}
@@ -299,7 +300,7 @@ function fmtDateShort(d: string) {
                           <div class={`flex items-center justify-end gap-1.5 ${
                             finished ? (homeWon ? 'text-white' : 'text-slate-500') : 'text-slate-200'
                           }`}>
-                            <span class="text-sm font-semibold truncate">{m.home_team}</span>
+                            <span class="text-sm font-semibold truncate">{spanishName(m.home_team)}</span>
                             {flagUrl(m.home_team, '20x15') && <img src={flagUrl(m.home_team, '20x15')!} width="20" height="15" class="flex-shrink-0 rounded-sm" loading="lazy" />}
                           </div>
                         )}
@@ -319,7 +320,7 @@ function fmtDateShort(d: string) {
                                   {m.home_pen !== null ? `(${m.home_pen}–${m.away_pen} pen)` : `(pen)`}
                                 </div>
                                 <div class="text-[9px] text-slate-500">
-                                  {m.winner_penalties === 'home' ? m.home_team : m.away_team}
+                                  {m.winner_penalties === 'home' ? spanishName(m.home_team) : spanishName(m.away_team)}
                                 </div>
                               </>
                             )}
@@ -338,7 +339,7 @@ function fmtDateShort(d: string) {
                             finished ? (awayWon ? 'text-white' : 'text-slate-500') : 'text-slate-200'
                           }`}>
                             {flagUrl(m.away_team, '20x15') && <img src={flagUrl(m.away_team, '20x15')!} width="20" height="15" class="flex-shrink-0 rounded-sm" loading="lazy" />}
-                            <span class="text-sm font-semibold truncate">{m.away_team}</span>
+                            <span class="text-sm font-semibold truncate">{spanishName(m.away_team)}</span>
                           </div>
                         )}
                         {finished && awayWon && <span class="text-[10px] text-gold block text-right">GANADOR</span>}

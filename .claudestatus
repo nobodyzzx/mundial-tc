@@ -1,0 +1,90 @@
+Resumen Ejecutivo — Polla Mundial 2026
+
+  Stack
+
+  Astro SSR + Vercel adapter · Supabase (anon + service_role) · Tailwind CSS
+   · pnpm
+
+  ---
+  Cambios recientes (últimas 2 sesiones)
+
+  Auth refactoring (completo)
+  - Todos los 19 endpoints admin (src/pages/api/admin/*.ts) usan ahora
+  getAdminUser() de @/lib/auth-helpers en lugar de bloques manuales de 14
+  líneas.
+  - Último endpoint migrado: run-tests.ts (también corregido referi.id →
+  admin.user.id).
+
+  UI/UX Mobile-First audit (completo — commits e519cdd y 8811113)
+
+  Fix: CF-01
+  Archivos: predictions/index.astro, predictions/[matchId].astro
+  Qué se hizo: inputmode="numeric" + pattern="[0-9]*" en inputs de goles
+  ────────────────────────────────────────
+  Fix: CF-02
+  Archivos: predictions/[matchId].astro
+  Qué se hizo: Botón submit se deshabilita al enviar (anti-doble-tap)
+  ────────────────────────────────────────
+  Fix: CF-04
+  Archivos: predictions/index.astro, resultados.astro, grupos.astro
+  Qué se hizo: min-h-[44px] en botones share y tabs
+  ────────────────────────────────────────
+  Fix: CF-07
+  Archivos: grupos.astro
+  Qué se hizo: Estadísticas de grupo: solo Pts visible en mobile;
+    PJ/G/E/P/GF:GC/DG ocultos con hidden sm:inline-block
+  ────────────────────────────────────────
+  Fix: DSG-01
+  Archivos: perfil.astro
+  Qué se hizo: Inputs py-3 → py-3.5 (altura uniforme 52px)
+  ────────────────────────────────────────
+  Fix: DSG-02
+  Archivos: login.astro, admin/usuarios.astro, admin/index.astro
+  Qué se hizo: placeholder-slate-600 → placeholder-slate-500 (contraste WCAG
+
+    AA)
+  ────────────────────────────────────────
+  Fix: DSG-03
+  Archivos: dashboard.astro
+  Qué se hizo: Puntos en standings: tabular-nums para alineación de dígitos
+
+  CF-03 y CF-05 descartados (ya estaban resueltos en el código).
+
+  ---
+  Estado actual de la lógica de negocio
+
+  Backend (endpoints API)
+  - /api/auth/* — login, logout, update-password ✅
+  - /api/profile/update — cambio de username ✅
+  - /api/predictions/* — crear/actualizar pronósticos con validación de
+  ventana ✅
+  - /api/admin/* — 19 endpoints: fixture import, resultados, sanciones,
+  simular, adelantar fechas, etc. ✅
+
+  Frontend (páginas)
+  - / dashboard con standings y próximos partidos ✅
+  - /predictions lista de partidos para pronosticar ✅
+  - /predictions/[matchId] formulario individual ✅
+  - /resultados resultados por jornada con compartir WA ✅
+  - /grupos tabla de grupos + eliminatorias ✅
+  - /admin panel completo con modales ✅
+  - /admin/usuarios gestión de jugadores, pagos, sanciones ✅
+  - /perfil cambio de username y contraseña ✅
+
+  Base de datos (Supabase)
+  - Migraciones 1–8 aplicadas en desarrollo
+  - Migraciones 9 y 10 pendientes en producción
+
+  ---
+  Tareas pendientes (producción)
+
+  1. Aplicar migraciones 9 y 10 en Supabase prod:
+    - 20260101000009_participa.sql: ALTER TABLE profiles ADD COLUMN IF NOT
+  EXISTS participa BOOLEAN NOT NULL DEFAULT TRUE
+    - 20260101000010_indexes.sql: índices en matches y predictions
+  2. Variables de entorno en Vercel prod:
+    - PUBLIC_BETA=false
+    - PUBLIC_SUPABASE_URL y PUBLIC_SUPABASE_ANON_KEY (producción)
+    - SUPABASE_SERVICE_ROLE_KEY (producción)
+  3. Importar fixture real del Mundial 2026 vía /api/admin/import-fixture
+  4. Crear cuentas reales de jugadores en producción

@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { betaNowMs } from '@/lib/betaTime';
 import { supabase } from '@/lib/supabase';
+import { spanishName } from '@/lib/isoFlags';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -101,7 +102,7 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
 });
 ---
 
-<Layout title={`${match.home_team} vs ${match.away_team}`} navProfile={navProfile} isAuthed={true}>
+<Layout title={`${spanishName(match.home_team)} vs ${spanishName(match.away_team)}`} navProfile={navProfile} isAuthed={true}>
   <div class="max-w-md mx-auto space-y-5">
 
     <!-- Match header -->
@@ -111,7 +112,7 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
         {match.jornada && <span class="text-brand-500">· {match.jornada}</span>}
       </div>
       <h1 class="font-display text-3xl sm:text-4xl text-white leading-tight tracking-wide">
-        {match.home_team} <span class="text-brand-600 text-2xl font-sans font-normal">vs</span> {match.away_team}
+        {spanishName(match.home_team)} <span class="text-brand-600 text-2xl font-sans font-normal">vs</span> {spanishName(match.away_team)}
       </h1>
       <p class="text-sm text-slate-400 capitalize">{matchDate}</p>
       <p class="text-xs text-fifared">⏰ Cierre de jornada: {cutoffDate}</p>
@@ -135,7 +136,7 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
 
           <div class="flex-1 text-center space-y-2">
             <label class="text-xs text-slate-500 block leading-tight font-medium uppercase tracking-wide">
-              {match.home_team}
+              {spanishName(match.home_team)}
             </label>
             <input
               type="number" inputmode="numeric" pattern="[0-9]*"
@@ -152,7 +153,7 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
 
           <div class="flex-1 text-center space-y-2">
             <label class="text-xs text-slate-500 block leading-tight font-medium uppercase tracking-wide">
-              {match.away_team}
+              {spanishName(match.away_team)}
             </label>
             <input
               type="number" inputmode="numeric" pattern="[0-9]*"
@@ -175,7 +176,7 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
           </p>
           <div class="flex items-center gap-3">
             <div class="flex-1 text-center space-y-2">
-              <label class="text-xs text-slate-500 block truncate">{match.home_team}</label>
+              <label class="text-xs text-slate-500 block truncate">{spanishName(match.home_team)}</label>
               <input
                 type="number" inputmode="numeric" pattern="[0-9]*"
                 name="userHomePen" id="input-pen-home"
@@ -188,7 +189,7 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
               <div class="text-2xl text-gold/40 font-bold px-1">–</div>
             </div>
             <div class="flex-1 text-center space-y-2">
-              <label class="text-xs text-slate-500 block truncate">{match.away_team}</label>
+              <label class="text-xs text-slate-500 block truncate">{spanishName(match.away_team)}</label>
               <input
                 type="number" inputmode="numeric" pattern="[0-9]*"
                 name="userAwayPen" id="input-pen-away"
