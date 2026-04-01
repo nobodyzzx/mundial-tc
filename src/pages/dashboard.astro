@@ -39,7 +39,7 @@ const [
   supabase.from('profiles').select('id, username, puntos_totales, pago_70, pago_50, es_referi, participa').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
   supabase.from('sanctions').select('user_id, type').eq('active', true),
   supabase.from('matches').select('*').eq('is_finished', false).gte('match_date', ahora).order('match_date', { ascending: true }).limit(6),
-  supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single(),
+  supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50').eq('id', user.id).single(),
   supabase.from('matches').select('id, home_team, away_team, home_score, away_score, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
   supabaseAdmin.from('settings').select('key, value'),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
@@ -463,11 +463,13 @@ function accentLine(i: number, isMe: boolean) {
         <h2 class="font-display text-2xl text-white tracking-wide">PRÓXIMOS PARTIDOS</h2>
         <div class="grid gap-3 sm:grid-cols-2">
           {proximosPartidos.map((m: any) => {
-            const lockState = getMatchLockState(m);
+            const pagoIncompleto = import.meta.env.PUBLIC_BETA !== 'true' && !(navProfile?.pago_70 && navProfile?.pago_50);
+            const lockState = pagoIncompleto ? 'pago' : getMatchLockState(m);
             const isOpen = lockState === 'open';
             const hasPredicted = predictedSet.has(m.id);
             return (
               <div class={`bg-brand-900 border rounded-2xl p-4 space-y-3 transition ${
+                lockState === 'pago'        ? 'border-amber-500/30' :
                 lockState === 'closed'      ? 'border-fifared/40' :
                 lockState === 'ongoingLock' ? 'border-amber-500/30' :
                 lockState === 'prevPending' ? 'border-brand-700/40' :
@@ -479,12 +481,14 @@ function accentLine(i: number, isMe: boolean) {
                     {m.jornada && <span class="ml-1 text-brand-600">· {m.jornada}</span>}
                   </span>
                   <span class={`font-semibold ${
+                    lockState === 'pago'        ? 'text-amber-400' :
                     lockState === 'closed'      ? 'text-fifared' :
                     lockState === 'ongoingLock' ? 'text-amber-400' :
                     lockState === 'prevPending' ? 'text-slate-500' :
                     'text-gol'
                   }`}>
-                    {lockState === 'closed'      ? '🔒 Cerrado' :
+                    {lockState === 'pago'        ? '🔒 Pago pendiente' :
+                     lockState === 'closed'      ? '🔒 Cerrado' :
                      lockState === 'ongoingLock' ? '⏳ En curso' :
                      lockState === 'prevPending' ? '⏳ Pendiente' :
                      `⏱ ${tiempoRestante(m.match_date)}`}
@@ -516,11 +520,13 @@ function accentLine(i: number, isMe: boolean) {
                   </a>
                 ) : (
                   <div class={`text-center text-sm font-semibold py-3 rounded-xl min-h-12 flex items-center justify-center ${
+                    lockState === 'pago'        ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' :
                     lockState === 'closed'      ? 'bg-fifared/10 text-fifared border border-fifared/30' :
                     lockState === 'ongoingLock' ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' :
                     'bg-brand-800/60 text-slate-600 border border-brand-700/40'
                   }`}>
-                    {lockState === 'closed'      ? '🔒 Pronóstico cerrado' :
+                    {lockState === 'pago'        ? '🔒 Completá el pago para pronosticar' :
+                     lockState === 'closed'      ? '🔒 Pronóstico cerrado' :
                      lockState === 'ongoingLock' ? '⏳ Esperá que termine' :
                      '⏳ Disponible al terminar los anteriores'}
                   </div>
