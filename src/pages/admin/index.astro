@@ -277,114 +277,138 @@ function formatDate(d: string) {
         </div>
     </section>
 
-    <!-- ── VAR: TARJETAS ── -->
-    <section class="space-y-4">
+    <!-- ── VAR: SANCIONES ── -->
+    <section class="space-y-3">
       <h2 class="font-display text-2xl text-white tracking-wide border-b border-brand-800 pb-2">
         🟨 VAR: SANCIONES
       </h2>
-      <div class="flex flex-col gap-4">
+
+      {/* Stats rápidas */}
+      {(() => {
+        const jug = (profiles ?? []).filter((p: any) => !p.es_referi);
+        const pagados   = jug.filter((p: any) => p.pago_70 && p.pago_50).length;
+        const parcial   = jug.filter((p: any) => p.pago_70 && !p.pago_50).length;
+        const sancion   = jug.filter((p: any) => (sanctionsByUser.get(p.id) ?? []).length > 0).length;
+        const expuls    = jug.filter((p: any) => p.expulsado).length;
+        return (
+          <div class="grid grid-cols-4 gap-2 text-center">
+            <div class="bg-brand-900 border border-gol/30 rounded-xl py-2.5">
+              <div class="font-display text-2xl text-gol">{pagados}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Pagados</div>
+            </div>
+            <div class="bg-brand-900 border border-gold/30 rounded-xl py-2.5">
+              <div class="font-display text-2xl text-gold">{parcial}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Parcial</div>
+            </div>
+            <div class="bg-brand-900 border border-amarilla/30 rounded-xl py-2.5">
+              <div class="font-display text-2xl text-amarilla">{sancion}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Sancionados</div>
+            </div>
+            <div class="bg-brand-900 border border-fifared/30 rounded-xl py-2.5">
+              <div class="font-display text-2xl text-fifared">{expuls}</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Expulsados</div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Lista compacta */}
+      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden divide-y divide-brand-800/60">
         {(profiles ?? []).filter((p: any) => !p.es_referi).map((p: any) => {
           const isExpulsado = p.expulsado === true;
           const userSanctions = sanctionsByUser.get(p.id) ?? [];
-          const hasActiveRed = userSanctions.some(s => s.type === 'red' || s.type === 'double_red');
+          const hasActiveRed = userSanctions.some((s: any) => s.type === 'red' || s.type === 'double_red');
           return (
-          <div class={`bg-brand-900 border rounded-2xl p-4 space-y-3 ${isExpulsado ? 'border-fifared-dark/40' : 'border-brand-700/60'}`}>
+            <div class={`px-3 py-2.5 space-y-2 ${isExpulsado ? 'bg-fifared/5' : ''}`}>
 
-            {/* — Header: nombre + puntos + estado — */}
-            <div class="flex items-center gap-3 flex-wrap">
-              <span class={`font-semibold text-base ${isExpulsado ? 'text-slate-500 line-through' : 'text-white'}`}>{p.username}</span>
-              <span class="text-gold text-base font-display">{p.puntos_totales} pts</span>
-              {isExpulsado
-                ? <span class="text-xs px-2 py-1 rounded-full border bg-fifared-dark/20 border-fifared-dark/50 text-red-400">🟥🟥 Expulsado</span>
-                : <span class={`text-xs px-2 py-1 rounded-full border ${p.pago_70 && p.pago_50 ? 'bg-gol/10 border-gol/30 text-gol' : 'bg-fifared/10 border-fifared/30 text-fifared'}`}>
-                    {p.pago_70 && p.pago_50 ? '✅ Pagado' : p.pago_70 ? '⏳ Parcial' : '❌ Pendiente'}
-                  </span>
-              }
-            </div>
-
-            {/* — Tarjetas activas con botón de undo — */}
-            {userSanctions.length > 0 && (
-              <div class="flex flex-col gap-1.5">
-                <span class="text-xs text-slate-500 uppercase tracking-wide">Sanciones activas</span>
-                {userSanctions.map(s => {
-                  const label = s.type === 'yellow' ? 'Amarilla' : s.type === 'red' ? 'Roja (jornada anulada)' : 'Doble roja (expulsado)';
+              {/* Fila 1: nombre + chips sanciones + pts + pago */}
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class={`font-semibold text-sm ${isExpulsado ? 'text-slate-500 line-through' : 'text-white'}`}>
+                  {p.username}
+                </span>
+                {isExpulsado && <span class="text-[10px] text-red-400 font-bold">🟥🟥 EXPULSADO</span>}
+                {userSanctions.map((s: any) => {
                   const icon  = s.type === 'yellow' ? '🟨' : '🟥';
-                  const color = s.type === 'yellow' ? 'border-amarilla/30 text-amarilla' : 'border-fifared/40 text-fifared';
+                  const label = s.type === 'yellow' ? 'Amarilla' : s.type === 'red' ? 'Roja' : '2ª Roja';
+                  const cls   = s.type === 'yellow' ? 'border-amarilla/40 text-amarilla bg-amarilla/10' : 'border-fifared/40 text-fifared bg-fifared/10';
                   return (
-                    <form method="POST" action="/api/admin/undo-sanction" class="flex items-center gap-2">
+                    <form method="POST" action="/api/admin/undo-sanction" class="inline">
                       <input type="hidden" name="sanctionId" value={s.id} />
-                      <div class={`flex-1 flex items-center gap-2 text-xs px-3 py-2 rounded-xl border bg-brand-800/60 ${color}`}>
-                        <span>{icon}</span>
-                        <span class="font-semibold">{label}</span>
-                      </div>
-                      <button type="submit"
-                        onclick="return confirm('¿Anular esta sanción? Se recalcularán los puntos.')"
-                        class="text-xs px-3 py-2 rounded-xl border border-brand-600/50 bg-brand-800 text-slate-400 active:bg-brand-700 transition flex-shrink-0">
-                        Anular ↩
+                      <button type="submit" onclick="return confirm('¿Anular esta sanción?')"
+                        class={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition ${cls}`}>
+                        {icon} {label} ×
                       </button>
                     </form>
                   );
                 })}
+                <span class="ml-auto font-display text-sm text-gold">{p.puntos_totales}pts</span>
+                {!isExpulsado && (
+                  <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${
+                    p.pago_70 && p.pago_50 ? 'bg-gol/10 border-gol/30 text-gol' :
+                    p.pago_70             ? 'bg-gold/10 border-gold/30 text-gold' :
+                                            'bg-fifared/10 border-fifared/30 text-fifared'
+                  }`}>
+                    {p.pago_70 && p.pago_50 ? '✓ pagado' : p.pago_70 ? '⏳ parcial' : '❌ pendiente'}
+                  </span>
+                )}
               </div>
-            )}
 
-            {/* — Botones de sanción — */}
-            <div class="grid grid-cols-3 gap-2">
-              <form method="POST" action="/api/admin/sanction">
-                <input type="hidden" name="userId" value={p.id} />
-                <input type="hidden" name="type" value="yellow" />
-                <input type="hidden" name="reason" value="Advertencia del réferi" />
-                <button type="submit" disabled={isExpulsado}
-                  class={`w-full text-sm font-semibold px-2 py-3 rounded-xl transition min-h-[48px] ${isExpulsado ? 'bg-brand-800/40 border border-brand-700/30 text-slate-600 cursor-not-allowed' : 'bg-amarilla/10 border border-amarilla/40 text-amarilla active:bg-amarilla/20'}`}>
-                  🟨 Amarilla
-                </button>
-              </form>
-              <form method="POST" action="/api/admin/sanction">
-                <input type="hidden" name="userId" value={p.id} />
-                <input type="hidden" name="type" value="red" />
-                <input type="hidden" name="reason" value="Tarjeta roja — jornada anulada" />
-                <button type="submit" disabled={isExpulsado || hasActiveRed}
-                  class={`w-full text-sm font-semibold px-2 py-3 rounded-xl transition min-h-[48px] ${isExpulsado || hasActiveRed ? 'bg-brand-800/40 border border-brand-700/30 text-slate-600 cursor-not-allowed' : 'bg-fifared/10 border border-fifared/40 text-fifared active:bg-fifared/20'}`}>
-                  🟥 Roja
-                </button>
-              </form>
-              <form method="POST" action="/api/admin/sanction">
-                <input type="hidden" name="userId" value={p.id} />
-                <input type="hidden" name="type" value="double_red" />
-                <input type="hidden" name="reason" value="Doble roja — expulsión definitiva" />
-                <button type="submit" disabled={isExpulsado}
-                  onclick="return confirm('¿Expulsión definitiva?')"
-                  class={`w-full text-sm font-semibold px-2 py-3 rounded-xl transition min-h-[48px] ${isExpulsado ? 'bg-brand-800/40 border border-brand-700/30 text-slate-600 cursor-not-allowed' : 'bg-fifared-dark/20 border border-fifared-dark/50 text-red-300 active:bg-fifared-dark/40'}`}>
-                  🟥🟥 2ª Roja
-                </button>
-              </form>
+              {/* Fila 2: botones de acción (solo si no expulsado) */}
+              {!isExpulsado && (
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <form method="POST" action="/api/admin/sanction">
+                    <input type="hidden" name="userId" value={p.id} />
+                    <input type="hidden" name="type" value="yellow" />
+                    <input type="hidden" name="reason" value="Advertencia del réferi" />
+                    <button type="submit"
+                      class="text-xs px-2.5 py-1.5 rounded-lg border bg-amarilla/10 border-amarilla/40 text-amarilla active:bg-amarilla/20 min-h-[36px]">
+                      🟨 Amarilla
+                    </button>
+                  </form>
+                  <form method="POST" action="/api/admin/sanction">
+                    <input type="hidden" name="userId" value={p.id} />
+                    <input type="hidden" name="type" value="red" />
+                    <input type="hidden" name="reason" value="Tarjeta roja — jornada anulada" />
+                    <button type="submit" disabled={hasActiveRed}
+                      class={`text-xs px-2.5 py-1.5 rounded-lg border min-h-[36px] ${hasActiveRed ? 'bg-brand-800/40 border-brand-700/30 text-slate-600 cursor-not-allowed' : 'bg-fifared/10 border-fifared/40 text-fifared active:bg-fifared/20'}`}>
+                      🟥 Roja
+                    </button>
+                  </form>
+                  <form method="POST" action="/api/admin/sanction">
+                    <input type="hidden" name="userId" value={p.id} />
+                    <input type="hidden" name="type" value="double_red" />
+                    <input type="hidden" name="reason" value="Doble roja — expulsión definitiva" />
+                    <button type="submit" onclick="return confirm('¿Expulsión definitiva?')"
+                      class="text-xs px-2.5 py-1.5 rounded-lg border bg-fifared-dark/20 border-fifared-dark/50 text-red-300 active:bg-fifared-dark/40 min-h-[36px]">
+                      🟥🟥 2ª Roja
+                    </button>
+                  </form>
+                  <div class="ml-auto flex gap-1.5">
+                    <form method="POST" action="/api/admin/payment">
+                      <input type="hidden" name="userId" value={p.id} />
+                      <input type="hidden" name="field" value="pago70" />
+                      <input type="hidden" name="value" value={p.pago_70 ? 'false' : 'true'} />
+                      <button type="submit"
+                        class={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold min-h-[36px] ${p.pago_70 ? 'bg-gol/10 border-gol/40 text-gol' : 'bg-brand-800 border-brand-700 text-slate-400'}`}>
+                        {p.pago_70 ? '✓' : '+'} 70Bs
+                      </button>
+                    </form>
+                    <form method="POST" action="/api/admin/payment">
+                      <input type="hidden" name="userId" value={p.id} />
+                      <input type="hidden" name="field" value="pago50" />
+                      <input type="hidden" name="value" value={p.pago_50 ? 'false' : 'true'} />
+                      <button type="submit" disabled={!p.pago_70}
+                        class={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold min-h-[36px] ${!p.pago_70 ? 'bg-brand-800/40 border-brand-700/30 text-slate-600 cursor-not-allowed' : p.pago_50 ? 'bg-gol/10 border-gol/40 text-gol' : 'bg-gold/10 border-gold/50 text-gold'}`}>
+                        {p.pago_50 ? '✓' : '+'} 50Bs
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              )}
+
             </div>
-
-            {/* — Pago — */}
-            <div class="grid grid-cols-2 gap-2">
-              <form method="POST" action="/api/admin/payment">
-                <input type="hidden" name="userId" value={p.id} />
-                <input type="hidden" name="field" value="pago70" />
-                <input type="hidden" name="value" value={p.pago_70 ? 'false' : 'true'} />
-                <button type="submit"
-                  class={`w-full text-sm px-3 py-3 rounded-xl border transition min-h-[48px] ${p.pago_70 ? 'bg-gol/10 border-gol/40 text-gol font-semibold' : 'bg-brand-800 border-brand-700 text-slate-400'}`}>
-                  {p.pago_70 ? '✓ 70 Bs' : '💰 70 Bs'}
-                </button>
-              </form>
-              <form method="POST" action="/api/admin/payment">
-                <input type="hidden" name="userId" value={p.id} />
-                <input type="hidden" name="field" value="pago50" />
-                <input type="hidden" name="value" value={p.pago_50 ? 'false' : 'true'} />
-                <button type="submit" disabled={!p.pago_70}
-                  class={`w-full text-sm px-3 py-3 rounded-xl border transition min-h-[48px] ${!p.pago_70 ? 'bg-brand-800/40 border-brand-700/30 text-slate-600 cursor-not-allowed' : p.pago_50 ? 'bg-gol/10 border-gol/40 text-gol font-semibold' : 'bg-gold/10 border-gold/50 text-gold font-semibold'}`}>
-                  {p.pago_50 ? '✓ 50 Bs' : '💰 50 Bs'}
-                </button>
-              </form>
-            </div>
-
-          </div>
-        );
-      })}
+          );
+        })}
       </div>
     </section>
 
