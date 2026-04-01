@@ -308,7 +308,7 @@ function predStyle(pred: any, m: any): string {
     const playerTotals: Record<string, number> = {};
 
     for (const m of j.matches) {
-      text += `${hf(m)} *${m.home} ${m.hs}\u2013${m.as_} ${af(m)} ${m.away}*\n`;
+      text += `*${m.home} ${hf(m)} ${m.hs}\u2013${m.as_} ${af(m)} ${m.away}*\n`;
       for (const pl of m.players) {
         if (pl.uh === null || pl.ua === null) {
           text += `\u2796 ${pl.name}\n`;
