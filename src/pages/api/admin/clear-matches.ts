@@ -35,7 +35,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const { error: ptsError } = await supabaseAdmin
     .from('profiles')
     .update({ puntos_totales: 0, expulsado: false, pago_70: false, pago_50: false })
-    .eq('es_referi', false);
+    .neq('id', '00000000-0000-0000-0000-000000000000');
   if (ptsError) return redirect('/admin?err=' + encodeURIComponent('Datos borrados pero error reseteando perfiles'));
 
   return redirect('/admin?msg=' + encodeURIComponent('Competición limpiada · partidos, pronósticos, sanciones y perfiles reseteados'));
