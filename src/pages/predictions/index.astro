@@ -64,11 +64,14 @@ const hasMatchInProgress = (matches ?? []).some(m => new Date(m.match_date).getT
 
 function isJornadaClosed(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  // Cierre normal: menos de 2 horas para el primer partido del día
   if (firstTime - now < 2 * 3600 * 1000) return true;
-  // Cierre por partido en curso: si hay un partido activo, los días siguientes se bloquean
   if (hasMatchInProgress && firstTime > now) return true;
   return false;
+}
+
+function isLockedByOngoing(jornadaMatches: MatchRow[]): boolean {
+  const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
+  return hasMatchInProgress && firstTime > now && firstTime - now >= 2 * 3600 * 1000;
 }
 
 function buildShareData(dayMatches: MatchRow[], username: string) {
@@ -124,6 +127,11 @@ let globalFormIdx = 0;
         🔒 La jornada ya está cerrada.
       </div>
     )}
+    {errorParam === 'en_curso' && (
+      <div class="bg-amber-900/20 border border-amber-500/40 rounded-xl px-4 py-3 text-sm text-amber-300 text-center">
+        ⏳ Espera que termine el partido antes de pronosticar... ¿o es que ya sabes cómo va a terminar?
+      </div>
+    )}
     {errorParam === 'incompleto' && (
       <div class="bg-fifared/15 border border-fifared/40 rounded-xl px-4 py-3 text-sm text-red-300 text-center">
         ⚠️ Completa el marcador de todos los partidos antes de enviar.
@@ -154,6 +162,7 @@ let globalFormIdx = 0;
 
     {(import.meta.env.PUBLIC_BETA === 'true' || (navProfile?.pago_70 && navProfile?.pago_50)) && [...grouped.entries()].map(([jornadaKey, jornadaMatches]) => {
       const closed = isJornadaClosed(jornadaMatches);
+      const ongoingLock = isLockedByOngoing(jornadaMatches);
       const predCount = jornadaMatches.filter(m => predMap.has(m.id)).length;
       const allDone = predCount === jornadaMatches.length;
       const hasSome = predCount > 0;
@@ -170,14 +179,17 @@ let globalFormIdx = 0;
 
           {/* ── Encabezado de jornada ── */}
           <div class={`flex items-center justify-between px-4 py-3 rounded-xl border ${
+            ongoingLock ? 'bg-amber-900/10 border-amber-500/30' :
             closed ? 'bg-fifared/8 border-fifared/30' :
             allDone ? 'bg-gol/8 border-gol/30' :
             'bg-brand-800/60 border-brand-700/60'
           }`}>
             <div>
               <h2 class="font-display text-xl text-white tracking-wide capitalize">{jornadaKey}</h2>
-              <p class={`text-xs mt-0.5 ${closed ? 'text-fifared' : 'text-slate-500'}`}>
-                {closed
+              <p class={`text-xs mt-0.5 ${ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
+                {ongoingLock
+                  ? '⏳ Esperá que termine el partido de hoy'
+                  : closed
                   ? '🔒 Cerrada'
                   : `⏰ Cierre: ${cutoffStr}`
                 }

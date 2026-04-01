@@ -50,7 +50,8 @@ const { data: inProgressMatches } = await supabase
 const thisMatchNotStarted = new Date(match.match_date).getTime() > now;
 const isLockedByInProgress = (inProgressMatches ?? []).length > 0 && thisMatchNotStarted;
 
-if (isClosed || match.is_finished || isLockedByInProgress) return Astro.redirect('/predictions?error=cerrado');
+if (isClosed || match.is_finished) return Astro.redirect('/predictions?error=cerrado');
+if (isLockedByInProgress) return Astro.redirect('/predictions?error=en_curso');
 
 const { data: existing } = await supabase
   .from('predictions')
