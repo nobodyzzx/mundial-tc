@@ -171,7 +171,7 @@ function predStyle(pred: any, m: any): string {
                       {m.home_score} – {m.away_score}
                     </div>
                     {m.winner_penalties && (
-                      <div class="text-xs text-gold/70 leading-none mt-0.5">
+                      <div class="text-xs text-gold/70 leading-none mt-1">
                         {m.home_pen !== null
                           ? `(${m.home_pen}–${m.away_pen} pen)`
                           : `(pen)`
@@ -179,7 +179,7 @@ function predStyle(pred: any, m: any): string {
                       </div>
                     )}
                     {m.winner_penalties && (
-                      <div class="text-[10px] text-slate-500 leading-none mt-0.5">
+                      <div class="text-xs text-slate-400 leading-none mt-0.5">
                         clasifica {m.winner_penalties === 'home' ? m.home_team : m.away_team}
                       </div>
                     )}
@@ -217,8 +217,8 @@ function predStyle(pred: any, m: any): string {
                                 <span class={predStyle(pred, m)}>
                                   {pred.user_home} – {pred.user_away}
                                 </span>
-                                {pred.user_winner_penalties && (
-                                  <div class="text-slate-600 text-[10px]">
+                                {pred.user_home === pred.user_away && pred.user_winner_penalties && (
+                                  <div class="text-slate-500 text-xs mt-0.5">
                                     {pred.user_home_pen !== null
                                       ? `pen ${pred.user_home_pen}–${pred.user_away_pen}`
                                       : `pen: ${pred.user_winner_penalties === 'home' ? m.home_team : m.away_team}`
