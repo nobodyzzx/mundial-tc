@@ -28,12 +28,6 @@ const { data: matches } = await supabase
   .order('match_date', { ascending: true })
   .limit(20);
 
-const { data: finishedMatches } = await supabase
-  .from('matches')
-  .select('*')
-  .eq('is_finished', true)
-  .order('match_date', { ascending: false })
-  .limit(10);
 
 const { data: profiles } = await supabaseAdmin
   .from('profiles')
@@ -269,75 +263,7 @@ function formatDate(d: string) {
     <!-- ── RESULTADOS ── -->
     <section class="space-y-4">
 
-      {import.meta.env.PUBLIC_BETA === 'true' ? (
-        /* ── BETA: sección prominente y expandida ── */
-        <div class="space-y-4">
-          <div class="flex items-center justify-between border-b border-amber-500/40 pb-2">
-            <h2 class="font-display text-2xl text-amber-400 tracking-wide">🧪 SIMULAR RESULTADOS</h2>
-            <span class="text-xs bg-amber-500/15 border border-amber-500/30 text-amber-300 px-2 py-1 rounded-full">
-              Beta · {betaNow().toLocaleDateString('es-BO', { day: 'numeric', month: 'short', timeZone: 'America/La_Paz' })} (simulado)
-            </span>
-          </div>
-          <p class="text-xs text-amber-400/60">
-            Ingresá resultados para simular la polla. Los puntos se calculan automáticamente.
-          </p>
-
-          {(!matches || matches.length === 0) && (
-            <p class="text-slate-600 text-sm">No hay partidos pendientes.</p>
-          )}
-
-          <div class="flex flex-col gap-4">
-            {(matches ?? []).map((m: any) => (
-              <form method="POST" action="/api/admin/score"
-                class="bg-brand-900 border border-amber-500/20 rounded-2xl p-4 space-y-4">
-                <input type="hidden" name="matchId" value={m.id} />
-                <div>
-                  <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">
-                    {m.stage === 'group' ? `Grupo ${m.group_name}` : m.round}
-                    {m.jornada && <span class="ml-1 text-brand-600">· {m.jornada}</span>}
-                    <span class="ml-2 text-slate-500">· {formatDate(m.match_date)}</span>
-                  </div>
-                  <div class="font-semibold text-white text-base">
-                    {m.home_team} <span class="text-slate-500">vs</span> {m.away_team}
-                  </div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <div class="flex-1 text-center space-y-1">
-                    <span class="text-xs text-slate-500 block truncate">{m.home_team}</span>
-                    <input type="number" name="homeScore" min="0" max="20" required placeholder="0"
-                      class="w-full bg-brand-800 border border-brand-700 rounded-xl px-2 py-4 text-white text-2xl font-display text-center focus:outline-none focus:border-gold transition" />
-                  </div>
-                  <span class="text-brand-600 text-xl flex-shrink-0">—</span>
-                  <div class="flex-1 text-center space-y-1">
-                    <span class="text-xs text-slate-500 block truncate">{m.away_team}</span>
-                    <input type="number" name="awayScore" min="0" max="20" required placeholder="0"
-                      class="w-full bg-brand-800 border border-brand-700 rounded-xl px-2 py-4 text-white text-2xl font-display text-center focus:outline-none focus:border-gold transition" />
-                  </div>
-                </div>
-                {m.stage === 'knockout' && (
-                  <div class="space-y-1">
-                    <span class="text-xs text-gold block">Penales (si empate):</span>
-                    <div class="flex items-center gap-2">
-                      <input type="number" name="homePen" min="0" max="20" placeholder="–"
-                        class="flex-1 bg-gold/10 border border-gold/40 rounded-xl px-2 py-3 text-gold text-xl font-display text-center focus:outline-none focus:border-gold transition placeholder:text-gold/30" />
-                      <span class="text-gold/40 text-lg flex-shrink-0">–</span>
-                      <input type="number" name="awayPen" min="0" max="20" placeholder="–"
-                        class="flex-1 bg-gold/10 border border-gold/40 rounded-xl px-2 py-3 text-gold text-xl font-display text-center focus:outline-none focus:border-gold transition placeholder:text-gold/30" />
-                    </div>
-                  </div>
-                )}
-                <button type="submit"
-                  class="w-full bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-sm font-bold px-4 py-3 rounded-xl transition min-h-[48px]">
-                  Simular resultado ✅
-                </button>
-              </form>
-            ))}
-          </div>
-        </div>
-
-      ) : (
-        /* ── PRODUCCIÓN: colapsable como antes ── */
-        <div class="space-y-4">
+      <div class="space-y-4">
           <button id="toggle-manual"
             class="w-full flex items-center justify-between border-b border-brand-800 pb-2 group">
             <h2 class="font-display text-2xl text-white tracking-wide">📊 CARGA MANUAL</h2>
@@ -405,7 +331,6 @@ function formatDate(d: string) {
             </div>
           </div>
         </div>
-      )}
     </section>
 
     <!-- ── VAR: TARJETAS ── -->
@@ -631,26 +556,6 @@ function formatDate(d: string) {
             </div>
           </div>
         )}
-      </section>
-    )}
-
-    <!-- ── RESULTADOS RECIENTES ── -->
-    {finishedMatches && finishedMatches.length > 0 && (
-      <section class="space-y-3">
-        <h2 class="font-display text-2xl text-white tracking-wide border-b border-brand-800 pb-2">
-          ✅ RESULTADOS CARGADOS
-        </h2>
-        <div class="flex flex-col gap-2">
-          {finishedMatches.map((m: any) => (
-            <div class="bg-brand-900/60 border border-brand-800/40 rounded-xl px-4 py-3 flex items-center justify-between gap-2 text-sm">
-              <span class="text-slate-400 flex-1 min-w-0 truncate">{m.home_team} vs {m.away_team}</span>
-              <span class="font-display text-lg text-white flex-shrink-0">
-                {m.home_score} – {m.away_score}
-                {m.winner_penalties && <span class="text-gold text-xs ml-2">(pen: {m.winner_penalties})</span>}
-              </span>
-            </div>
-          ))}
-        </div>
       </section>
     )}
 
