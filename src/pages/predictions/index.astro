@@ -418,7 +418,9 @@ let globalFormIdx = 0;
                       </p>
                     )}
                     {!existing && (
-                      <p class="text-xs text-slate-700 text-center mt-2">Sin pronóstico</p>
+                      <button disabled class="w-full mt-2 flex items-center justify-center gap-2 text-xs text-slate-600 bg-brand-800/40 border border-brand-700/40 rounded-xl py-2.5 cursor-not-allowed opacity-60">
+                        🔒 No pronosticado
+                      </button>
                     )}
                   </div>
                 );
