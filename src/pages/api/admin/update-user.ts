@@ -1,19 +1,12 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { isValidUUID, sanitizeError } from '@/lib/auth-helpers';
+import { isValidUUID, sanitizeError, getAdminUser } from '@/lib/auth-helpers';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
-  const accessToken = cookies.get('sb-access-token')?.value;
-  const refreshToken = cookies.get('sb-refresh-token')?.value;
-  if (!accessToken || !refreshToken) return redirect('/login');
-
-  const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-  if (!user) return redirect('/login');
-
-  const { data: profile } = await supabaseAdmin.from('profiles').select('es_referi').eq('id', user.id).single();
-  if (!profile?.es_referi) return redirect('/dashboard');
+  const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
+  if (!admin) return redirect('/login');
 
   const form = await request.formData();
   const targetId = form.get('user_id')?.toString();
@@ -45,7 +38,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   if (authErr) return redirect('/admin/usuarios?err=' + encodeURIComponent(sanitizeError(authErr)));
 
   // No permitir quitarse el rol de réferi a uno mismo
-  const finalEsReferi = targetId === user.id ? true : esReferi;
+  const finalEsReferi = targetId === admin.user.id ? true : esReferi;
 
   // Para jugadores normales, participa siempre es true.
   // Para réferis, solo actualizamos participa si el formulario incluye ese campo

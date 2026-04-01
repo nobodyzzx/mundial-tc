@@ -1,25 +1,10 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { sanitizeError } from '@/lib/auth-helpers';
+import { sanitizeError, getAdminUser } from '@/lib/auth-helpers';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
-  const accessToken = cookies.get('sb-access-token')?.value;
-  const refreshToken = cookies.get('sb-refresh-token')?.value;
-  if (!accessToken || !refreshToken) return redirect('/login');
-
-  const { data: { user } } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (!user) return redirect('/login');
-
-  const { data: profile } = await supabaseAdmin
-    .from('profiles')
-    .select('es_referi')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile?.es_referi) return redirect('/dashboard');
+  const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
+  if (!admin) return redirect('/login');
 
   const form = await request.formData();
   const matchId   = form.get('matchId')?.toString();

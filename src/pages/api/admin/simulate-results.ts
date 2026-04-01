@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
+import { getAdminUser } from '@/lib/auth-helpers';
 
 function makeRng(seed: number) {
   let s = seed >>> 0;
@@ -22,19 +23,8 @@ function randScore(r: () => number): number {
 }
 
 export const POST: APIRoute = async ({ cookies, redirect }) => {
-  const accessToken = cookies.get('sb-access-token')?.value;
-  const refreshToken = cookies.get('sb-refresh-token')?.value;
-  if (!accessToken || !refreshToken) return redirect('/login');
-
-  const { data: { user } } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (!user) return redirect('/login');
-
-  const { data: profile } = await supabaseAdmin
-    .from('profiles').select('es_referi').eq('id', user.id).single();
-  if (!profile?.es_referi) return redirect('/dashboard');
+  const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
+  if (!admin) return redirect('/login');
 
   const now = betaNowMs();
 

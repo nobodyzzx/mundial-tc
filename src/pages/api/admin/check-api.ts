@@ -1,24 +1,10 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { getAdminUser } from '@/lib/auth-helpers';
 
 export const GET: APIRoute = async ({ cookies }) => {
-  const accessToken = cookies.get('sb-access-token')?.value;
-  const refreshToken = cookies.get('sb-refresh-token')?.value;
-  if (!accessToken || !refreshToken) {
-    return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-  }
-
-  const { data: { user } } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-  if (!user) return new Response(JSON.stringify({ error: 'No autenticado' }), { status: 401 });
-
-  const { data: profile } = await supabaseAdmin
-    .from('profiles').select('es_referi').eq('id', user.id).single();
-  if (!profile?.es_referi) {
-    return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 });
-  }
+  const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
+  if (!admin) return new Response(JSON.stringify({ error: 'No autorizado' }), { status: 401 });
 
   const key = import.meta.env.FOOTBALL_API_KEY;
   if (!key) {

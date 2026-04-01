@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 /** Valida UUID v4 */
 export function isValidUUID(value: string): boolean {
@@ -37,6 +37,49 @@ export function sanitizeError(err: { message?: string; code?: string } | null | 
 
   // Fallback genérico — no expone el mensaje original
   return 'Error al procesar la solicitud';
+}
+
+export interface AdminContext {
+  user: User;
+  username: string;
+  isSuperAdmin: boolean;
+}
+
+/**
+ * Verifica que el request viene de un réferi autenticado.
+ * Retorna null si no está autenticado o no es réferi (el caller debe redirect).
+ *
+ * Uso:
+ *   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
+ *   if (!admin) return redirect('/login');
+ */
+export async function getAdminUser(
+  cookies: { get: (name: string) => { value?: string } | undefined },
+  supabase: SupabaseClient,
+  supabaseAdmin: SupabaseClient,
+): Promise<AdminContext | null> {
+  const accessToken  = cookies.get('sb-access-token')?.value;
+  const refreshToken = cookies.get('sb-refresh-token')?.value;
+  if (!accessToken || !refreshToken) return null;
+
+  const { data: { user } } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+  if (!user) return null;
+
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('es_referi, username')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.es_referi) return null;
+
+  const adminEmail = import.meta.env.ADMIN_EMAIL?.toLowerCase().trim();
+  const isSuperAdmin = !!adminEmail && user.email?.toLowerCase().trim() === adminEmail;
+
+  return { user, username: profile.username, isSuperAdmin };
 }
 
 /**

@@ -4,6 +4,7 @@
  */
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { getAdminUser } from '@/lib/auth-helpers';
 
 interface TestResult {
   id: string;
@@ -17,19 +18,8 @@ interface TestResult {
 
 export const POST: APIRoute = async ({ cookies }) => {
   // ── Auth ────────────────────────────────────────────────
-  const accessToken = cookies.get('sb-access-token')?.value;
-  const refreshToken = cookies.get('sb-refresh-token')?.value;
-  if (!accessToken || !refreshToken) {
-    return json({ error: 'No autenticado' }, 401);
-  }
-  const { data: { user } } = await supabase.auth.setSession({
-    access_token: accessToken!, refresh_token: refreshToken!,
-  });
-  if (!user) return json({ error: 'No autenticado' }, 401);
-
-  const { data: referi } = await supabaseAdmin
-    .from('profiles').select('id, es_referi').eq('id', user.id).single();
-  if (!referi?.es_referi) return json({ error: 'No autorizado' }, 403);
+  const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
+  if (!admin) return json({ error: 'No autorizado' }, 401);
 
   // ── Jugadores disponibles ────────────────────────────────
   const { data: players } = await supabaseAdmin
@@ -165,7 +155,7 @@ export const POST: APIRoute = async ({ cookies }) => {
     type:       'red',
     reason:     'TEST_T16: sanción de prueba',
     active:     true,
-    created_by: referi.id,
+    created_by: admin.user.id,
   });
   if (sanctErr) {
     await cleanup(mid);
