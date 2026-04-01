@@ -30,8 +30,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return redirect('/login?error=El+correo+es+obligatorio');
   }
 
-  // Si viene password: login clásico — solo disponible en desarrollo
-  if (password && !import.meta.env.PROD) {
+  // Si viene password: login clásico
+  if (password) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error || !data.session) {
