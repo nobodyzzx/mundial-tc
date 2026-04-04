@@ -42,9 +42,22 @@ const settings = new Map((settingsRows ?? []).map((r: any) => [r.key, r.value]))
 const pagosDeadline70: string = settings.get('pagos_deadline_70') ?? '';
 const pagosDeadline50: string = settings.get('pagos_deadline_50') ?? '';
 
+// Parsea deadline con backward compat: sin TZ → era Bolivia, con TZ → OK
+function parseDeadline(iso: string): Date {
+  const withTz = /Z|[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + '-04:00';
+  return new Date(withTz);
+}
 function deadlineStatus(iso: string) {
   if (!iso) return null;
-  return new Date(iso) < new Date() ? 'vencido' : 'activo';
+  return parseDeadline(iso) < new Date() ? 'vencido' : 'activo';
+}
+// Convierte UTC ISO → "YYYY-MM-DDTHH:MM" en hora Bolivia para el input
+function toBoliviaInput(iso: string): string {
+  if (!iso) return '';
+  const d = parseDeadline(iso);
+  if (isNaN(d.getTime())) return '';
+  const boliviaMs = d.getTime() - 4 * 3600 * 1000;
+  return new Date(boliviaMs).toISOString().slice(0, 16);
 }
 
 // Última sincronización: partido terminado más recientemente actualizado
@@ -463,7 +476,7 @@ function formatDate(d: string) {
             </label>
             <div class="flex items-center gap-3 flex-wrap">
               <input type="datetime-local" name="pagos_deadline_70"
-                value={pagosDeadline70}
+                value={toBoliviaInput(pagosDeadline70)}
                 class="bg-brand-800 border border-brand-700 text-slate-200 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:border-gold transition" />
               {pagosDeadline70 && (
                 <span class={`text-xs font-semibold px-2 py-1 rounded-full border ${
@@ -484,7 +497,7 @@ function formatDate(d: string) {
             </label>
             <div class="flex items-center gap-3 flex-wrap">
               <input type="datetime-local" name="pagos_deadline_50"
-                value={pagosDeadline50}
+                value={toBoliviaInput(pagosDeadline50)}
                 class="bg-brand-800 border border-brand-700 text-slate-200 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:border-gold transition" />
               {pagosDeadline50 && (
                 <span class={`text-xs font-semibold px-2 py-1 rounded-full border ${
