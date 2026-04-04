@@ -552,12 +552,21 @@ function accentLine(i: number, isMe: boolean) {
   var WA_ICON = '\uD83D\uDCF2'; // 📲 inline para evitar encoding issues
 
   function waShare(text) {
-    var encoded = encodeURIComponent(text);
     var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    var url = isMobile
-      ? 'https://wa.me/?text=' + encoded
-      : 'https://web.whatsapp.com/send?text=' + encoded;
-    window.open(url, '_blank');
+    if (isMobile) {
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+      return;
+    }
+    function showToast(msg) {
+      var el = document.createElement('div');
+      el.textContent = msg;
+      el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';
+      document.body.appendChild(el);
+      setTimeout(function () { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 300); }, 3500);
+    }
+    navigator.clipboard.writeText(text)
+      .then(function () { showToast('\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V'); })
+      .catch(function () { showToast('\u26A0\uFE0F No se pudo copiar \u2014 copi\u00e1lo manualmente'); });
   }
 
   // ── Compartir tabla ──────────────────────────────────────
