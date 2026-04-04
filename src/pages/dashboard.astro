@@ -635,9 +635,7 @@ function accentLine(i: number, isMe: boolean) {
 
   // ── Compartir pagos ──────────────────────────────────────
   var btnPagos = document.getElementById('btn-share-pagos');
-  if (!btnPagos) return;
-
-  btnPagos.addEventListener('click', function () {
+  if (btnPagos) btnPagos.addEventListener('click', function () {
     var players = JSON.parse(document.getElementById('pagos-data').textContent);
     var meta    = JSON.parse(document.getElementById('standings-meta').textContent);
     function fmtIso(iso) {
@@ -662,7 +660,6 @@ function accentLine(i: number, isMe: boolean) {
     parciales.forEach(function (p)  { lines.push('\u23F3 ' + p.username + ' \u2014 70 Bs pagados \u00b7 falta 50 Bs'); });
     pendientes.forEach(function (p) { lines.push('\u274C ' + p.username + ' \u2014 sin pago'); });
 
-    var recaudado = completos.length * 120 + parciales.length * 70;
     var metaTotal = players.length * 100;
 
     var header = ['\uD83D\uDCB0 *ESTADO DE PAGOS*', '_Polla Mundial 2026_'].concat(deadlines);
