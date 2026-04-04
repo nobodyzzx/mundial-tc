@@ -609,25 +609,26 @@ function accentLine(i: number, isMe: boolean) {
     }
 
     var deadlines = [];
-    if (meta.pagosDeadline70) deadlines.push('_\u23F0 1er pago (70 Bs): hasta ' + fmtIso(meta.pagosDeadline70) + '_');
-    if (meta.pagosDeadline50) deadlines.push('_\u23F0 2do pago (50 Bs): hasta ' + fmtIso(meta.pagosDeadline50) + '_');
+    if (meta.pagosDeadline70) deadlines.push('_\u23F0 70 Bs: hasta ' + fmtIso(meta.pagosDeadline70) + '_');
+    if (meta.pagosDeadline50) deadlines.push('_\u23F0 50 Bs: hasta ' + fmtIso(meta.pagosDeadline50) + '_');
 
     var completos  = players.filter(function (p) { return p.pago_70 && p.pago_50; });
     var parciales  = players.filter(function (p) { return p.pago_70 && !p.pago_50; });
     var pendientes = players.filter(function (p) { return !p.pago_70; });
 
     var lines = [];
-    completos.forEach(function (p)  { lines.push('\u2705 ' + p.username + ' \u2014 Completo (70+50 Bs)'); });
-    parciales.forEach(function (p)  { lines.push('\u23F3 ' + p.username + ' \u2014 1er pago \u2714, falta 2do'); });
-    pendientes.forEach(function (p) { lines.push('\u274C ' + p.username + ' \u2014 Sin pago'); });
+    completos.forEach(function (p)  { lines.push('\u2705 ' + p.username + ' \u2014 120 Bs \u2714'); });
+    parciales.forEach(function (p)  { lines.push('\u23F3 ' + p.username + ' \u2014 70 Bs pagados \u00b7 falta 50 Bs'); });
+    pendientes.forEach(function (p) { lines.push('\u274C ' + p.username + ' \u2014 sin pago'); });
 
+    var recaudado = completos.length * 120 + parciales.length * 70;
     var metaTotal = players.length * 100;
 
     var header = ['\uD83D\uDCB0 *ESTADO DE PAGOS*', '_Polla Mundial 2026_'].concat(deadlines);
 
     var text = header.concat([''])
       .concat(lines)
-      .concat(['', 'Pozo actual: ' + meta.pozoTotal + ' Bs \u2502 Premio m\u00e1ximo: ' + metaTotal + ' Bs'])
+      .concat(['', 'Recaudado: ' + recaudado + ' Bs \u2502 Premio m\u00e1ximo: ' + metaTotal + ' Bs'])
       .join('\n');
 
     waShare(text);
