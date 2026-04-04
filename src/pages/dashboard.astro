@@ -247,25 +247,25 @@ function accentLine(i: number, isMe: boolean) {
               {pagosExpired ? 'Pagos 🔒' : 'Pagos 💰'}
             </button>
           </div>
-          {(pagosDeadline70 || pagosDeadline50) && (
-            <div class="text-xs space-y-0.5">
-              {pagosDeadline70 && (
-                <div class={expired70 ? 'text-fifared' : 'text-slate-500'}>
-                  1er pago (70 Bs): <span class="font-medium">{fmtDeadline(pagosDeadline70)}</span>
-                  {expired70 && ' 🔒'}
-                </div>
-              )}
-              {pagosDeadline50 && (
-                <div class={expired50 ? 'text-fifared' : 'text-slate-500'}>
-                  2do pago (50 Bs): <span class="font-medium">{fmtDeadline(pagosDeadline50)}</span>
-                  {expired50 && ' 🔒'}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
+    {(pagosDeadline70 || pagosDeadline50) && (
+      <div class="text-xs space-y-0.5">
+        {pagosDeadline70 && (
+          <div class={expired70 ? 'text-fifared' : 'text-slate-500'}>
+            💰 70 Bs: hasta <span class="font-medium">{fmtDeadline(pagosDeadline70)}</span>
+            {expired70 && ' 🔒'}
+          </div>
+        )}
+        {pagosDeadline50 && (
+          <div class={expired50 ? 'text-fifared' : 'text-slate-500'}>
+            💰 50 Bs: hasta <span class="font-medium">{fmtDeadline(pagosDeadline50)}</span>
+            {expired50 && ' 🔒'}
+          </div>
+        )}
+      </div>
+    )}
 
     <script type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username, pts: p.puntos_totales })))}></script>
     <script type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pagosDeadline70, pagosDeadline50 })}></script>
