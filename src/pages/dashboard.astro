@@ -174,6 +174,8 @@ const leaderPoints = rows[0]?.puntos_totales ?? 0;
 const countPago70 = rows.filter(r => r.pago_70).length;
 const countPago50 = rows.filter(r => r.pago_70 && r.pago_50).length;
 const pozoTotal = countPago50 * 100;
+const pozoActual = countPago50 * 100 + (countPago70 - countPago50) * 50;
+const montoReferi = countPago70 * 20;
 const nextMatch = (proximosPartidos ?? [])[0] ?? null;
 
 // Próximo partido — countdown
@@ -278,7 +280,7 @@ function accentLine(i: number, isMe: boolean) {
     )}
 
     <script type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username, pts: p.puntos_totales })))}></script>
-    <script type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pagosDeadline70, pagosDeadline50 })}></script>
+    <script type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pozoActual, montoReferi, pagosDeadline70, pagosDeadline50 })}></script>
     <script type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username, pago_70: p.pago_70, pago_50: p.pago_50 })))}></script>
 
     <!-- STATS CARDS -->
@@ -319,7 +321,6 @@ function accentLine(i: number, isMe: boolean) {
     <!-- POZO PARCIAL -->
     {(() => {
       const soloPrimero = countPago70 - countPago50;
-      const pozoActual = countPago50 * 100 + soloPrimero * 50;
       const maxPozo = rows.length * 100;
       const pct = maxPozo > 0 ? Math.round(pozoActual / maxPozo * 100) : 0;
       return (
@@ -337,6 +338,10 @@ function accentLine(i: number, isMe: boolean) {
               <div class="h-2.5 rounded-full bg-gradient-to-r from-gold/70 to-gold transition-all duration-700" style={`width: ${pct}%`}></div>
             </div>
             <div class="text-right text-xs text-slate-600">{pct}%</div>
+          </div>
+          <div class="flex justify-between text-xs text-slate-600 border-t border-brand-800 pt-2">
+            <span>⚖️ Réferi acumulado: <strong class="text-slate-400">{montoReferi} Bs</strong></span>
+            <span>Recaudado total: <strong class="text-slate-400">{countPago50 * 120 + soloPrimero * 70} Bs</strong></span>
           </div>
         </div>
       );
@@ -622,7 +627,7 @@ function accentLine(i: number, isMe: boolean) {
         '',
       ].concat(lines).concat([
         '',
-        '\uD83D\uDCB0 Pozo: ' + meta.pozoTotal + ' Bs',
+        '\uD83D\uDCB0 Pozo: ' + meta.pozoActual + ' Bs \u2502 \u2696\uFE0F R\u00e9feri: ' + meta.montoReferi + ' Bs',
       ]).join('\n');
       waShare(text);
     });
@@ -664,7 +669,7 @@ function accentLine(i: number, isMe: boolean) {
 
     var text = header.concat([''])
       .concat(lines)
-      .concat(['', 'Recaudado: ' + recaudado + ' Bs \u2502 Premio m\u00e1ximo: ' + metaTotal + ' Bs'])
+      .concat(['', '\uD83D\uDCB0 Pozo: ' + (completos.length * 100 + parciales.length * 50) + ' Bs \u2502 \u2696\uFE0F R\u00e9feri: ' + (completos.length + parciales.length) * 20 + ' Bs \u2502 Premio m\u00e1x: ' + metaTotal + ' Bs'])
       .join('\n');
 
     waShare(text);
