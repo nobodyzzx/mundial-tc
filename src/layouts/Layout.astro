@@ -300,10 +300,16 @@ if (!isAuthed) {
             </div>
           </>
         ) : (
-          <a href="/login"
-            class="bg-gold text-brand-950 font-bold px-5 min-h-[40px] flex items-center rounded-lg transition text-sm active:bg-gold-dark">
-            Entrar
-          </a>
+          <div class="flex items-center gap-3">
+            <a href="/reglas"
+              class={`text-sm font-medium transition ${pathname === '/reglas' ? 'text-white' : 'text-slate-400 hover:text-slate-200'}`}>
+              Reglamento
+            </a>
+            <a href="/login"
+              class="bg-gold text-brand-950 font-bold px-5 min-h-[40px] flex items-center rounded-lg transition text-sm active:bg-gold-dark">
+              Entrar
+            </a>
+          </div>
         )}
       </div>
 
