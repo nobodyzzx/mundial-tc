@@ -3,71 +3,186 @@ import Layout from '@/layouts/Layout.astro';
 ---
 
 <Layout title="Cómo pagar">
-  <div class="max-w-md mx-auto space-y-6">
 
-    <!-- Header -->
-    <div class="text-center space-y-2 py-4">
-      <img src="/logo-fifa2026.png" alt="FIFA 2026" class="h-12 mx-auto object-contain opacity-80" />
-      <h1 class="font-display text-4xl text-white tracking-wide">CÓMO PAGAR</h1>
-      <p class="text-slate-500 text-sm">Polla Mundial 2026</p>
+  <!-- Hero -->
+  <div class="relative -mx-4 sm:-mx-6 px-4 sm:px-6 py-12 mb-8 overflow-hidden text-center">
+    <div class="absolute inset-0 bg-gradient-to-br from-brand-950 via-brand-900 to-brand-950"></div>
+    <div class="absolute inset-0 bg-gradient-to-r from-gold/5 via-gold/15 to-gold/5 animate-hero-pulse"></div>
+    <!-- Orbs decorativos -->
+    <div class="absolute -top-12 -left-12 w-48 h-48 bg-gold/10 rounded-full blur-3xl animate-orb-1"></div>
+    <div class="absolute -bottom-8 -right-8 w-56 h-56 bg-gold/8 rounded-full blur-3xl animate-orb-2"></div>
+    <div class="relative z-10 space-y-3">
+      <div class="inline-flex items-center gap-2 bg-gold/10 border border-gold/30 rounded-full px-4 py-1.5 text-gold text-xs font-semibold tracking-widest uppercase mb-2">
+        ⚽ Polla Mundial 2026
+      </div>
+      <h1 class="font-display text-5xl sm:text-6xl text-white tracking-wide leading-none">
+        CÓMO <span class="text-gold animate-shimmer-text bg-gradient-to-r from-gold via-yellow-300 to-gold bg-clip-text" style="background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; animation: shimmer-text 3s linear infinite;">PAGAR</span>
+      </h1>
+      <p class="text-slate-400 text-sm">Dos pagos simples · 120 Bs en total</p>
     </div>
+  </div>
+
+  <div class="max-w-md mx-auto space-y-8">
 
     <!-- Montos -->
-    <div class="grid grid-cols-2 gap-3">
-      <div class="bg-brand-900 border border-gold/30 rounded-2xl px-4 py-4 text-center space-y-1">
-        <span class="text-xs text-slate-500 uppercase tracking-wide">1er pago</span>
-        <div class="font-display text-3xl text-gold">70 Bs</div>
-        <div class="text-xs text-slate-400">hasta jue 4 jun</div>
-      </div>
-      <div class="bg-brand-900 border border-brand-800 rounded-2xl px-4 py-4 text-center space-y-1">
-        <span class="text-xs text-slate-500 uppercase tracking-wide">2do pago</span>
-        <div class="font-display text-3xl text-white">50 Bs</div>
-        <div class="text-xs text-slate-400">hasta mié 10 jun, 12:00</div>
-      </div>
-    </div>
-
-    <!-- QR Banco Fie -->
-    <div class="bg-brand-900 border border-brand-800 rounded-2xl overflow-hidden">
-      <div class="px-5 py-3 border-b border-brand-800 flex items-center gap-2">
-        <span class="text-sm font-semibold text-white">Transferencia por QR</span>
-        <span class="text-xs text-slate-500">Banco Fie</span>
-      </div>
-      <div class="p-5 flex flex-col items-center gap-4">
-        <div class="bg-white rounded-2xl p-3 w-64 h-64 flex items-center justify-center">
-          <img src="/qr-bancofie.png" alt="QR Banco Fie" class="w-full h-full object-contain" />
+    <div class="grid grid-cols-2 gap-4">
+      <!-- 1er pago -->
+      <div class="relative group overflow-hidden rounded-2xl">
+        <div class="absolute inset-0 bg-gradient-to-br from-gold/20 to-gold/5 rounded-2xl"></div>
+        <div class="absolute inset-0 rounded-2xl border border-gold/40 group-hover:border-gold/70 transition-colors duration-300"></div>
+        <div class="absolute -top-6 -right-6 w-20 h-20 bg-gold/20 rounded-full blur-xl group-hover:bg-gold/30 transition duration-500"></div>
+        <div class="relative px-4 py-5 text-center space-y-1.5">
+          <span class="text-xs text-gold/70 uppercase tracking-widest font-semibold">1er pago</span>
+          <div class="font-display text-4xl text-gold drop-shadow-[0_0_12px_rgba(234,179,8,0.4)]">70 Bs</div>
+          <div class="flex items-center justify-center gap-1 text-xs text-slate-400">
+            <span>⏰</span> hasta jue 4 jun
+          </div>
         </div>
-        <div class="w-full space-y-2 text-sm">
-          <div class="flex justify-between text-slate-400">
-            <span>Titular</span>
-            <span class="text-slate-200 font-medium">Harold Arturo Navia</span>
-          </div>
-          <div class="flex justify-between text-slate-400">
-            <span>Cuenta</span>
-            <span class="text-slate-200 font-mono font-medium">40001573340</span>
-          </div>
-          <div class="flex justify-between text-slate-400">
-            <span>Banco</span>
-            <span class="text-slate-200 font-medium">Banco Fie</span>
+      </div>
+      <!-- 2do pago -->
+      <div class="relative group overflow-hidden rounded-2xl">
+        <div class="absolute inset-0 bg-gradient-to-br from-brand-800/80 to-brand-900 rounded-2xl"></div>
+        <div class="absolute inset-0 rounded-2xl border border-brand-700 group-hover:border-slate-600 transition-colors duration-300"></div>
+        <div class="absolute -top-6 -right-6 w-20 h-20 bg-white/3 rounded-full blur-xl"></div>
+        <div class="relative px-4 py-5 text-center space-y-1.5">
+          <span class="text-xs text-slate-500 uppercase tracking-widest font-semibold">2do pago</span>
+          <div class="font-display text-4xl text-white">50 Bs</div>
+          <div class="flex items-center justify-center gap-1 text-xs text-slate-400">
+            <span>⏰</span> mié 10 jun, 12:00
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Instrucciones -->
-    <div class="bg-brand-900 border border-brand-800 rounded-2xl p-5 space-y-3">
-      <h2 class="text-sm font-semibold text-white">📋 Instrucciones</h2>
-      <ol class="space-y-2 text-sm text-slate-400 list-decimal list-inside">
-        <li>Escaneá el QR desde tu app bancaria o transferí a la cuenta indicada.</li>
-        <li>En el concepto escribí tu <strong class="text-slate-200">nombre de usuario</strong> en la Polla.</li>
-        <li>Guardá el comprobante y enviáselo al Réferi por WhatsApp.</li>
-        <li>Una vez confirmado, el Réferi habilitará tu acceso.</li>
-      </ol>
+    <!-- Total badge -->
+    <div class="flex justify-center">
+      <div class="inline-flex items-center gap-2 bg-brand-900 border border-brand-700 rounded-full px-5 py-2 text-sm text-slate-400">
+        Total: <strong class="text-white">120 Bs</strong> · Al pozo: <strong class="text-gold">100 Bs</strong> · Réferi: <strong class="text-slate-300">20 Bs</strong>
+      </div>
     </div>
 
-    <!-- Link a reglas -->
-    <p class="text-center text-xs text-slate-600">
-      ¿Dudas? Revisá el <a href="/reglas" class="text-gold underline underline-offset-2">reglamento completo</a>.
-    </p>
+    <!-- QR Section -->
+    <div class="relative">
+      <!-- Glow exterior -->
+      <div class="absolute inset-0 rounded-3xl bg-gold/10 blur-xl animate-qr-glow"></div>
+      <div class="relative bg-brand-900 border border-gold/30 rounded-3xl overflow-hidden">
+        <!-- Header -->
+        <div class="px-5 py-3.5 border-b border-brand-800/80 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-gold animate-pulse"></div>
+            <span class="text-sm font-bold text-white">Transferencia por QR</span>
+          </div>
+          <span class="text-xs bg-brand-800 border border-brand-700 text-slate-400 px-3 py-1 rounded-full">Banco Fie</span>
+        </div>
+
+        <!-- QR -->
+        <div class="p-6 flex flex-col items-center gap-5">
+          <div class="relative animate-float">
+            <!-- Marco dorado animado -->
+            <div class="absolute -inset-1.5 rounded-2xl bg-gradient-to-r from-gold via-yellow-300 to-gold animate-border-spin opacity-60" style="padding:2px">
+              <div class="w-full h-full bg-brand-900 rounded-2xl"></div>
+            </div>
+            <div class="relative bg-white rounded-2xl p-3 w-60 h-60 flex items-center justify-center shadow-2xl">
+              <img src="/qr-bancofie.png" alt="QR Banco Fie" class="w-full h-full object-contain" />
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-500 text-center animate-pulse-slow">Escaneá con tu app bancaria</p>
+
+          <!-- Datos cuenta -->
+          <div class="w-full bg-brand-800/50 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-slate-500">Titular</span>
+              <span class="text-slate-200 font-medium">Harold Arturo Navia</span>
+            </div>
+            <div class="h-px bg-brand-700/50"></div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-slate-500">Cuenta</span>
+              <span class="text-gold font-mono font-bold tracking-wider">40001573340</span>
+            </div>
+            <div class="h-px bg-brand-700/50"></div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-slate-500">Banco</span>
+              <span class="text-slate-200 font-medium">Banco Fie</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pasos -->
+    <div class="space-y-3">
+      <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Cómo completar el pago</h2>
+      <div class="space-y-2">
+        {[
+          { n: '1', icon: '📱', text: 'Escaneá el QR o transferí manualmente a la cuenta indicada.' },
+          { n: '2', icon: '✍️', text: <>En el concepto escribí tu <strong class="text-white">usuario</strong> de la Polla.</> },
+          { n: '3', icon: '📸', text: 'Guardá el comprobante y mandáselo al Réferi por WhatsApp.' },
+          { n: '4', icon: '✅', text: 'El Réferi confirma y habilita tu acceso a la app.' },
+        ].map(step => (
+          <div class="flex items-start gap-4 bg-brand-900 border border-brand-800 rounded-2xl px-4 py-3.5 hover:border-brand-700 transition-colors">
+            <div class="flex-shrink-0 w-8 h-8 rounded-xl bg-brand-800 border border-brand-700 flex items-center justify-center text-base">
+              {step.icon}
+            </div>
+            <p class="text-sm text-slate-400 leading-relaxed">{step.text}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="flex flex-col items-center gap-3 pb-4">
+      <a href="/login"
+        class="w-full flex items-center justify-center gap-2 bg-gold text-brand-950 font-bold py-3.5 rounded-2xl text-sm transition active:scale-95 shadow-[0_0_24px_rgba(234,179,8,0.25)]">
+        ⚽ Ya pagué — Ingresar
+      </a>
+      <a href="/reglas" class="text-xs text-slate-600 hover:text-slate-400 transition">
+        Leer el reglamento completo →
+      </a>
+    </div>
 
   </div>
 </Layout>
+
+<style>
+  @keyframes hero-pulse {
+    0%, 100% { opacity: 0.6; }
+    50%       { opacity: 1; }
+  }
+  @keyframes orb-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%       { transform: translate(12px, 8px) scale(1.1); }
+  }
+  @keyframes orb-2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%       { transform: translate(-10px, -6px) scale(1.08); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-6px); }
+  }
+  @keyframes qr-glow {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50%       { opacity: 0.8; transform: scale(1.02); }
+  }
+  @keyframes border-spin {
+    0%   { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  @keyframes shimmer-text {
+    0%   { background-position: 0% center; }
+    100% { background-position: 200% center; }
+  }
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+
+  .animate-hero-pulse   { animation: hero-pulse 4s ease-in-out infinite; }
+  .animate-orb-1        { animation: orb-1 6s ease-in-out infinite; }
+  .animate-orb-2        { animation: orb-2 7s ease-in-out infinite; }
+  .animate-float        { animation: float 3.5s ease-in-out infinite; }
+  .animate-qr-glow      { animation: qr-glow 3s ease-in-out infinite; }
+  .animate-border-spin  { animation: border-spin 3s linear infinite; background-size: 200% auto; }
+  .animate-pulse-slow   { animation: pulse-slow 2.5s ease-in-out infinite; }
+</style>
