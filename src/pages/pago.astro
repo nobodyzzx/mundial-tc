@@ -100,7 +100,12 @@ import Layout from '@/layouts/Layout.astro';
             <div class="h-px bg-brand-700/50"></div>
             <div class="flex items-center justify-between text-sm">
               <span class="text-slate-500">Cuenta</span>
-              <span class="text-gold font-mono font-bold tracking-wider">40001573340</span>
+              <div class="flex items-center gap-2">
+                <span class="text-gold font-mono font-bold tracking-wider">40001573340</span>
+                <button id="copy-cuenta" onclick="copyCuenta()" class="text-[10px] bg-brand-700 border border-brand-600 text-slate-400 hover:text-white px-2 py-0.5 rounded-md transition active:scale-95" title="Copiar número de cuenta">
+                  📋
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -140,6 +145,20 @@ import Layout from '@/layouts/Layout.astro';
 
   </div>
 </Layout>
+
+<script is:inline>
+function copyCuenta() {
+  var num = '40001573340';
+  var btn = document.getElementById('copy-cuenta');
+  navigator.clipboard.writeText(num).then(function() {
+    btn.textContent = '✓';
+    btn.classList.add('text-gol');
+    setTimeout(function() { btn.textContent = '📋'; btn.classList.remove('text-gol'); }, 2000);
+  }).catch(function() {
+    prompt('Copiá el número de cuenta:', num);
+  });
+}
+</script>
 
 <style>
   @keyframes hero-pulse {

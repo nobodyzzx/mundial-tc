@@ -127,6 +127,15 @@ function predStyle(pred: any, m: any): string {
       </span>
     </div>
 
+    <!-- Leyenda de colores -->
+    <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-xs bg-brand-900 border border-brand-800 rounded-xl px-4 py-3">
+      <div class="flex items-center gap-1.5"><span class="text-gold font-bold">3–1</span><span class="text-slate-500">Exacto (6 pts)</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-gol font-bold">2–1</span><span class="text-slate-500">Resultado correcto (3+ pts)</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-300">1–2</span><span class="text-slate-500">Pts parciales (1–2 pts)</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-600">0–0</span><span class="text-slate-500">Sin puntos</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-700">—</span><span class="text-slate-500">Sin pronóstico</span></div>
+    </div>
+
     {jornadaOrder.length === 0 && (
       <div class="text-center py-20 text-slate-600">
         <div class="text-5xl mb-4">📋</div>
@@ -137,7 +146,10 @@ function predStyle(pred: any, m: any): string {
     {jornadaOrder.map((jornada, ji) => (
       <div class="space-y-4">
         <div class="flex items-center gap-3">
-          <h2 class="font-display text-2xl text-white tracking-wide">{jornada.toUpperCase()}</h2>
+          <div>
+            <h2 class="font-display text-2xl text-white tracking-wide">{jornada.toUpperCase()}</h2>
+            <p class="text-xs text-slate-600">{jornadaMatches[jornada].length} partido{jornadaMatches[jornada].length !== 1 ? 's' : ''}</p>
+          </div>
           <div class="flex-1 h-px bg-brand-800" />
           <button
             onclick={`shareJornada(${ji})`}

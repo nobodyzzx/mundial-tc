@@ -33,23 +33,39 @@ const { data: profile } = await supabaseAdmin
       </div>
       <div class="flex items-center justify-between">
         <span class="text-sm text-slate-400">Correo</span>
-        <span class="font-semibold text-slate-300 text-sm">{user.email}</span>
+        <span class="font-semibold text-slate-300 text-sm truncate max-w-[60%] text-right">{user.email}</span>
       </div>
       <div class="flex items-center justify-between">
         <span class="text-sm text-slate-400">Puntos</span>
         <span class="font-bold text-gold">{profile?.puntos_totales ?? 0} pts</span>
       </div>
-      <div class="flex items-center justify-between">
-        <span class="text-sm text-slate-400">Pagos</span>
-        <div class="flex gap-2">
-          <span class={`text-xs px-2 py-0.5 rounded-full font-medium ${profile?.pago_70 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-brand-800 text-slate-500 border border-brand-700'}`}>
-            70 Bs {profile?.pago_70 ? '✓' : '✗'}
+      <div class="h-px bg-brand-800"></div>
+      <p class="text-xs text-slate-600 uppercase tracking-wide font-semibold">Estado de pagos</p>
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm text-slate-300">1er pago — 70 Bs</span>
+            <p class="text-xs text-slate-600">Habilitación para pronosticar</p>
+          </div>
+          <span class={`text-xs px-3 py-1 rounded-full font-semibold ${profile?.pago_70 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-brand-800 text-slate-500 border border-brand-700'}`}>
+            {profile?.pago_70 ? '✓ Pagado' : '✗ Pendiente'}
           </span>
-          <span class={`text-xs px-2 py-0.5 rounded-full font-medium ${profile?.pago_50 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-brand-800 text-slate-500 border border-brand-700'}`}>
-            50 Bs {profile?.pago_50 ? '✓' : '✗'}
+        </div>
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm text-slate-300">2do pago — 50 Bs</span>
+            <p class="text-xs text-slate-600">Completa tu participación</p>
+          </div>
+          <span class={`text-xs px-3 py-1 rounded-full font-semibold ${profile?.pago_50 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-brand-800 text-slate-500 border border-brand-700'}`}>
+            {profile?.pago_50 ? '✓ Pagado' : '✗ Pendiente'}
           </span>
         </div>
       </div>
+      {!profile?.pago_70 && (
+        <a href="/pago" class="flex items-center justify-center gap-2 w-full bg-gold/10 border border-gold/30 text-gold text-sm font-semibold py-2.5 rounded-xl transition active:bg-gold/20">
+          💰 Ver cómo pagar →
+        </a>
+      )}
     </div>
 
     <!-- Cambiar nombre -->
@@ -58,14 +74,17 @@ const { data: profile } = await supabaseAdmin
       <form method="POST" action="/api/profile/update" class="space-y-3">
         <input type="hidden" name="field" value="username" />
         <div class="space-y-1.5">
-          <label class="text-sm text-slate-300 block">Nuevo nombre de usuario</label>
-          <input name="username" type="text" required
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-slate-300">Nombre de usuario</label>
+            <span id="username-counter" class="text-xs text-slate-600">0/30</span>
+          </div>
+          <input id="username-input" name="username" type="text" required
             value={profile?.username ?? ''}
             maxlength="30"
             class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 text-base text-white focus:outline-none focus:border-gold transition" />
         </div>
         <button type="submit"
-          class="w-full bg-brand-700 border border-brand-600 text-white font-semibold py-3 rounded-xl transition active:bg-brand-600 min-h-[48px]">
+          class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
           Actualizar nombre
         </button>
       </form>
@@ -76,9 +95,9 @@ const { data: profile } = await supabaseAdmin
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Cambiar contraseña</h2>
       <form method="POST" action="/api/auth/update-password" class="space-y-3" id="pw-form">
         <div class="space-y-1.5">
-          <label class="text-sm text-slate-300 block">Nueva contraseña</label>
+          <label class="text-sm text-slate-300 block">Nueva contraseña <span class="text-slate-600">(mín. 8 caracteres)</span></label>
           <div class="relative">
-            <input id="pw1" name="password" type="password" required minlength="8" placeholder="Mínimo 8 caracteres"
+            <input id="pw1" name="password" type="password" required minlength="8" placeholder="••••••••"
               class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
             <button type="button" class="eye-toggle absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition touch-manipulation" data-target="pw1">
               <svg class="eye-icon w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
@@ -87,7 +106,7 @@ const { data: profile } = await supabaseAdmin
           </div>
         </div>
         <div class="space-y-1.5">
-          <label class="text-sm text-slate-300 block">Confirmar contraseña</label>
+          <label class="text-sm text-slate-300 block">Confirmá la contraseña</label>
           <div class="relative">
             <input id="pw2" name="confirm_password" type="password" required minlength="8" placeholder="Repetí la contraseña"
               class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
@@ -97,9 +116,9 @@ const { data: profile } = await supabaseAdmin
             </button>
           </div>
         </div>
-        <p id="pw-mismatch" class="text-sm text-red-400 hidden">Las contraseñas no coinciden</p>
+        <p id="pw-mismatch" class="text-sm text-red-400 hidden flex items-center gap-1.5">⚠️ Las contraseñas no coinciden</p>
         <button type="submit"
-          class="w-full bg-brand-700 border border-brand-600 text-white font-semibold py-3 rounded-xl transition active:bg-brand-600 min-h-[48px]">
+          class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
           Cambiar contraseña
         </button>
       </form>
@@ -124,16 +143,37 @@ const { data: profile } = await supabaseAdmin
       });
     });
 
-    // Validar contraseñas
+    // Char counter para username
+    var usernameInput = document.getElementById('username-input');
+    var counter = document.getElementById('username-counter');
+    if (usernameInput && counter && !usernameInput._counterInit) {
+      usernameInput._counterInit = true;
+      function updateCounter() {
+        var len = usernameInput.value.length;
+        counter.textContent = len + '/30';
+        counter.className = 'text-xs ' + (len >= 28 ? 'text-amber-400' : 'text-slate-600');
+      }
+      updateCounter();
+      usernameInput.addEventListener('input', updateCounter);
+    }
+
+    // Validar contraseñas (submit + tiempo real)
     var form = document.getElementById('pw-form');
     if (form && !form._pwInit) {
       form._pwInit = true;
+      var pw2Input = document.getElementById('pw2');
+      var msg = document.getElementById('pw-mismatch');
+      function checkMatch() {
+        var match = document.getElementById('pw1').value === pw2Input.value;
+        msg.classList.toggle('hidden', match || pw2Input.value === '');
+        pw2Input.classList.toggle('border-red-500', !match && pw2Input.value !== '');
+        pw2Input.classList.toggle('border-brand-700', match || pw2Input.value === '');
+      }
+      pw2Input.addEventListener('input', checkMatch);
       form.addEventListener('submit', function(e) {
         var pw1 = document.getElementById('pw1').value;
-        var pw2 = document.getElementById('pw2').value;
-        var msg = document.getElementById('pw-mismatch');
+        var pw2 = pw2Input.value;
         if (pw1 !== pw2) { e.preventDefault(); msg.classList.remove('hidden'); }
-        else { msg.classList.add('hidden'); }
       });
     }
   }
