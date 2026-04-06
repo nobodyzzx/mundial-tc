@@ -1,0 +1,73 @@
+---
+import Layout from '@/layouts/Layout.astro';
+---
+
+<Layout title="Cómo pagar">
+  <div class="max-w-md mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="text-center space-y-2 py-4">
+      <img src="/logo-fifa2026.png" alt="FIFA 2026" class="h-12 mx-auto object-contain opacity-80" />
+      <h1 class="font-display text-4xl text-white tracking-wide">CÓMO PAGAR</h1>
+      <p class="text-slate-500 text-sm">Polla Mundial 2026</p>
+    </div>
+
+    <!-- Montos -->
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-brand-900 border border-gold/30 rounded-2xl px-4 py-4 text-center space-y-1">
+        <span class="text-xs text-slate-500 uppercase tracking-wide">1er pago</span>
+        <div class="font-display text-3xl text-gold">70 Bs</div>
+        <div class="text-xs text-slate-400">hasta jue 4 jun</div>
+      </div>
+      <div class="bg-brand-900 border border-brand-800 rounded-2xl px-4 py-4 text-center space-y-1">
+        <span class="text-xs text-slate-500 uppercase tracking-wide">2do pago</span>
+        <div class="font-display text-3xl text-white">50 Bs</div>
+        <div class="text-xs text-slate-400">hasta mié 10 jun, 12:00</div>
+      </div>
+    </div>
+
+    <!-- QR Banco Fie -->
+    <div class="bg-brand-900 border border-brand-800 rounded-2xl overflow-hidden">
+      <div class="px-5 py-3 border-b border-brand-800 flex items-center gap-2">
+        <span class="text-sm font-semibold text-white">Transferencia por QR</span>
+        <span class="text-xs text-slate-500">Banco Fie</span>
+      </div>
+      <div class="p-5 flex flex-col items-center gap-4">
+        <div class="bg-white rounded-2xl p-3 w-64 h-64 flex items-center justify-center">
+          <img src="/qr-bancofie.png" alt="QR Banco Fie" class="w-full h-full object-contain" />
+        </div>
+        <div class="w-full space-y-2 text-sm">
+          <div class="flex justify-between text-slate-400">
+            <span>Titular</span>
+            <span class="text-slate-200 font-medium">Harold Arturo Navia</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Cuenta</span>
+            <span class="text-slate-200 font-mono font-medium">40001573340</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Banco</span>
+            <span class="text-slate-200 font-medium">Banco Fie</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instrucciones -->
+    <div class="bg-brand-900 border border-brand-800 rounded-2xl p-5 space-y-3">
+      <h2 class="text-sm font-semibold text-white">📋 Instrucciones</h2>
+      <ol class="space-y-2 text-sm text-slate-400 list-decimal list-inside">
+        <li>Escaneá el QR desde tu app bancaria o transferí a la cuenta indicada.</li>
+        <li>En el concepto escribí tu <strong class="text-slate-200">nombre de usuario</strong> en la Polla.</li>
+        <li>Guardá el comprobante y enviáselo al Réferi por WhatsApp.</li>
+        <li>Una vez confirmado, el Réferi habilitará tu acceso.</li>
+      </ol>
+    </div>
+
+    <!-- Link a reglas -->
+    <p class="text-center text-xs text-slate-600">
+      ¿Dudas? Revisá el <a href="/reglas" class="text-gold underline underline-offset-2">reglamento completo</a>.
+    </p>
+
+  </div>
+</Layout>
