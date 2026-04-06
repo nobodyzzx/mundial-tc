@@ -284,7 +284,7 @@ function accentLine(i: number, isMe: boolean) {
     <script type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username, pago_70: p.pago_70, pago_50: p.pago_50 })))}></script>
 
     <!-- STATS CARDS -->
-    <div class="grid grid-cols-3 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <!-- Participantes -->
       <div class="bg-brand-900 border border-brand-800 rounded-2xl px-4 py-3 flex flex-col gap-1">
         <span class="text-xs text-slate-500 uppercase tracking-wide">Jugadores</span>
@@ -310,6 +310,15 @@ function accentLine(i: number, isMe: boolean) {
           <span class="text-sm text-slate-600">Sin partidos próximos</span>
         </div>
       )}
+      <!-- Pagar QR -->
+      <a href="/pago" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
+        <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C] to-[#0066B3]"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C]/80 to-[#0066B3]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div class="absolute inset-0 bg-[url('/qr-bancofie.png')] bg-center bg-cover opacity-5"></div>
+        <span class="relative text-xs text-white/70 uppercase tracking-wide">Pagar QR</span>
+        <span class="relative text-2xl">📲</span>
+        <span class="relative text-xs text-white/80 font-semibold leading-tight">Banco Fie</span>
+      </a>
     </div>
 
     <!-- POZO PARCIAL -->
