@@ -26,8 +26,8 @@ const pathname = Astro.url.pathname;
 const navLink = (href: string) => {
   const active = pathname === href || (href !== '/' && pathname.startsWith(href));
   return active
-    ? 'flex items-center justify-center min-h-[48px] px-2 text-white font-semibold text-sm border-b-2 border-gold'
-    : 'flex items-center justify-center min-h-[48px] px-2 text-slate-400 hover:text-white transition text-sm';
+    ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-800 text-white font-semibold text-sm transition'
+    : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-brand-800/50 transition text-sm';
 };
 
 if (!isAuthed) {
@@ -232,86 +232,96 @@ if (!isAuthed) {
       </div>
     )}
 
-    <nav class="bg-brand-900/95 backdrop-blur-md sticky top-0 z-50">
+    <nav class="bg-brand-950/95 backdrop-blur-md sticky top-0 z-50 border-b border-brand-800/60">
       <!-- FIFA accent gradient line -->
       <div class="h-[2px] bg-gradient-to-r from-fifared via-gold to-fifared"></div>
       <div class="max-w-5xl mx-auto px-3 h-14 flex items-center justify-between gap-2">
 
-        <a href="/" class="flex items-center min-h-[48px]">
+        <a href="/" class="flex items-center gap-2 min-h-[48px] flex-shrink-0">
           <img src="/logo-fifa2026.png" alt="FIFA 2026" class="h-7 sm:h-8 object-contain" />
         </a>
 
         {showNav ? (
           <>
             {/* ── Desktop: nav horizontal completo ── */}
-            <div class="hidden sm:flex items-center gap-1">
-              <a href="/dashboard"   class={navLink('/dashboard')}>Tabla</a>
-              <a href="/grupos"      class={navLink('/grupos')}>Grupos</a>
-              <a href="/predictions" class={navLink('/predictions')}>Partidos</a>
-              <a href="/resultados"  class={navLink('/resultados')}>Resultados</a>
-              <a href="/reglas"      class={navLink('/reglas')}>Reglas</a>
+            <div class="hidden sm:flex items-center gap-0.5 flex-1 justify-center">
+              <a href="/dashboard"   class={navLink('/dashboard')}>🏆 Tabla</a>
+              <a href="/grupos"      class={navLink('/grupos')}>📊 Grupos</a>
+              <a href="/predictions" class={navLink('/predictions')}>📅 Partidos</a>
+              <a href="/resultados"  class={navLink('/resultados')}>📋 Resultados</a>
+              <a href="/reglas"      class={navLink('/reglas')}>📖 Reglas</a>
               {profile?.es_referi && (
                 <div class="relative group">
-                  <button class={`flex items-center gap-1 min-h-[48px] px-2 font-semibold text-sm transition ${pathname.startsWith('/admin') ? 'text-gold border-b-2 border-gold' : 'text-gold/80 hover:text-gold'}`}>
+                  <button class={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${pathname.startsWith('/admin') ? 'bg-gold/15 text-gold' : 'text-gold/70 hover:text-gold hover:bg-gold/10'}`}>
                     ⚖️ VAR
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  <div class="absolute right-0 top-full pt-1 hidden group-hover:block z-50">
-                    <div class="bg-brand-900 border border-brand-700 rounded-xl shadow-2xl overflow-hidden min-w-[160px]">
-                      <a href="/admin" class="flex items-center gap-2 px-4 py-3 text-sm text-gold hover:bg-brand-800 transition">⚖️ Panel VAR</a>
-                      <div class="h-px bg-brand-700/60" />
-                      <a href="/admin/usuarios" class="flex items-center gap-2 px-4 py-3 text-sm text-gold/80 hover:bg-brand-800 hover:text-gold transition">👥 Usuarios</a>
-                      <div class="h-px bg-brand-700/60" />
-                      <a href="/admin/pronosticos" class="flex items-center gap-2 px-4 py-3 text-sm text-gold/80 hover:bg-brand-800 hover:text-gold transition">📋 Pronósticos</a>
-                      <div class="h-px bg-brand-700/60" />
-                      <a href="/resumen" class="flex items-center gap-2 px-4 py-3 text-sm text-gold/80 hover:bg-brand-800 hover:text-gold transition">📊 Resumen</a>
+                  <div class="absolute left-1/2 -translate-x-1/2 top-full pt-2 hidden group-hover:block z-50">
+                    <div class="bg-brand-900 border border-brand-700 rounded-xl shadow-2xl overflow-hidden min-w-[180px]">
+                      <a href="/admin"             class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/admin' ? 'text-gold' : 'text-gold/80'}`}>⚖️ Panel VAR</a>
+                      <div class="h-px bg-brand-800" />
+                      <a href="/admin/usuarios"    class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/admin/usuarios' ? 'text-gold' : 'text-gold/70'}`}>👥 Usuarios</a>
+                      <div class="h-px bg-brand-800" />
+                      <a href="/admin/pronosticos" class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/admin/pronosticos' ? 'text-gold' : 'text-gold/70'}`}>📋 Pronósticos</a>
+                      <div class="h-px bg-brand-800" />
+                      <a href="/resumen"           class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/resumen' ? 'text-gold' : 'text-gold/70'}`}>📊 Resumen</a>
                     </div>
                   </div>
                 </div>
               )}
-              <a href="/perfil" class={`border px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 ml-1 transition ${pathname === '/perfil' ? 'bg-brand-700 border-brand-600' : 'bg-brand-800 border-brand-700 hover:border-brand-600'}`}>
-                <span class="text-slate-400">{profile?.username}</span>
-                <span class="text-gold font-bold">{profile?.puntos_totales ?? 0}p</span>
+            </div>
+
+            {/* ── Desktop: perfil + salir ── */}
+            <div class="hidden sm:flex items-center gap-1 flex-shrink-0">
+              <a href="/perfil" class={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition ${pathname === '/perfil' ? 'bg-brand-800 text-white' : 'hover:bg-brand-800/50 text-slate-300'}`}>
+                <span class="w-6 h-6 rounded-full bg-gradient-to-br from-gold/60 to-gold/30 flex items-center justify-center text-[11px] font-bold text-brand-950 flex-shrink-0">
+                  {(profile?.username ?? '?')[0].toUpperCase()}
+                </span>
+                <span class="font-medium">{profile?.username}</span>
+                <span class="text-gold font-bold text-xs">{profile?.puntos_totales ?? 0}p</span>
               </a>
               <form method="POST" action="/api/auth/logout">
-                <button class="flex items-center justify-center min-h-[48px] min-w-[40px] text-slate-500 hover:text-fifared transition text-xs px-2" title="Salir">
-                  Salir
+                <button class="flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-fifared hover:bg-fifared/10 transition" title="Cerrar sesión">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
                 </button>
               </form>
             </div>
 
-            {/* ── Mobile: pronósticos + puntos + hamburguesa ── */}
+            {/* ── Mobile: accesos rápidos + hamburguesa ── */}
             <div class="flex sm:hidden items-center gap-1">
               <a href="/predictions"
-                class="flex items-center justify-center min-h-[48px] min-w-[48px] text-slate-300 active:text-white transition text-xl"
+                class={`flex items-center justify-center w-10 h-10 rounded-lg transition text-lg ${pathname.startsWith('/predictions') ? 'bg-brand-800 text-white' : 'text-slate-400 active:bg-brand-800'}`}
                 title="Pronósticos">📅</a>
-              <span class="bg-brand-800 border border-brand-700 px-2 py-1 rounded-lg text-xs font-bold text-gold">
-                {profile?.puntos_totales ?? 0}p
-              </span>
+              <a href="/perfil"
+                class={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition ${pathname === '/perfil' ? 'bg-brand-800 text-white' : 'text-slate-300 active:bg-brand-800'}`}>
+                <span class="w-5 h-5 rounded-full bg-gradient-to-br from-gold/60 to-gold/30 flex items-center justify-center text-[10px] font-bold text-brand-950">
+                  {(profile?.username ?? '?')[0].toUpperCase()}
+                </span>
+                <span class="text-gold font-bold">{profile?.puntos_totales ?? 0}p</span>
+              </a>
               <button id="menu-btn"
-                class="flex items-center justify-center min-h-[48px] min-w-[48px] text-slate-400 active:text-white transition"
+                class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-400 active:bg-brand-800 transition"
                 aria-label="Menú">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
             </div>
           </>
         ) : (
-          <div class="flex items-center gap-3">
-            <a href="/reglas"
-              class={`text-sm font-medium transition ${pathname === '/reglas' ? 'text-white' : 'text-slate-400 hover:text-slate-200'}`}>
-              Reglamento
+          <div class="flex items-center gap-2">
+            <a href="/reglas" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/reglas' ? 'bg-brand-800 text-white' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
+              📖 Reglas
             </a>
-            <a href="/pago"
-              class={`text-sm font-medium transition ${pathname === '/pago' ? 'text-white' : 'text-slate-400 hover:text-slate-200'}`}>
-              Cómo pagar
+            <a href="/pago" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/pago' ? 'bg-brand-800 text-white' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
+              💰 Cómo pagar
             </a>
-            <a href="/login"
-              class="bg-gold text-brand-950 font-bold px-5 min-h-[40px] flex items-center rounded-lg transition text-sm active:bg-gold-dark">
-              Entrar
+            <a href="/login" class="bg-gold text-brand-950 font-bold px-4 py-2 flex items-center rounded-lg transition text-sm active:opacity-80">
+              Entrar →
             </a>
           </div>
         )}
@@ -320,45 +330,69 @@ if (!isAuthed) {
       {/* ── Mobile: menú desplegable ── */}
       {showNav && (
         <div id="mobile-menu"
-          class="hidden sm:hidden bg-brand-900/98 backdrop-blur-md"
-          style="transition: opacity 180ms ease, transform 180ms ease; transform-origin: top;">
+          class="hidden sm:hidden border-t border-brand-800/60 bg-brand-950/98 backdrop-blur-md">
 
-          {/* Línea divisora difuminada */}
-          <div class="h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
+          <div class="max-w-5xl mx-auto px-4 py-3 space-y-1">
 
-          <div class="max-w-5xl mx-auto px-6 pt-3 pb-2 flex flex-col items-end">
-
-            {/* Usuario alineado a la derecha */}
-            <a href="/perfil" class="flex items-center gap-2 py-3 w-full justify-end">
-              <span class="text-xs text-slate-400">{profile?.username}</span>
-              <span class="bg-brand-800 border border-brand-700 px-2.5 py-1 rounded-lg text-xs font-bold text-gold">
-                {profile?.puntos_totales ?? 0} pts
+            {/* Usuario */}
+            <a href="/perfil" class={`flex items-center gap-3 px-3 py-3 rounded-xl transition ${pathname === '/perfil' ? 'bg-brand-800' : 'hover:bg-brand-900 active:bg-brand-800'}`}>
+              <span class="w-8 h-8 rounded-full bg-gradient-to-br from-gold/60 to-gold/30 flex items-center justify-center text-sm font-bold text-brand-950 flex-shrink-0">
+                {(profile?.username ?? '?')[0].toUpperCase()}
               </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-white">{profile?.username}</div>
+                <div class="text-xs text-slate-500">Mi perfil</div>
+              </div>
+              <span class="text-gold font-bold text-sm">{profile?.puntos_totales ?? 0} pts</span>
             </a>
 
-            <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-600 to-transparent" />
-            <a href="/dashboard"   class={`flex items-center justify-end gap-3 w-full py-3.5 text-sm font-medium ${pathname === '/dashboard' ? 'text-white' : 'text-slate-300'}`}><span>Tabla de posiciones</span> 🏆</a>
-            <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
-            <a href="/grupos"      class={`flex items-center justify-end gap-3 w-full py-3.5 text-sm font-medium ${pathname === '/grupos' ? 'text-white' : 'text-slate-300'}`}><span>Grupos y Eliminatorias</span> 📊</a>
-            <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
-            <a href="/predictions" class={`flex items-center justify-end gap-3 w-full py-3.5 text-sm font-medium ${pathname.startsWith('/predictions') ? 'text-white' : 'text-slate-300'}`}><span>Mis Pronósticos</span> 📅</a>
-            <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
-            <a href="/resultados"  class={`flex items-center justify-end gap-3 w-full py-3.5 text-sm font-medium ${pathname === '/resultados' ? 'text-white' : 'text-slate-300'}`}><span>Resultados</span> 📊</a>
-            <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
-            <a href="/reglas"      class={`flex items-center justify-end gap-3 w-full py-3.5 text-sm font-medium ${pathname === '/reglas' ? 'text-white' : 'text-slate-300'}`}><span>Reglamento</span> 📋</a>
-            {profile?.es_referi && (<>
-              <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
-              <a href="/admin" class={`flex items-center justify-end gap-3 w-full py-3.5 text-sm font-semibold ${pathname === '/admin' ? 'text-gold' : 'text-gold/70'}`}><span>Panel VAR</span> ⚖️</a>
-              <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
-              <a href="/admin/usuarios" class={`flex items-center justify-end gap-3 w-full py-3.5 text-sm font-semibold ${pathname === '/admin/usuarios' ? 'text-gold' : 'text-gold/70'}`}><span>Usuarios</span> 👥</a>
-            </>)}
-            <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
-            <form method="POST" action="/api/auth/logout" class="w-full">
-              <button class="flex items-center justify-end gap-3 w-full py-3.5 text-slate-500 active:text-fifared text-sm">
-                <span>Cerrar sesión</span> 🚪
+            <div class="h-px bg-brand-800 my-1" />
+
+            {[
+              { href: '/dashboard',   icon: '🏆', label: 'Tabla de posiciones' },
+              { href: '/grupos',      icon: '📊', label: 'Grupos y Eliminatorias' },
+              { href: '/predictions', icon: '📅', label: 'Mis Pronósticos', startsWith: true },
+              { href: '/resultados',  icon: '📋', label: 'Resultados' },
+              { href: '/reglas',      icon: '📖', label: 'Reglamento' },
+              { href: '/pago',        icon: '💰', label: 'Cómo pagar' },
+            ].map(({ href, icon, label, startsWith }) => {
+              const active = startsWith ? pathname.startsWith(href) : pathname === href;
+              return (
+                <a href={href} class={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition ${active ? 'bg-brand-800 text-white font-semibold' : 'text-slate-300 hover:bg-brand-900 active:bg-brand-800'}`}>
+                  <span class="text-lg w-7 text-center flex-shrink-0">{icon}</span>
+                  <span>{label}</span>
+                  {active && <div class="ml-auto w-1.5 h-1.5 rounded-full bg-gold"></div>}
+                </a>
+              );
+            })}
+
+            {profile?.es_referi && (
+              <>
+                <div class="h-px bg-brand-800 my-1" />
+                {[
+                  { href: '/admin',             label: 'Panel VAR' },
+                  { href: '/admin/usuarios',    label: 'Usuarios' },
+                  { href: '/admin/pronosticos', label: 'Pronósticos' },
+                  { href: '/resumen',           label: 'Resumen' },
+                ].map(({ href, label }) => (
+                  <a href={href} class={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition ${pathname === href ? 'bg-gold/15 text-gold font-semibold' : 'text-gold/70 hover:bg-gold/10 active:bg-gold/15'}`}>
+                    <span class="text-lg w-7 text-center flex-shrink-0">⚖️</span>
+                    <span>{label}</span>
+                  </a>
+                ))}
+              </>
+            )}
+
+            <div class="h-px bg-brand-800 my-1" />
+            <form method="POST" action="/api/auth/logout">
+              <button class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm text-slate-500 active:text-fifared active:bg-fifared/10 transition w-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 ml-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Cerrar sesión</span>
               </button>
             </form>
-            <div class="h-px w-full bg-gradient-to-r from-transparent via-brand-800 to-transparent" />
+
           </div>
         </div>
       )}
