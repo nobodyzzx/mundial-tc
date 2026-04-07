@@ -624,22 +624,24 @@ function accentLine(i: number, isMe: boolean) {
 (function () {
   var WA_ICON = '\uD83D\uDCF2'; // 📲 inline para evitar encoding issues
 
+  function showToast(msg) {
+    var el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';
+    document.body.appendChild(el);
+    setTimeout(function () { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 300); }, 3500);
+  }
+
   function waShare(text) {
-    var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobile) {
-      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+    // Web Share API: disponible en iOS Safari y Android Chrome — abre el selector nativo
+    if (navigator.share) {
+      navigator.share({ text: text }).catch(function () {});
       return;
     }
-    function showToast(msg) {
-      var el = document.createElement('div');
-      el.textContent = msg;
-      el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';
-      document.body.appendChild(el);
-      setTimeout(function () { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 300); }, 3500);
-    }
+    // Desktop: copiar al portapapeles
     navigator.clipboard.writeText(text)
-      .then(function () { showToast('\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V'); })
-      .catch(function () { showToast('\u26A0\uFE0F No se pudo copiar \u2014 copi\u00e1lo manualmente'); });
+      .then(function () { showToast('\uD83D\uDCCB Copiado \u2014 p\u00e9galo en WhatsApp con Ctrl+V'); })
+      .catch(function () { showToast('\u26A0\uFE0F No se pudo copiar \u2014 c\u00f3pialo manualmente'); });
   }
 
   // ── Compartir tabla ──────────────────────────────────────
