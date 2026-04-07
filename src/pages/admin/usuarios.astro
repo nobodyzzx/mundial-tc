@@ -164,10 +164,10 @@ function avatarColor(id: string) {
                   <div class="w-px h-6 bg-brand-700 hidden sm:block" />
                   <div class="flex flex-col items-center gap-0.5">
                     {u.profile?.pago_70 && u.profile?.pago_50
-                      ? <span title="Pago completo" class="text-base">✅</span>
+                      ? <><span title="Pago completo (120 Bs)" class="text-base">✅</span><span class="text-[9px] text-gol">120 Bs</span></>
                       : u.profile?.pago_70
-                      ? <span title="Pago parcial" class="text-base">⏳</span>
-                      : <span title="Pago pendiente" class="text-base">❌</span>
+                      ? <><span title="Pago parcial — falta 50 Bs" class="text-base">⏳</span><span class="text-[9px] text-amber-400">70 Bs</span></>
+                      : <><span title="Sin pago" class="text-base">❌</span><span class="text-[9px] text-slate-600">0 Bs</span></>
                     }
                   </div>
                   <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

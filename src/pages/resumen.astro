@@ -155,14 +155,15 @@ const elTotals = Object.fromEntries(players.map((p: any) => [
   {matches.length === 0 && (
     <div class="text-center py-20 text-slate-600">
       <div class="text-5xl mb-4">📋</div>
-      <p>Aún no hay partidos terminados.</p>
+      <p>El torneo aún no ha comenzado.</p>
+      <p class="text-sm text-slate-700 mt-1">Los pronósticos y puntajes aparecerán aquí cuando terminen los primeros partidos.</p>
     </div>
   )}
 
   <!-- ── TAB GRUPOS ── -->
   <div id="tab-grupos" class="tab-pane print-active overflow-x-auto">
     {groupMatches.length === 0
-      ? <p class="text-slate-600 text-sm py-8">No hay partidos de grupos terminados.</p>
+      ? <p class="text-slate-600 text-sm py-8">Aún no hay partidos de grupos terminados.</p>
       : (
         <table class="border-collapse text-xs w-full">
           <thead>
@@ -228,7 +229,7 @@ const elTotals = Object.fromEntries(players.map((p: any) => [
   <!-- ── TAB ELIMINATORIAS ── -->
   <div id="tab-elim" class="tab-pane hidden overflow-x-auto">
     {knockoutMatches.length === 0
-      ? <p class="text-slate-600 text-sm py-8">No hay partidos de eliminatoria terminados.</p>
+      ? <p class="text-slate-600 text-sm py-8">Aún no hay partidos de eliminatoria terminados. La fase de grupos debe terminar primero.</p>
       : (
         <table class="border-collapse text-xs w-full">
           <thead>

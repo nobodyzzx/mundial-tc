@@ -214,11 +214,13 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                     </div>
 
                     {missing.length > 0 && !m.is_finished && (
-                      <div class="mt-2 flex items-center gap-1.5 flex-wrap">
-                        <span class="text-[11px] text-fifared/70">Sin pronóstico:</span>
-                        {missing.map((pl: any) => (
-                          <span class="text-[11px] text-fifared/60 bg-fifared/5 border border-fifared/20 px-1.5 py-0.5 rounded">{pl.username}</span>
-                        ))}
+                      <div class="mt-2 flex flex-wrap gap-1.5 items-start">
+                        <span class="text-[11px] text-fifared/70 mt-0.5">No pronosticaron <span class="text-fifared/40">(pago incompleto o no ingresaron a tiempo)</span>:</span>
+                        <div class="flex flex-wrap gap-1">
+                          {missing.map((pl: any) => (
+                            <span class="text-[11px] text-fifared/60 bg-fifared/5 border border-fifared/20 px-1.5 py-0.5 rounded">{pl.username}</span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
