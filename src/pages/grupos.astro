@@ -307,7 +307,7 @@ function fmtDateShort(d: string) {
                       {/* Local */}
                       <div class="flex-1 text-right min-w-0 space-y-0.5">
                         {isTBDHome ? (
-                          <span class="text-xs text-slate-600 italic block">Por definir</span>
+                          <span class="text-xs text-slate-600 italic block">Clasifica de fase anterior</span>
                         ) : (
                           <div class={`flex items-center justify-end gap-1.5 ${
                             finished ? (homeWon ? 'text-white' : 'text-slate-500') : 'text-slate-200'
@@ -345,7 +345,7 @@ function fmtDateShort(d: string) {
                       {/* Visitante */}
                       <div class="flex-1 text-left min-w-0 space-y-0.5">
                         {isTBDAway ? (
-                          <span class="text-xs text-slate-600 italic block">Por definir</span>
+                          <span class="text-xs text-slate-600 italic block">Clasifica de fase anterior</span>
                         ) : (
                           <div class={`flex items-center gap-1.5 ${
                             finished ? (awayWon ? 'text-white' : 'text-slate-500') : 'text-slate-200'

@@ -322,7 +322,9 @@ function accentLine(i: number, isMe: boolean) {
           <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
           <span class="relative text-xs text-white/70 uppercase tracking-wide">Próximo partido</span>
           <span class="relative text-2xl">⚽</span>
-          <span class="relative text-sm text-white/50">Sin partidos próximos</span>
+          <span class="relative text-sm text-white/50">
+            {recentFinished && recentFinished.length > 0 ? 'No hay más partidos programados' : 'El torneo aún no ha comenzado'}
+          </span>
         </div>
       )}
       <!-- Pagar QR -->
