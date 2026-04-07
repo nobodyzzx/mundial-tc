@@ -3,6 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { betaNowMs } from '@/lib/betaTime';
 import { supabase } from '@/lib/supabase';
 import { spanishName } from '@/lib/isoFlags';
+import { boliviaDayStart, isCutoffPassed } from '@/lib/jornada';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -39,7 +40,7 @@ const jornadaQuery = match.jornada
 const now = betaNowMs();
 const { data: jornadaMatches } = await jornadaQuery;
 const firstMatchTime = Math.min(...(jornadaMatches ?? []).map(m => new Date(m.match_date).getTime()));
-const isClosed = firstMatchTime - now < 2 * 3600 * 1000;
+const isClosed = isCutoffPassed(firstMatchTime, now);
 
 // Bloqueo por día anterior sin terminar o partido en curso del mismo día
 const thisMatchTime = new Date(match.match_date).getTime();
@@ -60,10 +61,7 @@ const { data: startedSameDay } = await supabase
   .lte('match_date', new Date(now).toISOString())
   .gte('match_date', (() => {
     const d = new Date(match.match_date);
-    // Medianoche Bolivia (UTC-4): restar 4h para obtener el offset correcto
-    const shifted = new Date(d.getTime() - 4 * 3600 * 1000);
-    d.setTime(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) + 4 * 3600 * 1000);
-    return d.toISOString();
+    return boliviaDayStart(d.getTime()).toISOString();
   })())
   .limit(1);
 

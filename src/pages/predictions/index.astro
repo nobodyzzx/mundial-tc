@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
+import { isCutoffPassed } from '@/lib/jornada';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -79,8 +80,7 @@ const hasMatchInProgress = (startedMatchData ?? []).some(m => !m.is_finished);
 
 function isJornadaClosed(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  // 2h rule: demasiado cerca del primer partido
-  if (firstTime - now < 2 * 3600 * 1000) return true;
+  if (isCutoffPassed(firstTime, now)) return true;
   // Mismo día: ya hubo un partido de este día (aunque terminó)
   if (daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date))) return true;
   // Día anterior sin terminar: si existe algún partido abierto con fecha anterior a este día → bloqueado
@@ -90,14 +90,14 @@ function isJornadaClosed(jornadaMatches: MatchRow[]): boolean {
 
 function isPrevDayPending(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  if (firstTime - now < 2 * 3600 * 1000) return false;
+  if (isCutoffPassed(firstTime, now)) return false;
   if (daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date))) return false;
   return (matches ?? []).some(m => new Date(m.match_date).getTime() < firstTime);
 }
 
 function isLockedByOngoing(jornadaMatches: MatchRow[]): boolean {
   const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  if (firstTime - now < 2 * 3600 * 1000) return false;
+  if (isCutoffPassed(firstTime, now)) return false;
   return daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date)) || hasMatchInProgress;
 }
 

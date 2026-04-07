@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
+import { boliviaDayStart, isCutoffPassed, JORNADA_CLOSE_MS } from '@/lib/jornada';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const accessToken = cookies.get('sb-access-token')?.value;
@@ -50,8 +51,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   let jornadaQuery = match.jornada
     ? supabase.from('matches').select('match_date').eq('jornada', match.jornada)
     : (() => {
-        const shifted = new Date(new Date(match.match_date).getTime() - 4 * 3600 * 1000);
-        const start = new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) + 4 * 3600 * 1000);
+        const start = boliviaDayStart(new Date(match.match_date).getTime());
         return supabase.from('matches').select('match_date')
           .gte('match_date', start.toISOString())
           .lt('match_date', new Date(start.getTime() + 24 * 3600 * 1000).toISOString());
@@ -59,8 +59,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   const { data: jornadaMatches } = await jornadaQuery;
   const firstMatchTime = Math.min(...(jornadaMatches ?? []).map(m => new Date(m.match_date).getTime()));
-  const isClosed = firstMatchTime - Date.now() < 2 * 3600 * 1000;
-  if (isClosed) return redirect(`/predictions?error=${encodeURIComponent('La jornada ya está cerrada')}`);
+  if (isCutoffPassed(firstMatchTime, Date.now()))
+    return redirect(`/predictions?error=${encodeURIComponent('La jornada ya está cerrada')}`);
 
   // Validar: en knockout con empate, debe seleccionar ganador de penales
   if (match.stage === 'knockout' && userHome === userAway && (userHomePen === null || userAwayPen === null || userHomePen === userAwayPen)) {

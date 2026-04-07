@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
+import { boliviaDayStart, isCutoffPassed } from '@/lib/jornada';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const accessToken = cookies.get('sb-access-token')?.value;
@@ -71,10 +72,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   // Validar cierre de jornada: 2h antes del primer partido del día Bolivia (UTC-4)
   const firstTime = Math.min(...matchRows.map(m => new Date(m.match_date).getTime()));
-  const shifted = new Date(firstTime - 4 * 3600 * 1000);
-  const dayStart = new Date(
-    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) + 4 * 3600 * 1000
-  );
+  const dayStart = boliviaDayStart(firstTime);
   const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
 
   const { data: dayMatches } = await supabase
@@ -84,9 +82,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .lt('match_date', dayEnd.toISOString());
 
   const firstMatchTime = Math.min(...(dayMatches ?? []).map(m => new Date(m.match_date).getTime()));
-  if (firstMatchTime - Date.now() < 2 * 3600 * 1000) {
+  if (isCutoffPassed(firstMatchTime, Date.now()))
     return redirect(`/predictions?error=${encodeURIComponent('La jornada ya está cerrada')}`);
-  }
 
   // Validar knockout con empate sin score de penales (usa matchIndex en vez de queries)
   for (const e of entries) {
