@@ -516,7 +516,7 @@ let globalFormIdx = 0;
           section!.classList.remove('hidden');
         } else {
           section!.classList.add('hidden');
-          section!.querySelectorAll<HTMLInputElement>('input[type="radio"]').forEach(r => r.checked = false);
+          section!.querySelectorAll<HTMLInputElement>('input[type="number"]').forEach(r => { r.value = ''; });
         }
       }
       input.addEventListener('input', check);

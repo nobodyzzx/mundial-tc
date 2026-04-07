@@ -26,8 +26,8 @@ export const POST: APIRoute = async ({ cookies, redirect }) => {
   await supabaseAdmin.from('matches').update({
     home_score: null,
     away_score: null,
-    home_score_pen: null,
-    away_score_pen: null,
+    home_pen: null,
+    away_pen: null,
     winner_penalties: null,
     is_finished: false,
   }).eq('is_finished', true);

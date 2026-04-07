@@ -60,7 +60,9 @@ const { data: startedSameDay } = await supabase
   .lte('match_date', new Date(now).toISOString())
   .gte('match_date', (() => {
     const d = new Date(match.match_date);
-    d.setUTCHours(0, 0, 0, 0); // inicio del día UTC como aproximación
+    // Medianoche Bolivia (UTC-4): restar 4h para obtener el offset correcto
+    const shifted = new Date(d.getTime() - 4 * 3600 * 1000);
+    d.setTime(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) + 4 * 3600 * 1000);
     return d.toISOString();
   })())
   .limit(1);
