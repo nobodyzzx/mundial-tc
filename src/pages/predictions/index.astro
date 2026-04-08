@@ -287,11 +287,12 @@ let globalFormIdx = 0;
                   <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : 'border-brand-700/60'}`}>
 
                     {/* Fecha + etiqueta */}
-                    <div class="flex items-center justify-between mb-3 text-sm">
-                      <span class="text-slate-400 font-medium">
+                    <div class="flex items-center justify-between mb-3">
+                      <span class="text-slate-400 font-medium text-xs">
                         {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
                       </span>
-                      <span class="text-slate-300">{formatDate(m.match_date)}</span>
+                      <span class="font-display text-xl font-bold text-white">{formatTime(m.match_date)}</span>
+                      <span class="text-slate-500 text-xs">{new Date(m.match_date).toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/La_Paz' })}</span>
                     </div>
 
                     {/* Equipos + inputs */}
@@ -415,11 +416,12 @@ let globalFormIdx = 0;
                 const awayISO = isoForTeam(m.away_team);
                 return (
                   <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : prevPending ? 'border-brand-700/40 bg-brand-800/30' : 'border-fifared/30 bg-fifared/5'}`}>
-                    <div class="flex items-center justify-between mb-2 text-sm">
-                      <span class="text-slate-400 font-medium">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-slate-400 font-medium text-xs">
                         {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
                       </span>
-                      <span class="text-slate-300">{formatDate(m.match_date)}</span>
+                      <span class="font-display text-xl font-bold text-white">{formatTime(m.match_date)}</span>
+                      <span class="text-slate-500 text-xs">{new Date(m.match_date).toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/La_Paz' })}</span>
                     </div>
                     <div class="flex items-center gap-2">
                       <div class="flex-1 text-right">
