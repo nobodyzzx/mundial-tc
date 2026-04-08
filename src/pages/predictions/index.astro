@@ -2,7 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
-import { isCutoffPassed } from '@/lib/jornada';
+import { isCutoffPassed, boliviaDayStart } from '@/lib/jornada';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
