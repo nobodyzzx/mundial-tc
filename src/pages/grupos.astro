@@ -211,7 +211,7 @@ function fmtTime(d: string) {
                         {m.is_finished ? (
                           <span class="font-display text-sm text-white">{m.home_score}–{m.away_score}</span>
                         ) : (
-                          <span class="font-display text-base font-bold text-slate-300">{fmtTime(m.match_date)}</span>
+                          <span class="text-[10px] text-slate-600">{fmtDate(m.match_date)}</span>
                         )}
                       </div>
                       <div class={`flex-1 flex items-center gap-1.5 min-w-0 ${m.is_finished ? 'text-slate-300' : 'text-slate-500'}`}>
@@ -333,7 +333,7 @@ function fmtTime(d: string) {
                             )}
                           </>
                         ) : (
-                          <span class={`font-display text-2xl font-bold ${isLate ? 'text-gold/50' : 'text-white'}`}>{fmtTime(m.match_date)}</span>
+                          <span class={`font-display text-xl ${isLate ? 'text-gold/30' : 'text-brand-600'}`}>vs</span>
                         )}
                       </div>
 
