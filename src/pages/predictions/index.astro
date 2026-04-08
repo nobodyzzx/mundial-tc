@@ -46,6 +46,12 @@ function formatTime(dateStr: string): string {
     hour12: false
   });
 }
+function formatShortDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('es-BO', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    timeZone: 'America/La_Paz',
+  });
+}
 
 
 type MatchRow = {
@@ -291,7 +297,10 @@ let globalFormIdx = 0;
                       <span class="text-slate-400 font-medium text-xs">
                         {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
                       </span>
-                      <span class="text-slate-500 text-xs">{formatDate(m.match_date)}</span>
+                      <div class="text-right">
+                        <p class="text-xs text-slate-500">{formatShortDate(m.match_date)}</p>
+                        <p class="font-display text-base font-bold text-gold leading-tight">{formatTime(m.match_date)}</p>
+                      </div>
                     </div>
 
                     {/* Equipos + inputs */}
@@ -419,7 +428,10 @@ let globalFormIdx = 0;
                       <span class="text-slate-400 font-medium text-xs">
                         {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
                       </span>
-                      <span class="text-slate-500 text-xs">{formatDate(m.match_date)}</span>
+                      <div class="text-right">
+                        <p class="text-xs text-slate-500">{formatShortDate(m.match_date)}</p>
+                        <p class="font-display text-base font-bold text-gold leading-tight">{formatTime(m.match_date)}</p>
+                      </div>
                     </div>
                     <div class="flex items-center gap-2">
                       <div class="flex-1 text-right">
