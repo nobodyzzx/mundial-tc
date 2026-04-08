@@ -275,11 +275,11 @@ let globalFormIdx = 0;
                   <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : 'border-brand-700/60'}`}>
 
                     {/* Fecha + etiqueta */}
-                    <div class="flex items-center justify-between mb-3 text-xs">
-                      <span class="text-slate-500">
+                    <div class="flex items-center justify-between mb-3 text-sm">
+                      <span class="text-slate-400 font-medium">
                         {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
                       </span>
-                      <span class="text-slate-400">{formatDate(m.match_date)}</span>
+                      <span class="text-slate-300">{formatDate(m.match_date)}</span>
                     </div>
 
                     {/* Equipos + inputs */}
@@ -287,7 +287,7 @@ let globalFormIdx = 0;
 
                       {/* Local */}
                       <div class="flex-1 flex flex-col items-end gap-1 min-w-0">
-                        <span class="text-white font-semibold text-sm text-right leading-tight">
+                        <span class="text-white font-semibold text-base text-right leading-tight">
                           {spanishName(m.home_team)}
                           {homeISO && <span class="flag-emoji ml-1" data-iso={homeISO}></span>}
                         </span>
@@ -313,7 +313,7 @@ let globalFormIdx = 0;
 
                       {/* Visitante */}
                       <div class="flex-1 flex flex-col items-start gap-1 min-w-0">
-                        <span class="text-white font-semibold text-sm leading-tight">
+                        <span class="text-white font-semibold text-base leading-tight">
                           {awayISO && <span class="flag-emoji mr-1" data-iso={awayISO}></span>}
                           {spanishName(m.away_team)}
                         </span>
@@ -403,15 +403,15 @@ let globalFormIdx = 0;
                 const awayISO = isoForTeam(m.away_team);
                 return (
                   <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : prevPending ? 'border-brand-700/40 bg-brand-800/30' : 'border-fifared/30 bg-fifared/5'}`}>
-                    <div class="flex items-center justify-between mb-2 text-xs">
-                      <span class="text-slate-500">
+                    <div class="flex items-center justify-between mb-2 text-sm">
+                      <span class="text-slate-400 font-medium">
                         {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
                       </span>
-                      <span class="text-slate-400">{formatDate(m.match_date)}</span>
+                      <span class="text-slate-300">{formatDate(m.match_date)}</span>
                     </div>
                     <div class="flex items-center gap-2">
                       <div class="flex-1 text-right">
-                        <span class="text-white font-semibold text-sm">
+                        <span class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`}>
                           {spanishName(m.home_team)}
                           {homeISO && <span class="flag-emoji ml-1" data-iso={homeISO}></span>}
                         </span>
@@ -423,7 +423,7 @@ let globalFormIdx = 0;
                         }
                       </div>
                       <div class="flex-1">
-                        <span class="text-white font-semibold text-sm">
+                        <span class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`}>
                           {awayISO && <span class="flag-emoji mr-1" data-iso={awayISO}></span>}
                           {spanishName(m.away_team)}
                         </span>
@@ -440,7 +440,7 @@ let globalFormIdx = 0;
                       </p>
                     )}
                     {!existing && (
-                      <button disabled class="w-full mt-2 flex items-center justify-center gap-2 text-xs text-slate-600 bg-brand-800/40 border border-brand-700/40 rounded-xl py-2.5 cursor-not-allowed opacity-60">
+                      <button disabled class="w-full mt-2 flex items-center justify-center gap-2 text-sm text-slate-300 bg-brand-800/50 border border-brand-700/50 rounded-xl py-3 cursor-not-allowed">
                         {prevPending
                           ? '⏳ Espera que terminen los partidos anteriores'
                           : ongoingLock
