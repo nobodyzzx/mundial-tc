@@ -1,0 +1,16 @@
+name: Daily Payment Reminder
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 9:00 AM Bolivia (UTC-4)
+  workflow_dispatch:         # permite ejecutarlo manualmente desde GitHub
+
+jobs:
+  send-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call payment reminder endpoint
+        run: |
+          curl -sf -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://mundial.tecnocondor.dev/api/cron/send-payment-reminder
