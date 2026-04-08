@@ -88,6 +88,7 @@ function fmtDateShort(d: string) {
 function fmtTime(d: string) {
   return new Date(d).toLocaleString('es-BO', {
     hour: '2-digit', minute: '2-digit',
+    hour12: false,
     timeZone: 'America/La_Paz',
   });
 }
