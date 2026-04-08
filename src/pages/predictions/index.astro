@@ -36,6 +36,7 @@ function formatDate(dateStr: string): string {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'America/La_Paz',
+    hour12: false
   });
 }
 
@@ -104,7 +105,8 @@ function isLockedByOngoing(jornadaMatches: MatchRow[]): boolean {
 function buildShareData(dayMatches: MatchRow[], username: string) {
   const firstMatch = dayMatches[0];
   const cutoff = new Date(new Date(firstMatch.match_date).getTime() - 2 * 3600 * 1000);
-  const cutoffStr = cutoff.toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  const cutoffStr = cutoff.toLocaleString('es-BO', { hour: '2-digit', minute: '2-digit',
+    hour12: false });
   const items = dayMatches
     .filter(m => predMap.has(m.id))
     .map(m => {
@@ -199,6 +201,7 @@ let globalFormIdx = 0;
       const cutoffStr = new Date(firstTime - 2 * 3600 * 1000).toLocaleString('es-BO', {
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
         timeZone: 'America/La_Paz',
+    hour12: false
       });
       const shareData = buildShareData(jornadaMatches, navProfile?.username ?? 'yo');
 

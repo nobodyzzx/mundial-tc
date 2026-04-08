@@ -94,11 +94,13 @@ const matchDate = new Date(match.match_date).toLocaleString('es-BO', {
   weekday: 'long', day: 'numeric', month: 'long',
   hour: '2-digit', minute: '2-digit',
   timeZone: 'America/La_Paz',
+    hour12: false
 });
 
 const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es-BO', {
   hour: '2-digit', minute: '2-digit',
   timeZone: 'America/La_Paz',
+    hour12: false
 });
 ---
 

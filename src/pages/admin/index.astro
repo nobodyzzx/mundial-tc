@@ -87,6 +87,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleString('es-BO', {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
     timeZone: 'America/La_Paz',
+    hour12: false
   });
 }
 ---

@@ -67,6 +67,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       weekday: 'short', day: 'numeric', month: 'short',
       hour: '2-digit', minute: '2-digit',
       timeZone: 'America/La_Paz',
+    hour12: false
     });
   }
 

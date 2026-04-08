@@ -66,6 +66,7 @@ function fmtDeadline(iso: string) {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'America/La_Paz',
+    hour12: false
   });
 }
 
@@ -588,6 +589,7 @@ function accentLine(i: number, isMe: boolean) {
                     {new Date(m.match_date).toLocaleString('es-BO', {
                       hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short',
                       timeZone: 'America/La_Paz',
+    hour12: false
                     })}
                   </div>
                   {isOpen && hasPredicted && (
@@ -685,6 +687,7 @@ function accentLine(i: number, isMe: boolean) {
         weekday: 'short', day: 'numeric', month: 'short',
         hour: '2-digit', minute: '2-digit',
         timeZone: 'America/La_Paz',
+    hour12: false
       });
     }
 

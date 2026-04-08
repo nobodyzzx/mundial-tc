@@ -217,7 +217,8 @@ function avatarColor(id: string) {
                 {/* Último acceso */}
                 {u.last_sign_in && (
                   <p class="text-[11px] text-slate-600">
-                    Último acceso: {new Date(u.last_sign_in).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    Último acceso: {new Date(u.last_sign_in).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    hour12: false })}
                     &nbsp;·&nbsp; Creado: {new Date(u.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </p>
                 )}
@@ -300,7 +301,8 @@ function avatarColor(id: string) {
                 </form>
                 {u.last_sign_in && (
                   <p class="text-[11px] text-slate-600">
-                    Último acceso: {new Date(u.last_sign_in).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    Último acceso: {new Date(u.last_sign_in).toLocaleString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    hour12: false })}
                   </p>
                 )}
               </div>

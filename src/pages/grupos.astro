@@ -76,6 +76,7 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleString('es-BO', {
     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
     timeZone: 'America/La_Paz',
+    hour12: false
   });
 }
 function fmtDateShort(d: string) {
@@ -83,6 +84,7 @@ function fmtDateShort(d: string) {
     weekday: 'short', day: '2-digit', month: 'short',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'America/La_Paz',
+    hour12: false
   });
 }
 function fmtTime(d: string) {
