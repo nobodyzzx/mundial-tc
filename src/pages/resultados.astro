@@ -129,11 +129,11 @@ function predStyle(pred: any, m: any): string {
 
     <!-- Leyenda de colores -->
     <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-xs bg-brand-900 border border-brand-800 rounded-xl px-4 py-3">
-      <div class="flex items-center gap-1.5"><span class="text-gold font-bold">3–1</span><span class="text-slate-500">Exacto (6 pts)</span></div>
-      <div class="flex items-center gap-1.5"><span class="text-gol font-bold">2–1</span><span class="text-slate-500">Resultado correcto (3+ pts)</span></div>
-      <div class="flex items-center gap-1.5"><span class="text-slate-300">1–2</span><span class="text-slate-500">Pts parciales (1–2 pts)</span></div>
-      <div class="flex items-center gap-1.5"><span class="text-slate-600">0–0</span><span class="text-slate-500">Sin puntos</span></div>
-      <div class="flex items-center gap-1.5"><span class="text-slate-700">—</span><span class="text-slate-500">Sin pronóstico</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-gold font-bold">3–1</span><span class="text-slate-500">Marcador exacto (3 pts grupos · hasta 6 pts eliminatorias)</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-gol font-bold">2–1</span><span class="text-slate-500">Acertaste quién gana o empata, pero no el marcador (1 pt)</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-300">1–2</span><span class="text-slate-500">Puntos parciales por penales o clasificado (1–2 pts, solo eliminatorias)</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-600">0–0</span><span class="text-slate-500">Resultado incorrecto (0 pts)</span></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-700">—</span><span class="text-slate-500">No pronosticó este partido (0 pts)</span></div>
     </div>
 
     {jornadaOrder.length === 0 && (
@@ -305,11 +305,15 @@ function predStyle(pred: any, m: any): string {
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600 pb-4">
         <div class="flex items-center gap-1.5">
           <span class="text-gold font-bold">3–1</span>
-          <span>Exacto</span>
+          <span>Marcador exacto</span>
         </div>
         <div class="flex items-center gap-1.5">
           <span class="text-gol font-bold">2–0</span>
-          <span>Resultado correcto</span>
+          <span>Quién gana/empata correcto</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-slate-300">1–2</span>
+          <span>Parcial (solo eliminatorias)</span>
         </div>
         <div class="flex items-center gap-1.5">
           <span class="text-slate-500">1–0</span>
