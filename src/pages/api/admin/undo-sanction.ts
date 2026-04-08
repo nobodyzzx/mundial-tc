@@ -46,9 +46,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
     const matchIds = [...new Set((zeroedPredictions ?? []).map(p => p.match_id))];
 
-    for (const matchId of matchIds) {
-      await supabaseAdmin.rpc('calculate_match_points_safe', { p_match_id: matchId });
-    }
+    await Promise.all(matchIds.map(matchId =>
+      supabaseAdmin.rpc('calculate_match_points_safe', { p_match_id: matchId })
+    ));
 
     // Recalcular puntos totales del jugador
     const { data: allPoints } = await supabaseAdmin

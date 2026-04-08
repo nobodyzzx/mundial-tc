@@ -282,9 +282,9 @@ function accentLine(i: number, isMe: boolean) {
       </div>
     )}
 
-    <script type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username, pts: p.puntos_totales })))}></script>
+    <script type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
     <script type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pozoActual, montoReferi, pagosDeadline70, pagosDeadline50 })}></script>
-    <script type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username, pago_70: p.pago_70, pago_50: p.pago_50 })))}></script>
+    <script type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username ?? '?', pago_70: p.pago_70 ?? false, pago_50: p.pago_50 ?? false })))}></script>
 
     <!-- STATS CARDS -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">

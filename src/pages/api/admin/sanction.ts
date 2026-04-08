@@ -12,6 +12,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const reason = form.get('reason')?.toString() ?? '';
 
   if (!userId || !type) return redirect('/admin?err=Datos+incompletos');
+  if (!['yellow', 'red', 'double_red'].includes(type)) return redirect('/admin?err=Tipo+de+sanción+no+válido');
 
   // Prevenir doble sanción roja activa
   if (type === 'red' || type === 'double_red') {

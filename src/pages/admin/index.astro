@@ -379,7 +379,7 @@ function formatDate(d: string) {
                     <input type="hidden" name="userId" value={p.id} />
                     <input type="hidden" name="type" value="yellow" />
                     <input type="hidden" name="reason" value="Advertencia del réferi" />
-                    <button type="submit"
+                    <button type="submit" onclick={`return confirm('¿Aplicar amarilla a ${p.username}?')`}
                       class="text-xs px-2.5 py-1.5 rounded-lg border bg-amarilla/10 border-amarilla/40 text-amarilla active:bg-amarilla/20 min-h-[36px]">
                       🟨 Amarilla
                     </button>
@@ -388,7 +388,7 @@ function formatDate(d: string) {
                     <input type="hidden" name="userId" value={p.id} />
                     <input type="hidden" name="type" value="red" />
                     <input type="hidden" name="reason" value="Tarjeta roja — jornada anulada" />
-                    <button type="submit" disabled={hasActiveRed}
+                    <button type="submit" disabled={hasActiveRed} onclick={!hasActiveRed ? `return confirm('¿Aplicar roja a ${p.username}? Se anulará su jornada.')` : undefined}
                       class={`text-xs px-2.5 py-1.5 rounded-lg border min-h-[36px] ${hasActiveRed ? 'bg-brand-800/40 border-brand-700/30 text-slate-600 cursor-not-allowed' : 'bg-fifared/10 border-fifared/40 text-fifared active:bg-fifared/20'}`}>
                       🟥 Roja
                     </button>

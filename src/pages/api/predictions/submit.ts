@@ -36,6 +36,15 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   if (!matchId || !isValidUUID(matchId) || isNaN(userHome) || isNaN(userAway)) {
     return redirect('/predictions?error=incompleto');
   }
+  if (userHome < 0 || userHome > 20 || userAway < 0 || userAway > 20) {
+    return redirect('/predictions?error=incompleto');
+  }
+  if (userHomePen !== null && (userHomePen < 0 || userHomePen > 20)) {
+    return redirect('/predictions?error=incompleto');
+  }
+  if (userAwayPen !== null && (userAwayPen < 0 || userAwayPen > 20)) {
+    return redirect('/predictions?error=incompleto');
+  }
 
   // Doble verificación en servidor: cierre por jornada (2h antes del primer partido).
   const { data: match } = await supabase
