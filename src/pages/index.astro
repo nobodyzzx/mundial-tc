@@ -8,14 +8,16 @@ const accessToken = Astro.cookies.get('sb-access-token')?.value;
 if (accessToken) return Astro.redirect('/dashboard');
 
 // Stats dinámicas
-const { count: numJugadores } = await supabaseAdmin
+const { data: pagosData, count: numJugadores } = await supabaseAdmin
   .from('profiles')
-  .select('id', { count: 'exact', head: true })
+  .select('pago_70, pago_50', { count: 'exact' })
   .eq('participa', true)
   .eq('expulsado', false);
 
 const totalJugadores = numJugadores ?? 0;
-const pozo = totalJugadores * 100;
+const countPago70 = (pagosData ?? []).filter(p => p.pago_70).length;
+const countPago50 = (pagosData ?? []).filter(p => p.pago_70 && p.pago_50).length;
+const pozo = countPago50 * 100 + (countPago70 - countPago50) * 50;
 ---
 
 <Layout title="Bienvenido">
@@ -56,7 +58,7 @@ const pozo = totalJugadores * 100;
 
     <!-- Countdown -->
     <div class="inline-flex flex-col items-center gap-1">
-      <p class="text-xs text-slate-500 uppercase tracking-widest">Faltan para el Mundial</p>
+      <p id="cd-label" class="text-xs text-slate-500 uppercase tracking-widest">Faltan para el Mundial</p>
       <div id="countdown" class="flex items-end gap-3 sm:gap-5">
         <div class="flex flex-col items-center">
           <span id="cd-days" class="font-display text-4xl sm:text-5xl text-gold leading-none">--</span>
@@ -78,6 +80,7 @@ const pozo = totalJugadores * 100;
           <span class="text-xs text-slate-500 mt-1">seg</span>
         </div>
       </div>
+      <p id="cd-live" class="hidden text-gol font-bold text-lg tracking-wide animate-pulse">⚽ ¡El Mundial está en curso!</p>
     </div>
 
     <!-- CTAs -->
@@ -103,8 +106,8 @@ const pozo = totalJugadores * 100;
     <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
       <div class="text-2xl mb-2">💰</div>
       <div class="text-2xl sm:text-3xl font-display text-gold">{pozo} Bs</div>
-      <div class="text-xs text-slate-500 mt-1">Pozo estimado</div>
-      <div class="text-xs text-slate-600 mt-0.5">* sujeto a confirmación</div>
+      <div class="text-xs text-slate-500 mt-1">Pozo acumulado</div>
+      <div class="text-xs text-slate-600 mt-0.5">{countPago50 === totalJugadores && totalJugadores > 0 ? 'Completo' : 'En curso'}</div>
     </div>
     <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
       <div class="text-2xl mb-2">⚽</div>
@@ -161,10 +164,9 @@ const pozo = totalJugadores * 100;
       var now = Date.now() + BETA_OFFSET_MS;
       var diff = target - now;
       if (diff <= 0) {
-        document.getElementById('cd-days').textContent = '0';
-        document.getElementById('cd-hours').textContent = '00';
-        document.getElementById('cd-mins').textContent = '00';
-        document.getElementById('cd-secs').textContent = '00';
+        document.getElementById('countdown').classList.add('hidden');
+        document.getElementById('cd-label').classList.add('hidden');
+        document.getElementById('cd-live').classList.remove('hidden');
         return;
       }
       var days  = Math.floor(diff / 86400000);
