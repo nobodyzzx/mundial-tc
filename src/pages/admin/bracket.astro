@@ -73,6 +73,19 @@ const errParam = Astro.url.searchParams.get('err');
       Cuando los equipos reales clasifican, se actualizan solos al importar el fixture.
     </p>
 
+    <!-- Auto-seed R32 desde bracket FIFA 2026 -->
+    <form method="POST" action="/api/admin/seed-bracket-codes"
+      class="bg-brand-900 border border-gold/30 rounded-2xl p-4 flex items-center justify-between gap-4">
+      <div>
+        <p class="text-sm font-semibold text-white">Cargar bracket R32 automáticamente</p>
+        <p class="text-xs text-slate-500 mt-0.5">Asigna los 16 códigos del R32 (fuente: FIFA 2026 oficial) ordenados por fecha. Solo funciona si hay exactamente 16 partidos R32 en la BD.</p>
+      </div>
+      <button type="submit"
+        class="flex-shrink-0 bg-gold text-brand-950 font-bold text-sm px-5 py-2.5 rounded-xl transition active:opacity-80 min-h-[44px] whitespace-nowrap">
+        ⚡ Auto-cargar R32
+      </button>
+    </form>
+
     {sortedRounds.length === 0 && (
       <div class="text-center py-16 text-slate-600">
         <div class="text-4xl mb-3">📅</div>
