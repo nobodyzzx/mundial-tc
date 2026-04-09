@@ -1,0 +1,123 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+if (!accessToken || !refreshToken) return Astro.redirect('/login');
+
+const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+if (!user) return Astro.redirect('/login');
+
+const { data: profile } = await supabase.from('profiles').select('es_referi').eq('id', user.id).single();
+if (!profile?.es_referi) return Astro.redirect('/dashboard');
+
+const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
+
+const { data: knockoutMatches } = await supabaseAdmin
+  .from('matches')
+  .select('id, home_team, away_team, match_date, round, is_finished')
+  .eq('stage', 'knockout')
+  .order('match_date', { ascending: true });
+
+const ROUND_ORDER = ['Playoffs', 'R32', 'R16', 'Cuartos', 'Semifinal', 'Tercer Puesto', 'Final'];
+const byRound = new Map<string, any[]>();
+for (const m of (knockoutMatches ?? [])) {
+  const r = m.round ?? 'Sin ronda';
+  if (!byRound.has(r)) byRound.set(r, []);
+  byRound.get(r)!.push(m);
+}
+const sortedRounds = [...byRound.entries()].sort(([a], [b]) => {
+  const ia = ROUND_ORDER.indexOf(a), ib = ROUND_ORDER.indexOf(b);
+  return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+});
+
+function fmtDate(d: string) {
+  return new Date(d).toLocaleString('es-BO', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'America/La_Paz', hour12: false,
+  });
+}
+
+function isPending(name: string | null): boolean {
+  if (!name) return true;
+  return /^(TBD|Winner|1st|2nd|3rd|4th|\d[A-Z]+|W[A-Z0-9]+)/i.test(name);
+}
+
+const okParam  = Astro.url.searchParams.get('ok');
+const errParam = Astro.url.searchParams.get('err');
+---
+
+<Layout title="Admin — Bracket" navProfile={navProfile} isAuthed={true} userId={user.id}>
+  <div class="max-w-2xl mx-auto space-y-6">
+
+    <div class="flex items-center gap-3">
+      <a href="/admin" class="text-slate-500 hover:text-white transition text-sm">← Admin</a>
+      <h1 class="font-display text-3xl text-white tracking-wide">BRACKET ELIMINATORIAS</h1>
+    </div>
+
+    {okParam && (
+      <div class="bg-gol/10 border border-gol/30 rounded-xl px-4 py-3 text-sm text-green-300">
+        ✅ Actualizado correctamente.
+      </div>
+    )}
+    {errParam && (
+      <div class="bg-fifared/10 border border-fifared/30 rounded-xl px-4 py-3 text-sm text-red-300">
+        ⚠️ {decodeURIComponent(errParam)}
+      </div>
+    )}
+
+    <p class="text-sm text-slate-400">
+      Editá los códigos de posición del bracket (ej. <code class="text-gold bg-brand-800 px-1.5 py-0.5 rounded">1A</code>, <code class="text-gold bg-brand-800 px-1.5 py-0.5 rounded">2B</code>, <code class="text-gold bg-brand-800 px-1.5 py-0.5 rounded">3BCDEF</code>).
+      Cuando los equipos reales clasifican, se actualizan solos al importar el fixture.
+    </p>
+
+    {sortedRounds.length === 0 && (
+      <div class="text-center py-16 text-slate-600">
+        <div class="text-4xl mb-3">📅</div>
+        <p>No hay partidos de eliminatorias cargados aún.</p>
+      </div>
+    )}
+
+    {sortedRounds.map(([round, matches]) => (
+      <div class="space-y-2">
+        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider px-1">{round}</h2>
+        {matches.map((m: any) => {
+          const pending = isPending(m.home_team) || isPending(m.away_team);
+          return (
+            <form method="POST" action="/api/admin/set-team-placeholder"
+              class={`bg-brand-900 border rounded-2xl p-4 space-y-3 ${pending ? 'border-brand-700/60' : 'border-gol/30'}`}>
+              <input type="hidden" name="match_id" value={m.id} />
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-slate-500">{fmtDate(m.match_date)}</span>
+                {!pending && <span class="text-xs text-gol">✓ Equipo real</span>}
+                {m.is_finished && <span class="text-xs text-slate-600">Finalizado</span>}
+              </div>
+              <div class="flex items-center gap-2">
+                <input
+                  type="text" name="home_team"
+                  value={m.home_team ?? ''}
+                  placeholder="ej. 1A"
+                  class="flex-1 bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-white text-sm font-mono focus:outline-none focus:border-gold transition"
+                />
+                <span class="text-slate-600 font-bold flex-shrink-0">vs</span>
+                <input
+                  type="text" name="away_team"
+                  value={m.away_team ?? ''}
+                  placeholder="ej. 2B"
+                  class="flex-1 bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-white text-sm font-mono focus:outline-none focus:border-gold transition"
+                />
+                <button type="submit"
+                  class="flex-shrink-0 bg-gold text-brand-950 font-bold text-sm px-4 py-2.5 rounded-xl transition active:opacity-80 min-h-[44px]">
+                  Guardar
+                </button>
+              </div>
+            </form>
+          );
+        })}
+      </div>
+    ))}
+
+  </div>
+</Layout>
