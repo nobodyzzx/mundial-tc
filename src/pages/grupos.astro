@@ -327,33 +327,18 @@ function isPending(name: string | null): boolean {
 
                     {useFifaStyle ? (
                       /* ── Formato FIFA: equipos aún no determinados ── */
-                      <div class="px-4 py-4 text-center space-y-1.5">
-                        <div class="flex items-center justify-center gap-3">
-                          {/* Local */}
-                          <span class={`font-display text-2xl font-bold tracking-wide ${isFinal ? 'text-gold' : 'text-slate-200'}`}>
-                            {shortCode(m.home_team)}
-                          </span>
-                          {/* Escudo local */}
-                          <svg class="w-6 h-6 text-slate-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <div class="px-4 py-5 text-center space-y-2">
+                        <div class="flex items-center justify-center gap-4">
+                          <svg class={`w-8 h-8 flex-shrink-0 ${isFinal ? 'text-gold/40' : 'text-slate-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3L3 7v5c0 5.25 3.75 9.75 9 11 5.25-1.25 9-5.75 9-11V7l-9-4z" />
                           </svg>
-                          {/* Hora */}
-                          <span class={`font-display text-2xl font-bold ${isFinal ? 'text-gold' : 'text-white'}`}>
-                            {fmtTime(m.match_date)}
-                          </span>
-                          {/* Escudo visitante */}
-                          <svg class="w-6 h-6 text-slate-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                          <span class="text-slate-600 font-bold text-xl">—</span>
+                          <svg class={`w-8 h-8 flex-shrink-0 ${isFinal ? 'text-gold/40' : 'text-slate-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3L3 7v5c0 5.25 3.75 9.75 9 11 5.25-1.25 9-5.75 9-11V7l-9-4z" />
                           </svg>
-                          {/* Visitante */}
-                          <span class={`font-display text-2xl font-bold tracking-wide ${isFinal ? 'text-gold' : 'text-slate-200'}`}>
-                            {shortCode(m.away_team)}
-                          </span>
                         </div>
-                        <p class="text-xs text-slate-600">
-                          {round}
-                          <span class="mx-1.5">·</span>
-                          {new Date(m.match_date).toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/La_Paz' })}
+                        <p class="text-xs text-slate-500">
+                          {new Date(m.match_date).toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz' })}
                         </p>
                       </div>
                     ) : (
