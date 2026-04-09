@@ -95,26 +95,39 @@ function fmtTime(d: string) {
   });
 }
 
-/** Convierte "1st Group A" → "1A", "2nd Group BC" → "2BC", "Winner Match 3" → "WM3", "TBD" → "?" */
+/** Convierte nombre de placeholder a código corto para mostrar en bracket.
+ *  Formatos soportados:
+ *  "1A" / "2B" / "3BCDEF"   → ya es código, devuelve tal cual
+ *  "1st Group A"             → "1A"
+ *  "2nd Group BC"            → "2BC"
+ *  "Winner Match 3"          → "WM3"
+ *  "Winner Group A"          → "WA"
+ *  "TBD"                     → "?"
+ */
 function shortCode(name: string | null): string {
   if (!name) return '?';
-  // "1st Group A", "2nd Group B", "3rd Groups ABCD" etc.
-  const pos = name.match(/^(\d+)(?:st|nd|rd|th)\s+Group[s]?\s+([A-Z]+)/i);
-  if (pos) return `${pos[1]}${pos[2]}`;
+  // Ya es código corto: "1A", "2B", "3BCDEF", "WA", "WM3"
+  if (/^\d[A-Z]+$/i.test(name) || /^W[A-Z0-9]+$/i.test(name)) return name.toUpperCase();
+  // "1st Group A", "2nd Groups BCDEF"
+  const pos = name.match(/^(\d+)(?:st|nd|rd|th)\s+Groups?\s+([A-Z]+)/i);
+  if (pos) return `${pos[1]}${pos[2].toUpperCase()}`;
   // "Winner Match 3" / "Winner Playoff 1"
   const wm = name.match(/^Winner\s+(?:Match|Playoff)\s*(\d+)/i);
-  if (wm) return `W${wm[1]}`;
+  if (wm) return `WM${wm[1]}`;
   // "Winner Group A"
   const wg = name.match(/^Winner\s+Group\s+([A-Z]+)/i);
-  if (wg) return `W${wg[1]}`;
-  // TBD / Por definir
+  if (wg) return `W${wg[1].toUpperCase()}`;
   if (/^TBD/i.test(name)) return '?';
   return name;
 }
 
-/** True si el equipo aún no está determinado (placeholder) */
+/** True si el equipo aún no está determinado (es un placeholder de bracket) */
 function isPending(name: string | null): boolean {
   if (!name) return true;
+  // Código corto de posición: "1A", "2B", "3BCDEF"
+  if (/^\d[A-Z]+$/i.test(name)) return true;
+  // Código de ganador: "WA", "WM3"
+  if (/^W[A-Z0-9]+$/i.test(name)) return true;
   return /^(TBD|Winner|1st|2nd|3rd|4th|\d+(?:st|nd|rd|th))/i.test(name);
 }
 ---
@@ -326,19 +339,24 @@ function isPending(name: string | null): boolean {
                   }`}>
 
                     {useFifaStyle ? (
-                      /* ── Formato FIFA: equipos aún no determinados ── */
-                      <div class="px-4 py-5 text-center space-y-2">
-                        <div class="flex items-center justify-center gap-4">
-                          <svg class={`w-8 h-8 flex-shrink-0 ${isFinal ? 'text-gold/40' : 'text-slate-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      /* ── Formato FIFA: bracket con códigos de posición ── */
+                      <div class="px-4 py-4 text-center space-y-1.5">
+                        <div class="flex items-center justify-center gap-3">
+                          <span class={`font-display text-2xl font-bold tracking-wide ${isFinal ? 'text-gold' : 'text-slate-300'}`}>
+                            {shortCode(m.home_team)}
+                          </span>
+                          <svg class={`w-6 h-6 flex-shrink-0 ${isFinal ? 'text-gold/50' : 'text-slate-600'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3L3 7v5c0 5.25 3.75 9.75 9 11 5.25-1.25 9-5.75 9-11V7l-9-4z" />
                           </svg>
-                          <span class="text-slate-600 font-bold text-xl">—</span>
-                          <svg class={`w-8 h-8 flex-shrink-0 ${isFinal ? 'text-gold/40' : 'text-slate-700'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                          <svg class={`w-6 h-6 flex-shrink-0 ${isFinal ? 'text-gold/50' : 'text-slate-600'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 3L3 7v5c0 5.25 3.75 9.75 9 11 5.25-1.25 9-5.75 9-11V7l-9-4z" />
                           </svg>
+                          <span class={`font-display text-2xl font-bold tracking-wide ${isFinal ? 'text-gold' : 'text-slate-300'}`}>
+                            {shortCode(m.away_team)}
+                          </span>
                         </div>
-                        <p class="text-xs text-slate-500">
-                          {new Date(m.match_date).toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz' })}
+                        <p class="text-xs text-slate-600">
+                          {new Date(m.match_date).toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/La_Paz' })}
                         </p>
                       </div>
                     ) : (
