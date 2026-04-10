@@ -82,11 +82,11 @@ if (existing) return Astro.redirect('/predictions?info=ya_pronosticado');
 
 const { data: navProfile } = await supabase
   .from('profiles')
-  .select('username, puntos_totales, es_referi, monto_pagado')
+  .select('username, puntos_totales, es_referi, pago_70, pago_50')
   .eq('id', user.id)
   .single();
 
-if (import.meta.env.PUBLIC_BETA !== "true" && (navProfile?.monto_pagado ?? 0) < 70) return Astro.redirect('/predictions');
+if (import.meta.env.PUBLIC_BETA !== "true" && !(navProfile?.pago_70 && navProfile?.pago_50)) return Astro.redirect('/predictions');
 
 const error = Astro.url.searchParams.get('error');
 

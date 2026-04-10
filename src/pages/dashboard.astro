@@ -36,10 +36,10 @@ const [
   { data: settingsRows },
   { data: startedMatchData },
 ] = await Promise.all([
-  supabase.from('profiles').select('id, username, puntos_totales, es_referi, participa, monto_pagado').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
+  supabase.from('profiles').select('id, username, puntos_totales, pago_70, pago_50, es_referi, participa, monto_pagado').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
   supabase.from('sanctions').select('user_id, type').eq('active', true),
   supabase.from('matches').select('*').eq('is_finished', false).gte('match_date', ahora).order('match_date', { ascending: true }).limit(6),
-  supabase.from('profiles').select('username, puntos_totales, es_referi, monto_pagado').eq('id', user.id).single(),
+  supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50').eq('id', user.id).single(),
   supabase.from('matches').select('id, home_team, away_team, home_score, away_score, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
   supabaseAdmin.from('settings').select('key, value'),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
@@ -159,6 +159,8 @@ type StandingRow = {
   id: string;
   username: string;
   puntos_totales: number;
+  pago_70: boolean;
+  pago_50: boolean;
   es_referi: boolean;
   monto_pagado: number;
 };
@@ -174,12 +176,11 @@ const navProfile = myProfile ?? null;
 
 // Stats para tarjetas
 const leaderPoints = rows[0]?.puntos_totales ?? 0;
-const participantes  = rows.filter(r => (r.monto_pagado ?? 0) >= 70);
-const countCompletos = rows.filter(r => (r.monto_pagado ?? 0) >= 120).length;
-const countParciales = participantes.length - countCompletos;
-const pozoActual     = participantes.reduce((s, r) => s + Math.min((r.monto_pagado ?? 0) - 20, 100), 0);
-const pozoTotal      = participantes.length * 100;
-const montoReferi    = participantes.length * 20;
+const countPago70 = rows.filter(r => r.pago_70).length;
+const countPago50 = rows.filter(r => r.pago_70 && r.pago_50).length;
+const pozoTotal = countPago50 * 100;
+const pozoActual = countPago50 * 100 + (countPago70 - countPago50) * 50;
+const montoReferi = countPago70 * 20;
 const nextMatch = (proximosPartidos ?? [])[0] ?? null;
 
 // Próximo partido — countdown
@@ -266,14 +267,14 @@ function accentLine(i: number, isMe: boolean) {
           <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
             {pagosDeadline70 && (
               <span class={expired70 ? 'text-fifared font-semibold' : 'text-slate-200'}>
-                <span class="text-slate-400 text-sm mr-1">Mín. 70 Bs →</span>
+                <span class="text-slate-400 text-sm mr-1">70 Bs →</span>
                 <strong>{fmtDeadline(pagosDeadline70)}</strong>
                 {expired70 && <span class="ml-1">🔒</span>}
               </span>
             )}
             {pagosDeadline50 && (
               <span class={expired50 ? 'text-fifared font-semibold' : 'text-slate-200'}>
-                <span class="text-slate-400 text-sm mr-1">Pago completo →</span>
+                <span class="text-slate-400 text-sm mr-1">50 Bs →</span>
                 <strong>{fmtDeadline(pagosDeadline50)}</strong>
                 {expired50 && <span class="ml-1">🔒</span>}
               </span>
@@ -285,7 +286,7 @@ function accentLine(i: number, isMe: boolean) {
 
     <script type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
     <script type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pozoActual, montoReferi, pagosDeadline70, pagosDeadline50 })}></script>
-    <script type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username ?? '?', monto_pagado: p.monto_pagado ?? 0 })))}></script>
+    <script type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username ?? '?', pago_70: p.pago_70 ?? false, pago_50: p.pago_50 ?? false, monto_pagado: p.monto_pagado ?? 0 })))}></script>
 
     <!-- STATS CARDS -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -304,7 +305,7 @@ function accentLine(i: number, isMe: boolean) {
         <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
         <span class="relative text-xs text-white/70 uppercase tracking-wide">Pago completo</span>
         <span class="relative text-2xl">✅</span>
-        <span class="relative font-display text-3xl text-white leading-none">{countCompletos}<span class="text-white/40 text-base font-sans"> / {rows.length}</span></span>
+        <span class="relative font-display text-3xl text-white leading-none">{countPago50}<span class="text-white/40 text-base font-sans"> / {rows.length}</span></span>
       </div>
 
       <!-- Próximo partido -->
@@ -341,7 +342,7 @@ function accentLine(i: number, isMe: boolean) {
 
     <!-- POZO PARCIAL -->
     {(() => {
-      const soloPrimero = countParciales;
+      const soloPrimero = countPago70 - countPago50;
       const maxPozo = rows.length * 100;
       const pct = maxPozo > 0 ? Math.round(pozoActual / maxPozo * 100) : 0;
       return (
@@ -352,7 +353,7 @@ function accentLine(i: number, isMe: boolean) {
           <!-- Header -->
           <div class="relative flex items-center justify-between">
             <span class="text-xs text-white/70 uppercase tracking-wide">💰 Pozo actual</span>
-            <span class="text-xs text-white/50">{countCompletos} completo · {soloPrimero} parcial · {rows.length - participantes.length} sin pago</span>
+            <span class="text-xs text-white/50">{countPago50} completo · {soloPrimero} parcial · {rows.length - countPago70} sin pago</span>
           </div>
           <!-- Monto -->
           <div class="relative flex items-end gap-3">
@@ -417,12 +418,17 @@ function accentLine(i: number, isMe: boolean) {
                   ) : null; })()}
                 </div>
                 <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                  {(() => {
-                    const m = p.monto_pagado ?? 0;
-                    if (m >= 120) return <span class="text-gol text-xs">✅ 120 Bs</span>;
-                    if (m >= 70)  return <span class="text-amber-400 text-xs">⏳ {m} Bs · faltan {120 - m} Bs</span>;
-                    return <span class="text-roja text-xs">❌ sin pago</span>;
-                  })()}
+                  <div class="flex items-center gap-1 text-xs">
+                    <span class={p.pago_70 ? 'text-gol' : 'text-roja'}>{p.pago_70 ? '✅' : '❌'} 70 Bs</span>
+                    <span class="text-brand-700">·</span>
+                    <span class={p.pago_50 ? 'text-gol' : 'text-slate-600'}>{p.pago_50 ? '✅' : '❌'} 50 Bs</span>
+                    {(() => { const implied = p.pago_70 ? (p.pago_50 ? 120 : 70) : 0; const diff = (p.monto_pagado ?? 0) - implied; return diff > 0 ? (
+                      <>
+                        <span class="text-brand-700">·</span>
+                        <span class="text-amber-400 font-mono">+{diff} Bs a favor</span>
+                      </>
+                    ) : null; })()}
+                  </div>
                   {gap > 0 && (
                     <span class="text-xs text-slate-600">−{gap} pts</span>
                   )}
@@ -453,8 +459,8 @@ function accentLine(i: number, isMe: boolean) {
               <th class="px-4 py-3 text-left">Jugador</th>
               <th class="px-4 py-3 text-right">Puntos</th>
               <th class="px-4 py-3 text-center hidden md:table-cell">Diferencia</th>
-              <th class="px-4 py-3 text-center">Dep.</th>
-              <th class="px-4 py-3 text-center">Falta</th>
+              <th class="px-4 py-3 text-center">70 Bs</th>
+              <th class="px-4 py-3 text-center">50 Bs</th>
             </tr>
           </thead>
           <tbody>
@@ -497,20 +503,13 @@ function accentLine(i: number, isMe: boolean) {
                     }
                   </td>
                   <td class="px-4 py-3 text-center">
-                    {(() => {
-                      const m = p.monto_pagado ?? 0;
-                      if (m >= 120) return <span class="text-gol text-sm font-mono">120 Bs</span>;
-                      if (m >= 70)  return <span class="text-amber-400 text-sm font-mono">{m} Bs</span>;
-                      return <span class="text-slate-600 text-sm">—</span>;
-                    })()}
+                    <div class="flex flex-col items-center gap-0.5">
+                      {p.pago_70 ? <span class="text-gol text-base">✅</span> : <span class="text-roja text-base">❌</span>}
+                      {(() => { const implied = p.pago_70 ? (p.pago_50 ? 120 : 70) : 0; const diff = (p.monto_pagado ?? 0) - implied; return diff > 0 ? <span class="text-amber-400 text-[9px] font-mono">+{diff} Bs</span> : null; })()}
+                    </div>
                   </td>
-                  <td class="px-4 py-3 text-center">
-                    {(() => {
-                      const m = p.monto_pagado ?? 0;
-                      if (m >= 120) return <span class="text-gol text-xs">✓</span>;
-                      if (m >= 70)  return <span class="text-slate-400 text-xs font-mono">{120 - m} Bs</span>;
-                      return <span class="text-slate-600 text-xs font-mono">120 Bs</span>;
-                    })()}
+                  <td class="px-4 py-3 text-center text-base">
+                    {p.pago_50 ? <span class="text-gol">✅</span> : <span class="text-slate-600">❌</span>}
                   </td>
                 </tr>
               );
@@ -559,7 +558,7 @@ function accentLine(i: number, isMe: boolean) {
         <h2 class="font-display text-2xl text-white tracking-wide">PRÓXIMOS PARTIDOS</h2>
         <div class="grid gap-3 sm:grid-cols-2">
           {proximosPartidos.map((m: any) => {
-            const pagoIncompleto = import.meta.env.PUBLIC_BETA !== 'true' && (navProfile?.monto_pagado ?? 0) < 70;
+            const pagoIncompleto = import.meta.env.PUBLIC_BETA !== 'true' && !(navProfile?.pago_70 && navProfile?.pago_50);
             const lockState = pagoIncompleto ? 'pago' : getMatchLockState(m);
             const isOpen = lockState === 'open';
             const hasPredicted = predictedSet.has(m.id);
@@ -706,28 +705,32 @@ function accentLine(i: number, isMe: boolean) {
     if (meta.pagosDeadline70) deadlines.push('_\u23F0 70 Bs: hasta ' + fmtIso(meta.pagosDeadline70) + '_');
     if (meta.pagosDeadline50) deadlines.push('_\u23F0 50 Bs: hasta ' + fmtIso(meta.pagosDeadline50) + '_');
 
-    var completos  = players.filter(function (p) { return (p.monto_pagado ?? 0) >= 120; });
-    var parciales  = players.filter(function (p) { return (p.monto_pagado ?? 0) >= 70 && (p.monto_pagado ?? 0) < 120; });
-    var pendientes = players.filter(function (p) { return (p.monto_pagado ?? 0) < 70; });
+    var completos  = players.filter(function (p) { return p.pago_70 && p.pago_50; });
+    var parciales  = players.filter(function (p) { return p.pago_70 && !p.pago_50; });
+    var pendientes = players.filter(function (p) { return !p.pago_70; });
 
     var lines = [];
-    completos.forEach(function (p) { lines.push('\u2705 ' + p.username + ' \u2014 120 Bs \u2714'); });
+    completos.forEach(function (p) {
+      var extra = p.monto_pagado > 120 ? ' (' + (p.monto_pagado - 120) + ' Bs a favor)' : '';
+      lines.push('\u2705 ' + p.username + ' \u2014 120 Bs \u2714' + extra);
+    });
     parciales.forEach(function (p) {
-      var faltan = 120 - p.monto_pagado;
-      lines.push('\u23F3 ' + p.username + ' \u2014 ' + p.monto_pagado + ' Bs dep. \u00b7 faltan ' + faltan + ' Bs');
+      var dep = p.monto_pagado > 0 ? p.monto_pagado : 70;
+      var faltan = 120 - dep;
+      var nota = dep !== 70
+        ? dep + ' Bs dep. \u00b7 faltan ' + faltan + ' Bs (' + (dep - 70) + ' Bs a favor)'
+        : '70 Bs pagados \u00b7 falta 50 Bs';
+      lines.push('\u23F3 ' + p.username + ' \u2014 ' + nota);
     });
     pendientes.forEach(function (p) { lines.push('\u274C ' + p.username + ' \u2014 sin pago'); });
 
-    var participantesWA = completos.concat(parciales);
-    var pozoWA = participantesWA.reduce(function(s, p) { return s + Math.min(p.monto_pagado - 20, 100); }, 0);
-    var referiWA = participantesWA.length * 20;
     var metaTotal = players.length * 100;
 
     var header = ['\uD83D\uDCB0 *ESTADO DE PAGOS*', '_Polla Mundial 2026_'].concat(deadlines);
 
     var text = header.concat([''])
       .concat(lines)
-      .concat(['', '\uD83D\uDCB0 Pozo: ' + pozoWA + ' Bs \u2502 \u2696\uFE0F R\u00e9feri: ' + referiWA + ' Bs \u2502 Premio m\u00e1x: ' + metaTotal + ' Bs'])
+      .concat(['', '\uD83D\uDCB0 Pozo: ' + (completos.length * 100 + parciales.length * 50) + ' Bs \u2502 \u2696\uFE0F R\u00e9feri: ' + (completos.length + parciales.length) * 20 + ' Bs \u2502 Premio m\u00e1x: ' + metaTotal + ' Bs'])
       .concat(['\uD83D\uDD17 mundial.tecnocondor.dev/pago'])
       .join('\n');
 

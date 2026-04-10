@@ -14,8 +14,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   });
   if (!user) return redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('monto_pagado').eq('id', user.id).single();
-  if (import.meta.env.PUBLIC_BETA !== "true" && (profile?.monto_pagado ?? 0) < 70) return redirect('/predictions');
+  const { data: profile } = await supabase.from('profiles').select('pago_70, pago_50').eq('id', user.id).single();
+  if (import.meta.env.PUBLIC_BETA !== "true" && !(profile?.pago_70 && profile?.pago_50)) return redirect('/predictions');
 
   const form = await request.formData();
   const matchId = form.get('matchId')?.toString();

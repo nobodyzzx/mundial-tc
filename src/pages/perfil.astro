@@ -15,7 +15,7 @@ if (sessionErr || !user) return Astro.redirect('/login');
 const [{ data: profile }, { data: predHistory }] = await Promise.all([
   supabaseAdmin
     .from('profiles')
-    .select('username, puntos_totales, es_referi, monto_pagado')
+    .select('username, puntos_totales, es_referi, pago_70, pago_50')
     .eq('id', user.id)
     .single(),
   supabaseAdmin
@@ -67,32 +67,27 @@ const jornadaHistory = [...jornadaMap.entries()].map(([day, v]) => ({ day, ...v 
       </div>
       <div class="h-px bg-brand-800"></div>
       <p class="text-xs text-slate-600 uppercase tracking-wide font-semibold">Estado de pagos</p>
-      {(() => {
-        const m = profile?.monto_pagado ?? 0;
-        const falta = Math.max(0, 120 - m);
-        return (
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <div>
-                <span class="text-sm text-slate-300">Depositado</span>
-                <p class="text-xs text-slate-600">
-                  {m >= 120 ? 'Pago completo — participación total' : m >= 70 ? `Faltan ${falta} Bs para completar` : 'Sin pago — pronósticos bloqueados'}
-                </p>
-              </div>
-              <span class={`text-xs px-3 py-1 rounded-full font-semibold font-mono ${m >= 120 ? 'bg-gol/20 text-green-300 border border-gol/30' : m >= 70 ? 'bg-gold/10 text-gold border border-gold/40' : 'bg-amber-900/30 text-amber-400 border border-amber-500/40'}`}>
-                {m >= 120 ? `✓ ${m} Bs` : m >= 70 ? `⏳ ${m} Bs` : '⚠️ 0 Bs'}
-              </span>
-            </div>
-            {falta > 0 && m >= 70 && (
-              <div class="flex items-center justify-between text-xs">
-                <span class="text-slate-500">Falta completar</span>
-                <span class="text-slate-400 font-mono">{falta} Bs</span>
-              </div>
-            )}
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm text-slate-300">1er pago — 70 Bs</span>
+            <p class="text-xs text-slate-600">{profile?.pago_70 ? 'Pronósticos habilitados' : 'Sin esto no puedes pronosticar'}</p>
           </div>
-        );
-      })()}
-      {(profile?.monto_pagado ?? 0) < 70 && (
+          <span class={`text-xs px-3 py-1 rounded-full font-semibold ${profile?.pago_70 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-amber-900/30 text-amber-400 border border-amber-500/40'}`}>
+            {profile?.pago_70 ? '✓ Pagado' : '⚠️ Pronósticos bloqueados'}
+          </span>
+        </div>
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm text-slate-300">2do pago — 50 Bs</span>
+            <p class="text-xs text-slate-600">{profile?.pago_50 ? 'Participación completa' : 'Sin esto solo aportas 50 Bs al pozo'}</p>
+          </div>
+          <span class={`text-xs px-3 py-1 rounded-full font-semibold ${profile?.pago_50 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-brand-800 text-slate-500 border border-brand-700'}`}>
+            {profile?.pago_50 ? '✓ Pagado' : '⚠️ Pozo incompleto'}
+          </span>
+        </div>
+      </div>
+      {!profile?.pago_70 && (
         <a href="/pago" class="flex items-center justify-center gap-2 w-full bg-gold/10 border border-gold/30 text-gold text-sm font-semibold py-2.5 rounded-xl transition active:bg-gold/20">
           💰 Ver cómo pagar →
         </a>

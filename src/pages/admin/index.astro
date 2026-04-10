@@ -311,8 +311,8 @@ function formatDate(d: string) {
       {/* Stats rápidas */}
       {(() => {
         const jug = (profiles ?? []).filter((p: any) => p.participa);
-        const pagados   = jug.filter((p: any) => (p.monto_pagado ?? 0) >= 120).length;
-        const parcial   = jug.filter((p: any) => (p.monto_pagado ?? 0) >= 70 && (p.monto_pagado ?? 0) < 120).length;
+        const pagados   = jug.filter((p: any) => p.pago_70 && p.pago_50).length;
+        const parcial   = jug.filter((p: any) => p.pago_70 && !p.pago_50).length;
         const sancion   = jug.filter((p: any) => (sanctionsByUser.get(p.id) ?? []).length > 0).length;
         const expuls    = jug.filter((p: any) => p.expulsado).length;
         return (
@@ -367,12 +367,15 @@ function formatDate(d: string) {
                   );
                 })}
                 <span class="ml-auto font-display text-sm text-gold">{p.puntos_totales}pts</span>
-                {!isExpulsado && (() => {
-                  const m = p.monto_pagado ?? 0;
-                  const cls = m >= 120 ? 'bg-gol/10 border-gol/30 text-gol' : m >= 70 ? 'bg-gold/10 border-gold/30 text-gold' : 'bg-fifared/10 border-fifared/30 text-fifared';
-                  const label = m >= 120 ? `✓ ${m} Bs` : m >= 70 ? `⏳ ${m} Bs · faltan ${120 - m}` : '❌ sin pago';
-                  return <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${cls}`}>{label}</span>;
-                })()}
+                {!isExpulsado && (
+                  <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${
+                    p.pago_70 && p.pago_50 ? 'bg-gol/10 border-gol/30 text-gol' :
+                    p.pago_70             ? 'bg-gold/10 border-gold/30 text-gold' :
+                                            'bg-fifared/10 border-fifared/30 text-fifared'
+                  }`}>
+                    {p.pago_70 && p.pago_50 ? '✓ pagado' : p.pago_70 ? '⏳ parcial' : '❌ pendiente'}
+                  </span>
+                )}
               </div>
 
               {/* Fila 2: botones de acción (solo si no expulsado) */}
@@ -405,19 +408,39 @@ function formatDate(d: string) {
                       🟥🟥 2ª Roja
                     </button>
                   </form>
-                  <form method="POST" action="/api/admin/set-monto-pagado" class="ml-auto flex items-center gap-1">
-                    <input type="hidden" name="user_id" value={p.id} />
-                    <input type="hidden" name="back" value="/admin" />
-                    <span class="text-xs text-slate-500 mr-1">Dep.</span>
-                    <input name="monto_pagado" type="number" min="0" max="9999"
-                      value={p.monto_pagado ?? 0}
-                      title="Monto total depositado en Bs"
-                      class="w-16 bg-brand-800 border border-brand-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center focus:outline-none focus:border-gold/50 min-h-[36px]" />
-                    <button type="submit"
-                      class="text-xs px-2.5 py-1.5 rounded-lg border bg-brand-800 border-brand-700 text-slate-400 hover:text-white hover:border-brand-600 transition min-h-[36px]">
-                      ✓
-                    </button>
-                  </form>
+                  <div class="ml-auto flex items-center gap-1.5 flex-wrap justify-end">
+                    <form method="POST" action="/api/admin/payment">
+                      <input type="hidden" name="userId" value={p.id} />
+                      <input type="hidden" name="field" value="pago70" />
+                      <input type="hidden" name="value" value={p.pago_70 ? 'false' : 'true'} />
+                      <button type="submit"
+                        class={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold min-h-[36px] ${p.pago_70 ? 'bg-gol/10 border-gol/40 text-gol' : 'bg-brand-800 border-brand-700 text-slate-400'}`}>
+                        {p.pago_70 ? '✓' : '+'} 70Bs
+                      </button>
+                    </form>
+                    <form method="POST" action="/api/admin/payment">
+                      <input type="hidden" name="userId" value={p.id} />
+                      <input type="hidden" name="field" value="pago50" />
+                      <input type="hidden" name="value" value={p.pago_50 ? 'false' : 'true'} />
+                      <button type="submit" disabled={!p.pago_70}
+                        class={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold min-h-[36px] ${!p.pago_70 ? 'bg-brand-800/40 border-brand-700/30 text-slate-600 cursor-not-allowed' : p.pago_50 ? 'bg-gol/10 border-gol/40 text-gol' : 'bg-gold/10 border-gold/50 text-gold'}`}>
+                        {p.pago_50 ? '✓' : '+'} 50Bs
+                      </button>
+                    </form>
+                    <form method="POST" action="/api/admin/set-monto-pagado" class="flex items-center gap-1">
+                      <input type="hidden" name="user_id" value={p.id} />
+                      <input type="hidden" name="back" value="/admin" />
+                      <input name="monto_pagado" type="number" min="0" max="9999"
+                        value={p.monto_pagado ?? 0}
+                        title="Monto total depositado en Bs"
+                        class="w-16 bg-brand-800 border border-brand-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center focus:outline-none focus:border-gold/50 min-h-[36px]" />
+                      <button type="submit"
+                        class="text-xs px-2 py-1.5 rounded-lg border bg-brand-800 border-brand-700 text-slate-400 hover:text-white hover:border-brand-600 transition min-h-[36px]"
+                        title="Guardar monto depositado">
+                        Bs ✓
+                      </button>
+                    </form>
+                  </div>
                 </div>
               )}
 

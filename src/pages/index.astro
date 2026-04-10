@@ -10,13 +10,14 @@ if (accessToken) return Astro.redirect('/dashboard');
 // Stats dinámicas
 const { data: pagosData, count: numJugadores } = await supabaseAdmin
   .from('profiles')
-  .select('monto_pagado', { count: 'exact' })
+  .select('pago_70, pago_50', { count: 'exact' })
   .eq('participa', true)
   .eq('expulsado', false);
 
 const totalJugadores = numJugadores ?? 0;
-const participantesIdx = (pagosData ?? []).filter(p => (p.monto_pagado ?? 0) >= 70);
-const pozo = participantesIdx.reduce((s: number, p: any) => s + Math.min((p.monto_pagado ?? 0) - 20, 100), 0);
+const countPago70 = (pagosData ?? []).filter(p => p.pago_70).length;
+const countPago50 = (pagosData ?? []).filter(p => p.pago_70 && p.pago_50).length;
+const pozo = countPago50 * 100 + (countPago70 - countPago50) * 50;
 ---
 
 <Layout title="Bienvenido">
@@ -106,7 +107,7 @@ const pozo = participantesIdx.reduce((s: number, p: any) => s + Math.min((p.mont
       <div class="text-2xl mb-2">💰</div>
       <div class="text-2xl sm:text-3xl font-display text-gold">{pozo} Bs</div>
       <div class="text-xs text-slate-500 mt-1">Pozo acumulado</div>
-      <div class="text-xs text-slate-600 mt-0.5">{participantesIdx.filter((p: any) => (p.monto_pagado ?? 0) >= 120).length === totalJugadores && totalJugadores > 0 ? 'Completo' : 'En curso'}</div>
+      <div class="text-xs text-slate-600 mt-0.5">{countPago50 === totalJugadores && totalJugadores > 0 ? 'Completo' : 'En curso'}</div>
     </div>
     <div class="bg-brand-900/70 backdrop-blur-sm border border-brand-700/60 rounded-2xl p-5 text-center hover:border-gold/40 transition">
       <div class="text-2xl mb-2">⚽</div>
