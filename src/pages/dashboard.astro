@@ -418,17 +418,13 @@ function accentLine(i: number, isMe: boolean) {
                   ) : null; })()}
                 </div>
                 <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <div class="flex items-center gap-1 text-xs">
-                    <span class={p.pago_70 ? 'text-gol' : 'text-roja'}>{p.pago_70 ? '✅' : '❌'} 70 Bs</span>
-                    <span class="text-brand-700">·</span>
-                    <span class={p.pago_50 ? 'text-gol' : 'text-slate-600'}>{p.pago_50 ? '✅' : '❌'} 50 Bs</span>
-                    {(() => { const implied = p.pago_70 ? (p.pago_50 ? 120 : 70) : 0; const diff = (p.monto_pagado ?? 0) - implied; return diff > 0 ? (
-                      <>
-                        <span class="text-brand-700">·</span>
-                        <span class="text-amber-400 font-mono">+{diff} Bs a favor</span>
-                      </>
-                    ) : null; })()}
-                  </div>
+                  {(() => {
+                    const m = p.monto_pagado ?? 0;
+                    if (m >= 120) return <span class="text-gol text-xs">✅ {m} Bs</span>;
+                    if (m >= 70)  return <span class="text-amber-400 text-xs">⏳ {m} Bs · faltan {120 - m} Bs</span>;
+                    if (p.pago_70) return <span class="text-amber-400 text-xs">⏳ mín. 70 Bs · faltan 50 Bs</span>;
+                    return <span class="text-roja text-xs">❌ sin pago</span>;
+                  })()}
                   {gap > 0 && (
                     <span class="text-xs text-slate-600">−{gap} pts</span>
                   )}
@@ -459,8 +455,8 @@ function accentLine(i: number, isMe: boolean) {
               <th class="px-4 py-3 text-left">Jugador</th>
               <th class="px-4 py-3 text-right">Puntos</th>
               <th class="px-4 py-3 text-center hidden md:table-cell">Diferencia</th>
-              <th class="px-4 py-3 text-center">70 Bs</th>
-              <th class="px-4 py-3 text-center">50 Bs</th>
+              <th class="px-4 py-3 text-center">Dep.</th>
+              <th class="px-4 py-3 text-center">Falta</th>
             </tr>
           </thead>
           <tbody>
@@ -503,13 +499,22 @@ function accentLine(i: number, isMe: boolean) {
                     }
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <div class="flex flex-col items-center gap-0.5">
-                      {p.pago_70 ? <span class="text-gol text-base">✅</span> : <span class="text-roja text-base">❌</span>}
-                      {(() => { const implied = p.pago_70 ? (p.pago_50 ? 120 : 70) : 0; const diff = (p.monto_pagado ?? 0) - implied; return diff > 0 ? <span class="text-amber-400 text-[9px] font-mono">+{diff} Bs</span> : null; })()}
-                    </div>
+                    {(() => {
+                      const m = p.monto_pagado ?? 0;
+                      if (m >= 120) return <span class="text-gol text-sm font-mono">120 Bs</span>;
+                      if (m >= 70)  return <span class="text-amber-400 text-sm font-mono">{m} Bs</span>;
+                      if (p.pago_70) return <span class="text-amber-400 text-xs">mín. 70 Bs</span>;
+                      return <span class="text-slate-600 text-sm">—</span>;
+                    })()}
                   </td>
-                  <td class="px-4 py-3 text-center text-base">
-                    {p.pago_50 ? <span class="text-gol">✅</span> : <span class="text-slate-600">❌</span>}
+                  <td class="px-4 py-3 text-center">
+                    {(() => {
+                      const m = p.monto_pagado ?? 0;
+                      if (m >= 120) return <span class="text-gol text-xs">✓</span>;
+                      if (m >= 70)  return <span class="text-slate-400 text-xs font-mono">{120 - m} Bs</span>;
+                      if (p.pago_70) return <span class="text-slate-400 text-xs font-mono">50 Bs</span>;
+                      return <span class="text-slate-600 text-xs font-mono">120 Bs</span>;
+                    })()}
                   </td>
                 </tr>
               );
