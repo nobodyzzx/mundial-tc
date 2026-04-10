@@ -367,14 +367,12 @@ function formatDate(d: string) {
                   );
                 })}
                 <span class="ml-auto font-display text-sm text-gold">{p.puntos_totales}pts</span>
-                {!isExpulsado && (
-                  {(() => {
-                    const m = p.monto_pagado ?? 0;
-                    const cls = m >= 120 ? 'bg-gol/10 border-gol/30 text-gol' : m >= 70 ? 'bg-gold/10 border-gold/30 text-gold' : 'bg-fifared/10 border-fifared/30 text-fifared';
-                    const label = m >= 120 ? `✓ ${m} Bs` : m >= 70 ? `⏳ ${m} Bs · faltan ${120 - m}` : '❌ sin pago';
-                    return <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${cls}`}>{label}</span>;
-                  })()}
-                )}
+                {!isExpulsado && (() => {
+                  const m = p.monto_pagado ?? 0;
+                  const cls = m >= 120 ? 'bg-gol/10 border-gol/30 text-gol' : m >= 70 ? 'bg-gold/10 border-gold/30 text-gold' : 'bg-fifared/10 border-fifared/30 text-fifared';
+                  const label = m >= 120 ? `✓ ${m} Bs` : m >= 70 ? `⏳ ${m} Bs · faltan ${120 - m}` : '❌ sin pago';
+                  return <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${cls}`}>{label}</span>;
+                })()}
               </div>
 
               {/* Fila 2: botones de acción (solo si no expulsado) */}
