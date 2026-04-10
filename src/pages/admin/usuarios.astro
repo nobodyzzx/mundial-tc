@@ -17,7 +17,7 @@ const [
   { data: profiles },
 ] = await Promise.all([
   supabaseAdmin.auth.admin.listUsers({ perPage: 200 }),
-  supabaseAdmin.from('profiles').select('id, username, es_referi, puntos_totales, expulsado, pago_70, pago_50, participa'),
+  supabaseAdmin.from('profiles').select('id, username, es_referi, puntos_totales, expulsado, pago_70, pago_50, participa, monto_pagado'),
 ]);
 
 const profileMap: Record<string, any> = {};
@@ -169,10 +169,10 @@ function avatarColor(id: string) {
                   <div class="w-px h-6 bg-brand-700 hidden sm:block" />
                   <div class="flex flex-col items-center gap-0.5">
                     {u.profile?.pago_70 && u.profile?.pago_50
-                      ? <><span title="Pago completo (120 Bs)" class="text-base">✅</span><span class="text-[9px] text-gol">120 Bs</span></>
+                      ? <><span title="Pago completo (120 Bs)" class="text-base">✅</span><span class="text-[9px] text-gol">{u.profile?.monto_pagado > 120 ? `${u.profile.monto_pagado} Bs` : '120 Bs'}</span></>
                       : u.profile?.pago_70
-                      ? <><span title="Pago parcial — falta 50 Bs" class="text-base">⏳</span><span class="text-[9px] text-amber-400">70 Bs</span></>
-                      : <><span title="Sin pago" class="text-base">❌</span><span class="text-[9px] text-slate-600">0 Bs</span></>
+                      ? <><span title="Pago parcial — falta 50 Bs" class="text-base">⏳</span><span class="text-[9px] text-amber-400">{u.profile?.monto_pagado > 0 ? `${u.profile.monto_pagado} Bs` : '70 Bs'}</span></>
+                      : <><span title="Sin pago" class="text-base">❌</span><span class="text-[9px] text-slate-600">{u.profile?.monto_pagado > 0 ? `${u.profile.monto_pagado} Bs` : '0 Bs'}</span></>
                     }
                   </div>
                   <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -212,6 +212,24 @@ function avatarColor(id: string) {
                       </button>
                     </div>
                   </div>
+                </form>
+
+                {/* Monto depositado */}
+                <form method="POST" action="/api/admin/set-monto-pagado"
+                  class="flex items-end gap-2 pt-1 border-t border-brand-700/40">
+                  <input type="hidden" name="user_id" value={u.id} />
+                  <div class="flex-1">
+                    <label class="block text-xs text-slate-500 mb-1">
+                      Monto depositado (Bs) <span class="text-slate-600">— para transparencia con otros players</span>
+                    </label>
+                    <input name="monto_pagado" type="number" min="0" max="9999"
+                      value={u.profile?.monto_pagado ?? 0}
+                      class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-gold/50" />
+                  </div>
+                  <button type="submit"
+                    class="flex-shrink-0 bg-brand-700 hover:bg-brand-600 border border-brand-600 text-white font-semibold py-2 px-4 rounded-xl text-sm transition min-h-[40px]">
+                    Guardar
+                  </button>
                 </form>
 
                 {/* Último acceso */}
@@ -326,18 +344,19 @@ function avatarColor(id: string) {
   username:   u.profile?.username ?? '',
   email:      u.email,
   puntos:     u.profile?.puntos_totales ?? 0,
-  pago_70:    u.profile?.pago_70  ? 'SI' : 'NO',
-  pago_50:    u.profile?.pago_50  ? 'SI' : 'NO',
-  total_bs:   u.profile?.pago_70 && u.profile?.pago_50 ? '120' : u.profile?.pago_70 ? '70' : '0',
+  pago_70:       u.profile?.pago_70  ? 'SI' : 'NO',
+  pago_50:       u.profile?.pago_50  ? 'SI' : 'NO',
+  monto_pagado:  u.profile?.monto_pagado ?? 0,
+  total_bs:      u.profile?.pago_70 && u.profile?.pago_50 ? '120' : u.profile?.pago_70 ? '70' : '0',
   participa:  u.profile?.participa  ? 'SI' : 'NO',
   expulsado:  u.profile?.expulsado  ? 'SI' : 'NO',
   es_referi:  u.profile?.es_referi  ? 'SI' : 'NO',
   registro:   new Date(u.created_at).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' }),
 })) }}>
   document.getElementById('btn-export-csv')?.addEventListener('click', () => {
-    const headers = ['Jugador','Email','Puntos','Pago 70Bs','Pago 50Bs','Total Bs','Participa','Expulsado','Réferi','Registro'];
+    const headers = ['Jugador','Email','Puntos','Pago 70Bs','Pago 50Bs','Depositado Bs','Total Bs','Participa','Expulsado','Réferi','Registro'];
     const rows = csvData.map(r => [
-      r.username, r.email, r.puntos, r.pago_70, r.pago_50, r.total_bs,
+      r.username, r.email, r.puntos, r.pago_70, r.pago_50, r.monto_pagado, r.total_bs,
       r.participa, r.expulsado, r.es_referi, r.registro,
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
 
