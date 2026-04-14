@@ -50,7 +50,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const [{ data: players }, { data: settingsRows }] = await Promise.all([
     supabaseAdmin
       .from('profiles')
-      .select('username, pago_70, pago_50')
+      .select('username, pago_70, pago_50, monto_pagado')
       .eq('participa', true)
       .eq('expulsado', false)
       .order('username', { ascending: true }),
@@ -71,28 +71,43 @@ export const GET: APIRoute = async ({ url, request }) => {
     });
   }
 
+  function efectivo(p: any): number {
+    const m = p.monto_pagado ?? 0;
+    if (m > 0) return m;
+    if (p.pago_50) return 120;
+    if (p.pago_70) return 70;
+    return 0;
+  }
+
   const all = players ?? [];
-  const completos  = all.filter(p => p.pago_70 && p.pago_50);
-  const parciales  = all.filter(p => p.pago_70 && !p.pago_50);
-  const pendientes = all.filter(p => !p.pago_70);
+  const completos  = all.filter(p => (p.monto_pagado ?? 0) >= 120 || p.pago_50);
+  const parciales  = all.filter(p => !completos.includes(p) && ((p.monto_pagado ?? 0) >= 70 || p.pago_70));
+  const pendientes = all.filter(p => !completos.includes(p) && !parciales.includes(p));
 
   const deadlines: string[] = [];
   if (deadline70) deadlines.push(`_⏰ 70 Bs: hasta ${fmtIso(deadline70)}_`);
   if (deadline50) deadlines.push(`_⏰ 50 Bs: hasta ${fmtIso(deadline50)}_`);
 
   const lines: string[] = [];
-  completos.forEach(p  => lines.push(`✅ ${p.username} — 120 Bs ✔`));
-  parciales.forEach(p  => lines.push(`⏳ ${p.username} — 70 Bs pagados · falta 50 Bs`));
+  completos.forEach(p => {
+    const m = p.monto_pagado ?? 0;
+    lines.push(`✅ ${p.username} — PAGADO 120 Bs ✔`);
+  });
+  parciales.forEach(p => {
+    const m = efectivo(p);
+    lines.push(`⏳ ${p.username} — ${m} Bs · falta ${120 - m} Bs`);
+  });
   pendientes.forEach(p => lines.push(`❌ ${p.username} — sin pago`));
 
-  const pozo    = completos.length * 100 + parciales.length * 50;
-  const referi  = (completos.length + parciales.length) * 20;
-  const premioMax = all.length * 100;
+  const participantes = [...completos, ...parciales];
+  const pozo      = participantes.reduce((s, p) => s + Math.min(efectivo(p) - 20, 100), 0);
+  const referi    = participantes.length * 20;
+  const metaTotal = participantes.length * 100;
 
   const header = ['💰 *ESTADO DE PAGOS*', '_Polla Mundial 2026_', ...deadlines];
   const footer = [
     '',
-    `💰 Pozo: ${pozo} Bs | ⚖️ Réferi: ${referi} Bs | Premio máx: ${premioMax} Bs`,
+    `💰 Pozo: ${pozo} Bs de ${metaTotal} posibles | ⚖️ Réferi: ${referi} Bs`,
     '🔗 mundial.tecnocondor.dev/pago',
   ];
 
@@ -106,6 +121,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       parciales: parciales.length,
       pendientes: pendientes.length,
       pozo,
+      metaTotal,
     },
   });
 };
