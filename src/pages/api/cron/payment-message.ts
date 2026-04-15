@@ -90,12 +90,11 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   const lines: string[] = [];
   completos.forEach(p => {
-    const m = p.monto_pagado ?? 0;
     lines.push(`✅ ${p.username} — PAGADO 120 Bs ✔`);
   });
   parciales.forEach(p => {
     const m = efectivo(p);
-    lines.push(`⏳ ${p.username} — ${m} Bs · falta ${120 - m} Bs`);
+    lines.push(`⏳ ${p.username} — ${m} Bs dep. · faltan ${120 - m} Bs`);
   });
   pendientes.forEach(p => lines.push(`❌ ${p.username} — sin pago`));
 
@@ -107,7 +106,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const header = ['💰 *ESTADO DE PAGOS*', '_Polla Mundial 2026_', ...deadlines];
   const footer = [
     '',
-    `💰 Pozo: ${pozo} Bs de ${metaTotal} posibles | ⚖️ Réferi: ${referi} Bs`,
+    `💰 Pozo: ${pozo} Bs de ${metaTotal} posibles \u2502 ⚖️ Réferi: ${referi} Bs`,
     '🔗 mundial.tecnocondor.dev/pago',
   ];
 
