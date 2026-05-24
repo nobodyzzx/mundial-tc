@@ -49,12 +49,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   // Doble verificación en servidor: cierre por jornada (2h antes del primer partido).
   const { data: match } = await supabase
     .from('matches')
-    .select('match_date, stage, is_finished, jornada')
+    .select('match_date, stage, is_finished, jornada, status')
     .eq('id', matchId)
     .single();
 
   if (!match) return redirect('/predictions');
   if (match.is_finished) return redirect(`/predictions?error=${encodeURIComponent('El partido ya está cerrado')}`);
+  if (match.status && ['IN_PLAY', 'PAUSED', 'FINISHED'].includes(match.status))
+    return redirect(`/predictions?error=${encodeURIComponent('Las apuestas para este partido ya están cerradas')}`);
 
   // Busca todos los partidos de la misma jornada para encontrar el primero.
   let jornadaQuery = match.jornada

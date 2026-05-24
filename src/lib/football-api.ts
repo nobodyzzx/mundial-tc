@@ -18,16 +18,18 @@ async function apiFetch(path: string) {
 export interface ApiMatch {
   id: number;
   utcDate: string;
-  status: 'SCHEDULED' | 'TIMED' | 'IN_PLAY' | 'PAUSED' | 'FINISHED' | 'AWARDED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'TIMED' | 'IN_PLAY' | 'PAUSED' | 'FINISHED' | 'AWARDED' | 'CANCELLED' | 'SUSPENDED' | 'POSTPONED';
   stage: string;   // GROUP_STAGE, LAST_32, LAST_16, QUARTER_FINALS, SEMI_FINALS, THIRD_PLACE, FINAL
   group: string | null;    // GROUP_A … GROUP_L | null
   matchday: number | null;
+  minute?: number | null;   // solo presente en partidos LIVE
   homeTeam: { name: string };
   awayTeam: { name: string };
   score: {
     winner: 'HOME_TEAM' | 'AWAY_TEAM' | 'DRAW' | null;
     duration: 'REGULAR' | 'EXTRA_TIME' | 'PENALTY_SHOOTOUT';
     fullTime: { home: number | null; away: number | null };
+    halfTime?: { home: number | null; away: number | null };
     penalties: { home: number | null; away: number | null };
   };
 }
@@ -40,6 +42,13 @@ export async function getFixtures(code: string, season: number): Promise<ApiMatc
 
 export async function getFinishedMatches(code: string, season: number): Promise<ApiMatch[]> {
   const data = await apiFetch(`/competitions/${code}/matches?season=${season}&status=FINISHED`);
+  return data.matches ?? [];
+}
+
+// IN_PLAY (jugando) + PAUSED (medio tiempo). Es 1 sola llamada — la API acepta
+// múltiples valores separados por coma.
+export async function getLiveMatches(code: string, season: number): Promise<ApiMatch[]> {
+  const data = await apiFetch(`/competitions/${code}/matches?season=${season}&status=IN_PLAY,PAUSED`);
   return data.matches ?? [];
 }
 

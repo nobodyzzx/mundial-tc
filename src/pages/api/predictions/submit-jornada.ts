@@ -67,16 +67,18 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const matchIds = entries.map(e => e.matchId);
   const { data: matchRows } = await supabase
     .from('matches')
-    .select('id, match_date, is_finished, stage')
+    .select('id, match_date, is_finished, stage, status')
     .in('id', matchIds);
 
   if (!matchRows || matchRows.length === 0) return redirect('/predictions');
 
   const matchIndex = new Map(matchRows.map(m => [m.id, m]));
 
-  // Validar finished
+  // Validar finished / en juego
   for (const m of matchRows) {
     if (m.is_finished) return redirect(`/predictions?error=${encodeURIComponent('El partido ya terminó')}`);
+    if (m.status && ['IN_PLAY', 'PAUSED', 'FINISHED'].includes(m.status))
+      return redirect(`/predictions?error=${encodeURIComponent('Las apuestas para este partido ya están cerradas')}`);
   }
 
   // Validar cierre de jornada: 2h antes del primer partido del día Bolivia (UTC-4)
