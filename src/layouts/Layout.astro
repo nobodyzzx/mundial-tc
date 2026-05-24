@@ -277,6 +277,7 @@ if (userId && showNav) {
                 )}
               </a>
               <a href="/resultados"  class={navLink('/resultados')}>📋 Resultados</a>
+              <a href="/live"        class={navLink('/live')}>🔴 En Vivo</a>
               <a href="/reglas"      class={navLink('/reglas')}>📖 Reglas</a>
               {profile?.es_referi && (
                 <div class="relative group">
@@ -349,6 +350,9 @@ if (userId && showNav) {
           </>
         ) : (
           <div class="flex items-center gap-2">
+            <a href="/live" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/live' ? 'bg-gold/15 text-gold border border-gold/25' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
+              🔴 En Vivo
+            </a>
             <a href="/reglas" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/reglas' ? 'bg-gold/15 text-gold border border-gold/25' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
               📖 Reglas
             </a>
@@ -388,6 +392,7 @@ if (userId && showNav) {
               { href: '/grupos',      icon: '📊', label: 'Grupos y Eliminatorias' },
               { href: '/predictions', icon: '📅', label: 'Mis Pronósticos', startsWith: true },
               { href: '/resultados',  icon: '📋', label: 'Resultados' },
+              { href: '/live',        icon: '🔴', label: 'En Vivo' },
               { href: '/reglas',      icon: '📖', label: 'Reglamento' },
               { href: '/pago',        icon: '💰', label: 'Cómo pagar' },
             ].map(({ href, icon, label, startsWith }) => {

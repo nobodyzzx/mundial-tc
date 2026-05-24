@@ -1,0 +1,185 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { getLiveData } from '@/lib/live-data';
+
+// Página pública (sin login). Datos iniciales por SSR para primer pintado
+// instantáneo; el cliente refresca cada 30s contra /api/live.
+const initial = await getLiveData();
+---
+
+<Layout title="En Vivo" description="Partidos del Mundial 2026 en vivo">
+  <div class="space-y-6">
+
+    <div class="flex items-center justify-between gap-2">
+      <h1 class="font-display text-4xl text-white tracking-wide">EN VIVO</h1>
+      <span id="live-updated" class="text-xs text-slate-600 bg-brand-900 border border-brand-800 px-3 py-1.5 rounded-full whitespace-nowrap">
+        —
+      </span>
+    </div>
+
+    <div id="live-root" class="space-y-8">
+      <div class="text-center py-16 text-slate-600">Cargando…</div>
+    </div>
+
+    <noscript>
+      <p class="text-center text-slate-500 text-sm">Activa JavaScript para ver los marcadores en tiempo real.</p>
+    </noscript>
+
+  </div>
+</Layout>
+
+<script type="application/json" id="live-initial" set:html={JSON.stringify(initial)} />
+
+<script>
+  type LiveMatch = {
+    id: string; home: string; away: string; homeFlag: string; awayFlag: string;
+    hs: number | null; as_: number | null; hsHt: number | null; asHt: number | null;
+    homePen: number | null; awayPen: number | null; winnerPen: string | null;
+    status: string | null; minute: number | null; date: string; label: string;
+  };
+  type LiveData = { live: LiveMatch[]; upcoming: LiveMatch[]; recent: LiveMatch[]; fetchedAt: string };
+
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  function esc(s: string): string {
+    return s.replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  }
+
+  function fmtKickoff(iso: string): string {
+    return new Date(iso).toLocaleString('es-BO', {
+      weekday: 'short', day: '2-digit', month: 'short',
+      hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz',
+    });
+  }
+
+  function statusText(m: LiveMatch): string {
+    if (m.status === 'PAUSED') return 'ENTRETIEMPO';
+    if (m.minute != null) return `${m.minute}'`;
+    return 'EN JUEGO';
+  }
+
+  function sectionHeader(title: string, count: number): string {
+    return `
+      <div class="flex items-center gap-3">
+        <h2 class="font-display text-2xl text-white tracking-wide">${esc(title)}</h2>
+        <span class="text-xs text-slate-600">${count} partido${count !== 1 ? 's' : ''}</span>
+        <div class="flex-1 h-px bg-brand-800"></div>
+      </div>`;
+  }
+
+  function penLine(m: LiveMatch): string {
+    if (!m.winnerPen) return '';
+    const winner = m.winnerPen === 'home' ? m.home : m.away;
+    const score = m.homePen != null ? `${m.homePen}–${m.awayPen} pen` : 'pen';
+    return `<div class="font-display text-base text-gold/70 leading-none mt-1">(${esc(score)} · clasifica ${esc(winner)})</div>`;
+  }
+
+  function liveCard(m: LiveMatch): string {
+    return `
+      <div class="bg-brand-900 border border-fifared/40 rounded-2xl overflow-hidden shadow-lg shadow-fifared/5">
+        <div class="px-4 py-2.5 bg-brand-800/60 border-b border-brand-700/60 flex items-center justify-between">
+          <span class="text-xs text-slate-500 uppercase tracking-wide">${esc(m.label)}</span>
+          <span class="flex items-center gap-1.5 text-xs font-bold text-fifared">
+            <span class="inline-block w-2 h-2 rounded-full bg-fifared animate-pulse"></span>
+            ${esc(statusText(m))}
+          </span>
+        </div>
+        <div class="flex items-center justify-center gap-3 px-4 py-4">
+          <span class="text-base font-semibold text-white flex-1 text-right truncate">${esc(m.home)} ${m.homeFlag}</span>
+          <div class="text-center min-w-[64px]">
+            <div class="font-display text-4xl text-white leading-none">${m.hs ?? 0} – ${m.as_ ?? 0}</div>
+            ${m.hsHt != null ? `<div class="text-[11px] text-slate-500 mt-1">ET ${m.hsHt}–${m.asHt}</div>` : ''}
+            ${penLine(m)}
+          </div>
+          <span class="text-base font-semibold text-white flex-1 text-left truncate">${m.awayFlag} ${esc(m.away)}</span>
+        </div>
+      </div>`;
+  }
+
+  function compactRow(m: LiveMatch, right: string): string {
+    return `
+      <div class="bg-brand-900 border border-brand-800 rounded-xl px-4 py-3 flex items-center gap-3">
+        <span class="text-sm text-slate-300 flex-1 text-right truncate">${esc(m.home)} ${m.homeFlag}</span>
+        <div class="text-center min-w-[88px] text-xs">${right}</div>
+        <span class="text-sm text-slate-300 flex-1 text-left truncate">${m.awayFlag} ${esc(m.away)}</span>
+      </div>`;
+  }
+
+  function upcomingRow(m: LiveMatch): string {
+    return compactRow(m, `<span class="text-slate-500">${esc(fmtKickoff(m.date))}</span>`);
+  }
+
+  function recentRow(m: LiveMatch): string {
+    const pen = m.winnerPen ? `<span class="text-gold/70"> (pen)</span>` : '';
+    return compactRow(m, `<span class="font-display text-lg text-white">${m.hs ?? 0} – ${m.as_ ?? 0}</span>${pen}`);
+  }
+
+  function render(data: LiveData) {
+    const root = document.getElementById('live-root');
+    if (!root) return;
+
+    let html = '';
+
+    if (data.live.length) {
+      html += `<section class="space-y-4">
+        ${sectionHeader('🔴 EN VIVO', data.live.length)}
+        <div class="space-y-4">${data.live.map(liveCard).join('')}</div>
+      </section>`;
+    } else {
+      html += `<section class="text-center py-12 text-slate-600 bg-brand-900 border border-brand-800 rounded-2xl">
+        <div class="text-4xl mb-3">📺</div>
+        <p class="text-base">No hay partidos en vivo ahora mismo.</p>
+        <p class="text-sm text-slate-700 mt-1">Cuando empiece un partido aparecerá aquí en tiempo real.</p>
+      </section>`;
+    }
+
+    if (data.upcoming.length) {
+      html += `<section class="space-y-3">
+        ${sectionHeader('📅 PRÓXIMOS', data.upcoming.length)}
+        <div class="space-y-2">${data.upcoming.map(upcomingRow).join('')}</div>
+      </section>`;
+    }
+
+    if (data.recent.length) {
+      html += `<section class="space-y-3">
+        ${sectionHeader('📋 RESULTADOS RECIENTES', data.recent.length)}
+        <div class="space-y-2">${data.recent.map(recentRow).join('')}</div>
+      </section>`;
+    }
+
+    root.innerHTML = html;
+
+    const updated = document.getElementById('live-updated');
+    if (updated) {
+      const t = new Date(data.fetchedAt).toLocaleTimeString('es-BO', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'America/La_Paz',
+      });
+      updated.textContent = `Actualizado ${t}`;
+    }
+  }
+
+  async function poll() {
+    try {
+      const res = await fetch('/api/live', { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) return;
+      render(await res.json());
+    } catch { /* red intermitente: reintenta en el próximo ciclo */ }
+  }
+
+  function init() {
+    const el = document.getElementById('live-initial');
+    if (el?.textContent) {
+      try { render(JSON.parse(el.textContent)); } catch { /**/ }
+    }
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 30_000);
+  }
+
+  function teardown() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  document.addEventListener('astro:page-load', init);
+  document.addEventListener('astro:before-swap', teardown);
+</script>
