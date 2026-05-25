@@ -58,6 +58,15 @@ function toLive(m: any): LiveMatch {
   };
 }
 
+// Solo partidos en vivo (IN_PLAY/PAUSED). Liviano: 1 query.
+// Lo usa el dashboard, que no necesita próximos ni recientes.
+export async function getLiveMatches(): Promise<LiveMatch[]> {
+  const { data } = await supabaseAdmin.from('matches').select(MATCH_COLS)
+    .in('status', ['IN_PLAY', 'PAUSED'])
+    .order('match_date', { ascending: true });
+  return (data ?? []).map(toLive);
+}
+
 export async function getLiveData(): Promise<LiveData> {
   const nowIso = new Date().toISOString();
 
