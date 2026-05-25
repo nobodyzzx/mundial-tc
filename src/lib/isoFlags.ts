@@ -54,7 +54,7 @@ export const ISO_CODES: Record<string, string> = {
 /** Traducción de nombres en inglés al español para display */
 const ES_NAMES: Record<string, string> = {
   // América
-  'Mexico':'México','Canada':'Canadá','United States':'Estados Unidos',
+  'Mexico':'México','Canada':'Canadá','United States':'Estados Unidos','Brazil':'Brasil',
   'Haiti':'Haití','Panama':'Panamá','Peru':'Perú','Trinidad and Tobago':'Trinidad y Tobago',
   // Europa
   'Germany':'Alemania','France':'Francia','Spain':'España','Croatia':'Croacia',
