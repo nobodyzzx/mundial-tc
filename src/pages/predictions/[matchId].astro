@@ -134,35 +134,51 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
       <!-- Score inputs -->
       <div class="space-y-3">
         <p class="text-sm text-slate-400 text-center">¿Cuál será el marcador al final?</p>
-        <div class="flex items-center gap-3">
+        <div class="flex items-start justify-center gap-2 sm:gap-3">
 
           <div class="flex-1 text-center space-y-2">
             <label class="text-xs text-slate-500 block leading-tight font-medium uppercase tracking-wide">
               {spanishName(match.home_team)}
             </label>
-            <input
-              type="number" inputmode="numeric" pattern="[0-9]*"
-              name="userHome" min="0" max="20" required placeholder="0"
-              class="w-full bg-brand-800 border-2 border-brand-700 rounded-2xl px-2 py-5 text-white text-4xl font-display text-center focus:outline-none focus:border-gold transition"
-              id="input-home"
-            />
+            <div class="flex items-center justify-center gap-1.5">
+              <button type="button"
+                class="stepper-btn w-10 h-12 rounded-xl bg-brand-700 active:bg-brand-600 text-white text-2xl font-bold flex items-center justify-center transition touch-manipulation select-none flex-shrink-0"
+                data-action="dec" data-target="userHome" aria-label="Restar">−</button>
+              <input
+                type="number" inputmode="numeric" pattern="[0-9]*"
+                name="userHome" min="0" max="20" required value="0"
+                class="w-14 bg-brand-800 border-2 border-brand-700 rounded-2xl px-1 py-4 text-white text-4xl font-display text-center focus:outline-none focus:border-gold transition"
+                id="input-home"
+              />
+              <button type="button"
+                class="stepper-btn w-10 h-12 rounded-xl bg-brand-700 active:bg-brand-600 text-white text-2xl font-bold flex items-center justify-center transition touch-manipulation select-none flex-shrink-0"
+                data-action="inc" data-target="userHome" aria-label="Sumar">+</button>
+            </div>
           </div>
 
           <div class="text-center flex-shrink-0 space-y-2">
             <div class="text-xs text-transparent block">–</div>
-            <div class="text-2xl text-brand-600 font-bold px-1">–</div>
+            <div class="text-2xl text-brand-600 font-bold px-1 py-4 leading-[3rem]">–</div>
           </div>
 
           <div class="flex-1 text-center space-y-2">
             <label class="text-xs text-slate-500 block leading-tight font-medium uppercase tracking-wide">
               {spanishName(match.away_team)}
             </label>
-            <input
-              type="number" inputmode="numeric" pattern="[0-9]*"
-              name="userAway" min="0" max="20" required placeholder="0"
-              class="w-full bg-brand-800 border-2 border-brand-700 rounded-2xl px-2 py-5 text-white text-4xl font-display text-center focus:outline-none focus:border-gold transition"
-              id="input-away"
-            />
+            <div class="flex items-center justify-center gap-1.5">
+              <button type="button"
+                class="stepper-btn w-10 h-12 rounded-xl bg-brand-700 active:bg-brand-600 text-white text-2xl font-bold flex items-center justify-center transition touch-manipulation select-none flex-shrink-0"
+                data-action="dec" data-target="userAway" aria-label="Restar">−</button>
+              <input
+                type="number" inputmode="numeric" pattern="[0-9]*"
+                name="userAway" min="0" max="20" required value="0"
+                class="w-14 bg-brand-800 border-2 border-brand-700 rounded-2xl px-1 py-4 text-white text-4xl font-display text-center focus:outline-none focus:border-gold transition"
+                id="input-away"
+              />
+              <button type="button"
+                class="stepper-btn w-10 h-12 rounded-xl bg-brand-700 active:bg-brand-600 text-white text-2xl font-bold flex items-center justify-center transition touch-manipulation select-none flex-shrink-0"
+                data-action="inc" data-target="userAway" aria-label="Sumar">+</button>
+            </div>
           </div>
         </div>
       </div>
@@ -222,15 +238,39 @@ const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es
 </Layout>
 
 <script>
-  document.querySelector('form')?.addEventListener('submit', () => {
-    const btn = document.getElementById('submit-btn') as HTMLButtonElement | null;
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Enviando…';
-      btn.classList.remove('bg-gold', 'active:bg-gold-dark');
-      btn.classList.add('bg-gol', 'opacity-75', 'cursor-not-allowed');
-    }
-  });
+  function initSingleSteppers() {
+    document.querySelectorAll<HTMLButtonElement>('.stepper-btn').forEach(btn => {
+      if ((btn as any)._stepInit) return;
+      (btn as any)._stepInit = true;
+      btn.addEventListener('click', () => {
+        const input = document.querySelector<HTMLInputElement>(`input[name="${btn.dataset.target}"]`);
+        if (!input) return;
+        const val = parseInt(input.value) || 0;
+        const next = btn.dataset.action === 'inc' ? Math.min(val + 1, 20) : Math.max(val - 1, 0);
+        input.value = String(next);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    });
+  }
+
+  function initSubmitLock() {
+    const form = document.querySelector('form');
+    if (!form || (form as any)._submitInit) return;
+    (form as any)._submitInit = true;
+    form.addEventListener('submit', () => {
+      const btn = document.getElementById('submit-btn') as HTMLButtonElement | null;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Enviando…';
+        btn.classList.remove('bg-gold', 'active:bg-gold-dark');
+        btn.classList.add('bg-gol', 'opacity-75', 'cursor-not-allowed');
+      }
+    });
+  }
+
+  function initSingle() { initSingleSteppers(); initSubmitLock(); }
+  initSingle();
+  document.addEventListener('astro:page-load', initSingle);
 </script>
 
 {match.stage === 'knockout' && (

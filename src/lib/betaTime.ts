@@ -1,19 +1,26 @@
 /**
- * En beta mode, desplaza "ahora" al inicio del Mundial (11 jun 2026)
- * manteniendo el tiempo fluyendo a la misma velocidad.
- * Así los partidos de la fase de grupos aparecen como si fueran hoy.
+ * SOLO EN DEV: simula "ahora" en un punto del Mundial 2026 para poder probar
+ * predicciones abiertas, partidos en vivo, resultados, etc. El tiempo fluye a
+ * velocidad real desde el arranque del dev server, anclado a BETA_SIMULATED_NOW.
+ *
+ * Para mover el reloj, cambia BETA_SIMULATED_NOW y reinicia `pnpm dev`.
+ * Ej: '2026-06-11T12:00:00Z' = 11 jun 08:00 BOT → predicciones del día 1 abiertas.
+ *
+ * EN CUALQUIER BUILD (deploy beta o producción) el offset es 0 y se usa SIEMPRE
+ * el tiempo real — la hora nunca se mueve fuera de dev.
  */
 
-const TOURNAMENT_START_MS = new Date('2026-06-11T18:00:00Z').getTime();
+// Punto del torneo a simular como "ahora" al arrancar el dev server.
+const BETA_SIMULATED_NOW_MS = new Date('2026-06-28T22:00:00Z').getTime();
 
-// Fecha de referencia: cuando se activó el beta (31 mar 2026)
-const BETA_REFERENCE_MS = new Date('2026-03-31T00:00:00Z').getTime();
+// Momento real en que se cargó el módulo (arranque del server). El reloj
+// fluye normal a partir de aquí, anclado a BETA_SIMULATED_NOW_MS.
+const MODULE_LOAD_MS = Date.now();
 
-// Cuántos ms hay que sumar a Date.now() para simular el inicio del mundial
-export const BETA_OFFSET_MS =
-  import.meta.env.PUBLIC_BETA === 'true'
-    ? TOURNAMENT_START_MS - BETA_REFERENCE_MS
-    : 0;
+// Solo en el dev server se aplica el offset; en builds siempre es 0 (tiempo real).
+export const BETA_OFFSET_MS = import.meta.env.DEV
+  ? BETA_SIMULATED_NOW_MS - MODULE_LOAD_MS
+  : 0;
 
 /** Timestamp "ahora" (simulado en beta, real en producción) */
 export function betaNowMs(): number {

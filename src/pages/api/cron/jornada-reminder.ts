@@ -13,6 +13,7 @@ import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
 import { spanishName, teamFlag } from '@/lib/isoFlags';
 import { boliviaDayStart, JORNADA_CLOSE_MS } from '@/lib/jornada';
+import { betaNowMs } from '@/lib/betaTime';
 
 // Cuánto antes del cierre se considera "hora de recordar".
 // Con cron-job.org corriendo cada 30–60 min, esta ventana garantiza que al
@@ -76,7 +77,12 @@ export const GET: APIRoute = async ({ url, request }) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  const nowMs = Date.now();
+  // ?preview=1 → arma el mensaje y lo devuelve SIN chequear ventana/idempotencia
+  // ni enviarlo. Útil para ver cómo quedaría el aviso (dev/testing).
+  const preview = url.searchParams.get('preview') === '1';
+
+  // betaNowMs() = tiempo real en producción (offset 0); en dev respeta el reloj simulado.
+  const nowMs = betaNowMs();
   const nowIso = new Date(nowMs).toISOString();
 
   // 1. Próximo partido no terminado (define la jornada candidata).
@@ -107,25 +113,27 @@ export const GET: APIRoute = async ({ url, request }) => {
   const firstTime = Math.min(...dayMatches.map(m => new Date(m.match_date).getTime()));
   const cutoffMs = firstTime - JORNADA_CLOSE_MS;
   const remaining = cutoffMs - nowMs;
-
-  // 3. Ventana: ni muy temprano ni después del cierre.
-  if (remaining <= 0) return json({ skipped: true, reason: 'La jornada ya cerró' });
-  if (remaining > REMIND_WINDOW_MS) {
-    return json({ skipped: true, reason: 'Aún temprano', minutesToCutoff: Math.round(remaining / 60000) });
-  }
-
-  // 4. Idempotencia: ¿ya se envió el aviso de esta jornada?
   const dayKey = boliviaDateKey(firstTime);
-  const { data: alreadySent } = await supabaseAdmin
-    .from('sync_logs')
-    .select('id')
-    .eq('source', 'jornada-reminder')
-    .eq('endpoint', dayKey)
-    .is('error', null)
-    .limit(1);
 
-  if (alreadySent?.length) {
-    return json({ skipped: true, reason: 'Aviso ya enviado para esta jornada', dayKey });
+  if (!preview) {
+    // 3. Ventana: ni muy temprano ni después del cierre.
+    if (remaining <= 0) return json({ skipped: true, reason: 'La jornada ya cerró' });
+    if (remaining > REMIND_WINDOW_MS) {
+      return json({ skipped: true, reason: 'Aún temprano', minutesToCutoff: Math.round(remaining / 60000) });
+    }
+
+    // 4. Idempotencia: ¿ya se envió el aviso de esta jornada?
+    const { data: alreadySent } = await supabaseAdmin
+      .from('sync_logs')
+      .select('id')
+      .eq('source', 'jornada-reminder')
+      .eq('endpoint', dayKey)
+      .is('error', null)
+      .limit(1);
+
+    if (alreadySent?.length) {
+      return json({ skipped: true, reason: 'Aviso ya enviado para esta jornada', dayKey });
+    }
   }
 
   // 5. Quién no ha pronosticado todos los partidos del día.
@@ -162,7 +170,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     '⚽ *CIERRE DE PRONÓSTICOS HOY*',
     '_Polla Mundial 2026_',
     '',
-    `⏰ Los pronósticos cierran a las *${fmtTime(new Date(cutoffMs).toISOString())}* (faltan ~${humanRemaining(remaining)})`,
+    `⏰ Los pronósticos cierran a las *${fmtTime(new Date(cutoffMs).toISOString())}*${remaining > 0 ? ` (faltan ~${humanRemaining(remaining)})` : ''}`,
     '',
     '📋 *Partidos de la jornada:*',
     ...matchLines,
@@ -173,6 +181,10 @@ export const GET: APIRoute = async ({ url, request }) => {
     '',
     '👉 mundial.tecnocondor.dev/predictions',
   ].join('\n');
+
+  if (preview) {
+    return json({ preview: true, dayKey, cutoff: new Date(cutoffMs).toISOString(), matches: dayMatches.length, missing, text });
+  }
 
   // 7. Enviar por Green API.
   const apiUrl     = import.meta.env.GREEN_API_URL;

@@ -3,7 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
-import { spanishName } from '@/lib/isoFlags';
+import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { getLiveMatches } from '@/lib/live-data';
 
 // Auth guard
@@ -31,7 +31,7 @@ const ahora = betaNow().toISOString();
 const [
   { data: standings },
   { data: sanctions },
-  { data: proximosPartidos },
+  { data: proximosPartidosRaw },
   { data: myProfile },
   { data: recentFinished },
   { data: settingsRows },
@@ -47,6 +47,13 @@ const [
   supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
   getLiveMatches(),
 ]);
+
+// Un partido en curso (IN_PLAY/PAUSED) no es "próximo": lo excluimos de la lista.
+const proximosPartidos = (proximosPartidosRaw ?? []).filter((m: any) => !['IN_PLAY', 'PAUSED'].includes(m.status));
+
+// El torneo ya empezó si algún partido tiene fecha pasada (≤ ahora). A partir de
+// ahí solo juegan los que pagaron completo, así que las columnas de pago sobran.
+const torneoEmpezado = (startedMatchData ?? []).length > 0;
 
 const sMap = new Map((settingsRows ?? []).map((r: any) => [r.key, r.value as string | null]));
 const pagosDeadline70: string = sMap.get('pagos_deadline_70') ?? '';
@@ -146,6 +153,12 @@ const lastJornadaMatches = lastJornadaName
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
+// En knockout el rival puede ser un slot de bracket sin definir (ej. "1E", "3ABCDF").
+// Un equipo real siempre tiene bandera ISO; si no la tiene, aún no está determinado.
+function teamLabel(name: string): string {
+  return isoForTeam(name) ? spanishName(name) : 'Por definir';
+}
+
 function tiempoRestante(matchDate: string): string {
   const diff = new Date(matchDate).getTime() - betaNowMs();
   if (diff <= 0) return 'En curso';
@@ -181,6 +194,7 @@ const navProfile = myProfile ?? null;
 const leaderPoints = rows[0]?.puntos_totales ?? 0;
 const countPago70 = rows.filter(r => r.pago_70).length;
 const countPago50 = rows.filter(r => r.pago_70 && r.pago_50).length;
+const myRank = rows.findIndex(r => r.id === user.id) + 1; // 0 si no participa
 
 // Monto efectivo: usa monto_pagado si está registrado, si no infiere del flag
 function efectivo(r: StandingRow): number {
@@ -269,7 +283,7 @@ function accentLine(i: number, isMe: boolean) {
         </div>
       )}
     </div>
-    {(pagosDeadline70 || pagosDeadline50) && (
+    {!torneoEmpezado && (pagosDeadline70 || pagosDeadline50) && (
       <div class="relative rounded-2xl overflow-hidden">
         {!pagosExpired && <div class="absolute inset-0 bg-linear-to-r from-gold/10 via-gold/25 to-gold/10 animate-deadline-shimmer bg-size-[200%_100%]"></div>}
         <div class={`relative flex flex-wrap gap-x-6 gap-y-2 items-center px-4 py-3 rounded-2xl border ${pagosExpired ? 'border-fifared/40 bg-fifared/5' : 'border-gold/40'}`}>
@@ -315,14 +329,36 @@ function accentLine(i: number, isMe: boolean) {
         <span class="relative font-display text-3xl text-white leading-none">{rows.length}</span>
       </div>
 
-      <!-- Pagaron completo -->
-      <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
-        <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
-        <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-        <span class="relative text-xs text-white/70 uppercase tracking-wide">Pago completo</span>
-        <span class="relative text-2xl">✅</span>
-        <span class="relative font-display text-3xl text-white leading-none">{countPago50}<span class="text-white/40 text-base font-sans"> / {rows.length}</span></span>
-      </div>
+      <!-- Pago completo (pre-torneo) / Mi posición · Réferi (torneo) -->
+      {!torneoEmpezado ? (
+        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
+          <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Pago completo</span>
+          <span class="relative text-2xl">✅</span>
+          <span class="relative font-display text-3xl text-white leading-none">{countPago50}<span class="text-white/40 text-base font-sans"> / {rows.length}</span></span>
+        </div>
+      ) : navProfile?.es_referi ? (
+        <a href="/admin" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
+          <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
+          <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/80 to-teal-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Mi rol</span>
+          <span class="relative text-2xl">⚖️</span>
+          <span class="relative font-display text-3xl text-white leading-none">Réferi</span>
+        </a>
+      ) : (
+        <a href="/predictions" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
+          <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
+          <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/80 to-teal-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Mi posición</span>
+          <span class="relative text-2xl">🏅</span>
+          <span class="relative font-display text-3xl text-white leading-none">
+            {myRank > 0 ? <Fragment>#{myRank}<span class="text-white/40 text-base font-sans"> / {rows.length}</span></Fragment> : '—'}
+          </span>
+        </a>
+      )}
 
       <!-- Próximo partido -->
       {nextMatch ? (
@@ -332,7 +368,7 @@ function accentLine(i: number, isMe: boolean) {
           <span class="relative text-xs text-white/70 uppercase tracking-wide">Próximo partido</span>
           <span class="relative text-2xl">⚽</span>
           <span class="relative font-display text-3xl text-white leading-none">{countdownLabel(nextMatch.match_date)}</span>
-          <span class="relative text-xs text-white/60 truncate">{spanishName(nextMatch.home_team)} vs {spanishName(nextMatch.away_team)}</span>
+          <span class="relative text-xs text-white/60 truncate">{teamLabel(nextMatch.home_team)} vs {teamLabel(nextMatch.away_team)}</span>
         </div>
       ) : (
         <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
@@ -345,19 +381,61 @@ function accentLine(i: number, isMe: boolean) {
           </span>
         </div>
       )}
-      <!-- Pagar QR -->
-      <a href="/pago" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
-        <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C] to-[#0066B3]"></div>
-        <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C]/80 to-[#0066B3]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        <div class="absolute inset-0 bg-[url('/qr-bancofie.png')] bg-center bg-cover opacity-5"></div>
-        <span class="relative text-xs text-white/70 uppercase tracking-wide">Pagar QR</span>
-        <span class="relative text-2xl">📲</span>
-        <span class="relative font-display text-3xl text-white leading-none">Banco Fie</span>
-      </a>
+      <!-- Pagar QR (pre-torneo) / Resultados (torneo) -->
+      {torneoEmpezado ? (
+        <a href="/resultados" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
+          <div class="absolute inset-0 bg-gradient-to-br from-sky-600 to-blue-800"></div>
+          <div class="absolute inset-0 bg-gradient-to-br from-sky-500/80 to-blue-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Resultados</span>
+          <span class="relative text-2xl">📋</span>
+          <span class="relative font-display text-3xl text-white leading-none">Ver →</span>
+        </a>
+      ) : (
+        <a href="/pago" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
+          <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C] to-[#0066B3]"></div>
+          <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C]/80 to-[#0066B3]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div class="absolute inset-0 bg-[url('/qr-bancofie.png')] bg-center bg-cover opacity-5"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Pagar QR</span>
+          <span class="relative text-2xl">📲</span>
+          <span class="relative font-display text-3xl text-white leading-none">Banco Fie</span>
+        </a>
+      )}
     </div>
 
-    <!-- POZO PARCIAL -->
-    {(() => {
+    <!-- POZO / PREMIO -->
+    {torneoEmpezado ? (
+      <div class="relative overflow-hidden rounded-2xl px-5 py-4">
+        <div class="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-800"></div>
+        <div class="absolute -top-6 -right-6 w-28 h-28 bg-white/10 rounded-full blur-2xl"></div>
+        <div class="absolute -bottom-4 -left-4 w-20 h-20 bg-black/10 rounded-full blur-xl"></div>
+
+        <div class="relative flex items-center gap-4">
+          <div class="flex-1 space-y-3">
+            <div class="space-y-1">
+              <span class="text-xs text-white/70 uppercase tracking-wide">🏆 Premio al ganador</span>
+              <div class="flex items-end gap-2">
+                <span class="font-display text-5xl text-white leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]">{pozoActual}</span>
+                <span class="text-white/70 text-lg mb-1 font-semibold">Bs</span>
+              </div>
+            </div>
+            <p class="text-sm text-white/85 italic leading-snug max-w-md">
+              El campeón ostentará el título durante 4 años y tendrá derecho ilimitado a fanfarronear. 🏆😏
+            </p>
+          </div>
+          <div class="hidden sm:flex items-center justify-center flex-shrink-0 pr-2 pl-4">
+            <span class="text-7xl lg:text-8xl drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)] opacity-90 select-none">🏆</span>
+          </div>
+        </div>
+
+        <div class="relative border-t border-white/20 pt-2.5 mt-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+          <span class="text-white/60">⚖️ Réferi</span>
+          <strong class="text-white/90">{montoReferi} Bs</strong>
+          <span class="text-white/40">·</span>
+          <span class="text-white/65 italic">Las decisiones del réferi no se votan ni están sujetas a discusión.</span>
+        </div>
+      </div>
+    ) : (() => {
       const soloPrimero = countPago70 - countPago50;
       const maxPozo = rows.length * 100;
       const pct = maxPozo > 0 ? Math.round(pozoActual / maxPozo * 100) : 0;
@@ -434,7 +512,7 @@ function accentLine(i: number, isMe: boolean) {
                   ) : null; })()}
                 </div>
                 <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                  {(() => {
+                  {!torneoEmpezado && (() => {
                     const m = p.monto_pagado ?? 0;
                     if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">✅ PAGADO 120 Bs</span>;
                     if (m >= 70)  return <span class="text-amber-400 text-sm">⏳ {m} Bs · faltan {120 - m} Bs</span>;
@@ -471,8 +549,12 @@ function accentLine(i: number, isMe: boolean) {
               <th class="px-4 py-3 text-left">Jugador</th>
               <th class="px-4 py-3 text-right">Puntos</th>
               <th class="px-4 py-3 text-center hidden md:table-cell">Diferencia</th>
-              <th class="px-4 py-3 text-center">Dep. mín 70 Bs</th>
-              <th class="px-4 py-3 text-center">Falta</th>
+              {!torneoEmpezado && (
+                <>
+                  <th class="px-4 py-3 text-center">Dep. mín 70 Bs</th>
+                  <th class="px-4 py-3 text-center">Falta</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -516,24 +598,28 @@ function accentLine(i: number, isMe: boolean) {
                         : <span class="text-gold text-xs">líder</span>
                     }
                   </td>
-                  <td class="px-4 py-3 text-center">
-                    {(() => {
-                      const m = p.monto_pagado ?? 0;
-                      if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">PAGADO 120 Bs</span>;
-                      if (m >= 70)  return <span class="text-amber-400 text-sm">{m} Bs</span>;
-                      if (p.pago_70) return <span class="text-amber-400 text-sm">70 Bs</span>;
-                      return <span class="text-slate-600 text-sm">—</span>;
-                    })()}
-                  </td>
-                  <td class="px-4 py-3 text-center">
-                    {(() => {
-                      const m = p.monto_pagado ?? 0;
-                      if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">✓</span>;
-                      if (m >= 70)  return <span class="text-slate-400 text-sm">{120 - m} Bs</span>;
-                      if (p.pago_70) return <span class="text-slate-400 text-sm">50 Bs</span>;
-                      return <span class="text-slate-600 text-sm">120 Bs</span>;
-                    })()}
-                  </td>
+                  {!torneoEmpezado && (
+                    <>
+                      <td class="px-4 py-3 text-center">
+                        {(() => {
+                          const m = p.monto_pagado ?? 0;
+                          if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">PAGADO 120 Bs</span>;
+                          if (m >= 70)  return <span class="text-amber-400 text-sm">{m} Bs</span>;
+                          if (p.pago_70) return <span class="text-amber-400 text-sm">70 Bs</span>;
+                          return <span class="text-slate-600 text-sm">—</span>;
+                        })()}
+                      </td>
+                      <td class="px-4 py-3 text-center">
+                        {(() => {
+                          const m = p.monto_pagado ?? 0;
+                          if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">✓</span>;
+                          if (m >= 70)  return <span class="text-slate-400 text-sm">{120 - m} Bs</span>;
+                          if (p.pago_70) return <span class="text-slate-400 text-sm">50 Bs</span>;
+                          return <span class="text-slate-600 text-sm">120 Bs</span>;
+                        })()}
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
@@ -596,7 +682,7 @@ function accentLine(i: number, isMe: boolean) {
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-slate-500 uppercase tracking-wide">
                     {m.stage === 'group' ? `Grupo ${m.group_name}` : m.round}
-                    {m.jornada && <span class="ml-1 text-brand-600">· {m.jornada}</span>}
+                    {m.jornada && m.jornada !== m.round && <span class="ml-1 text-brand-600">· {m.jornada}</span>}
                   </span>
                   <span class={`font-semibold ${
                     lockState === 'pago'        ? 'text-amber-400' :
@@ -606,16 +692,16 @@ function accentLine(i: number, isMe: boolean) {
                     'text-gol'
                   }`}>
                     {lockState === 'pago'        ? '🔒 Requiere pago completo' :
-                     lockState === 'closed'      ? '🔒 Cerrado' :
+                     lockState === 'closed'      ? '🔒 Jornada cerrada' :
                      lockState === 'ongoingLock' ? '⏳ Partido en curso' :
                      lockState === 'prevPending' ? '⏳ Espera la jornada anterior' :
                      `⏱ ${tiempoRestante(m.match_date)}`}
                   </span>
                 </div>
                 <div class="flex items-center justify-between text-base font-semibold text-white">
-                  <span class="flex-1">{spanishName(m.home_team)}</span>
+                  <span class="flex-1">{teamLabel(m.home_team)}</span>
                   <span class="text-slate-600 text-xs px-2 font-normal">vs</span>
-                  <span class="flex-1 text-right">{spanishName(m.away_team)}</span>
+                  <span class="flex-1 text-right">{teamLabel(m.away_team)}</span>
                 </div>
                 <div class="flex items-center justify-between">
                   <div class="text-xs text-slate-600">
@@ -645,7 +731,7 @@ function accentLine(i: number, isMe: boolean) {
                     'bg-brand-800/60 text-slate-600 border border-brand-700/40'
                   }`}>
                     {lockState === 'pago'        ? '🔒 Completá el pago para pronosticar' :
-                     lockState === 'closed'      ? '🔒 Pronóstico cerrado' :
+                     lockState === 'closed'      ? '🔒 Jornada cerrada' :
                      lockState === 'ongoingLock' ? '⏳ Esperá que termine' :
                      '⏳ Disponible al terminar los anteriores'}
                   </div>
@@ -775,6 +861,7 @@ function accentLine(i: number, isMe: boolean) {
   type DLive = {
     id: string; home: string; away: string; homeFlag: string; awayFlag: string;
     hs: number | null; as_: number | null; status: string | null; minute: number | null; label: string;
+    provTotal: number; provExact: number; provResult: number;
   };
 
   let dashLiveTimer: ReturnType<typeof setInterval> | null = null;
@@ -805,6 +892,7 @@ function accentLine(i: number, isMe: boolean) {
           <span class="font-display text-2xl text-white leading-none min-w-[52px] text-center">${m.hs ?? 0} – ${m.as_ ?? 0}</span>
           <span class="text-sm font-semibold text-white flex-1 text-left truncate">${m.awayFlag} ${dashEsc(m.away)}</span>
         </div>
+        ${m.provTotal ? `<div class="mt-2 pt-2 border-t border-brand-800/60 text-center text-xs"><span class="text-gold">🎯 ${m.provExact} exacto</span> · <span class="text-gol">📊 ${m.provResult} resultado</span> <span class="text-slate-600">/ ${m.provTotal}</span></div>` : ''}
       </a>`;
   }
 

@@ -36,6 +36,7 @@ const initial = await getLiveData();
     hs: number | null; as_: number | null; hsHt: number | null; asHt: number | null;
     homePen: number | null; awayPen: number | null; winnerPen: string | null;
     status: string | null; minute: number | null; date: string; label: string;
+    provTotal: number; provExact: number; provResult: number;
   };
   type LiveData = { live: LiveMatch[]; upcoming: LiveMatch[]; recent: LiveMatch[]; fetchedAt: string };
 
@@ -75,6 +76,16 @@ const initial = await getLiveData();
     return `<div class="font-display text-base text-gold/70 leading-none mt-1">(${esc(score)} · clasifica ${esc(winner)})</div>`;
   }
 
+  function provLine(m: LiveMatch): string {
+    if (!m.provTotal) return '';
+    return `
+      <div class="px-4 py-2 border-t border-brand-800/60 flex items-center justify-center gap-x-4 gap-y-1 flex-wrap text-xs">
+        <span class="text-gold">🎯 ${m.provExact} con marcador exacto</span>
+        <span class="text-gol">📊 ${m.provResult} con el resultado</span>
+        <span class="text-slate-600">de ${m.provTotal} pronóstico${m.provTotal !== 1 ? 's' : ''}</span>
+      </div>`;
+  }
+
   function liveCard(m: LiveMatch): string {
     return `
       <div class="bg-brand-900 border border-fifared/40 rounded-2xl overflow-hidden shadow-lg shadow-fifared/5">
@@ -94,6 +105,7 @@ const initial = await getLiveData();
           </div>
           <span class="text-base font-semibold text-white flex-1 text-left truncate">${m.awayFlag} ${esc(m.away)}</span>
         </div>
+        ${provLine(m)}
       </div>`;
   }
 

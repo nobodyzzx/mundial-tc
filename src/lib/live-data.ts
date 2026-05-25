@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { spanishName, teamFlag } from '@/lib/isoFlags';
+import { betaNowMs } from '@/lib/betaTime';
 
 export interface LiveMatch {
   id: string;
@@ -18,6 +19,10 @@ export interface LiveMatch {
   minute: number | null;
   date: string;
   label: string;
+  // Provisional "si terminara así" — solo poblado para partidos en vivo.
+  provTotal: number;   // cuántos pronosticaron este partido
+  provExact: number;   // cuántos van por el marcador exacto
+  provResult: number;  // cuántos aciertan el resultado (gana/empata)
 }
 
 export interface LiveData {
@@ -55,7 +60,23 @@ function toLive(m: any): LiveMatch {
     minute: m.minute,
     date: m.match_date,
     label: label(m),
+    provTotal: 0,
+    provExact: 0,
+    provResult: 0,
   };
+}
+
+// Pobla los conteos provisionales de cada partido en vivo llamando al RPC.
+// Defensivo: si el RPC aún no existe o falla, deja los conteos en 0 (no rompe /live).
+async function attachProvisional(matches: LiveMatch[]): Promise<void> {
+  await Promise.all(matches.map(async (m) => {
+    const { data, error } = await supabaseAdmin.rpc('provisional_match_points', { p_match_id: m.id });
+    if (error || !data) return;
+    const rows = data as Array<{ is_exact: boolean; is_result: boolean }>;
+    m.provTotal = rows.length;
+    m.provExact = rows.filter(r => r.is_exact).length;
+    m.provResult = rows.filter(r => r.is_result).length;
+  }));
 }
 
 // Solo partidos en vivo (IN_PLAY/PAUSED). Liviano: 1 query.
@@ -64,11 +85,15 @@ export async function getLiveMatches(): Promise<LiveMatch[]> {
   const { data } = await supabaseAdmin.from('matches').select(MATCH_COLS)
     .in('status', ['IN_PLAY', 'PAUSED'])
     .order('match_date', { ascending: true });
-  return (data ?? []).map(toLive);
+  const live = (data ?? []).map(toLive);
+  await attachProvisional(live);
+  return live;
 }
 
 export async function getLiveData(): Promise<LiveData> {
-  const nowIso = new Date().toISOString();
+  // betaNow para que en beta los "próximos/recientes" respeten el reloj simulado.
+  // En producción betaNow === tiempo real (offset 0), así que no cambia nada.
+  const nowIso = new Date(betaNowMs()).toISOString();
 
   const [liveRes, upcomingRes, recentRes] = await Promise.all([
     supabaseAdmin.from('matches').select(MATCH_COLS)
@@ -87,8 +112,11 @@ export async function getLiveData(): Promise<LiveData> {
 
   const liveIds = new Set((liveRes.data ?? []).map((m: any) => m.id));
 
+  const live = (liveRes.data ?? []).map(toLive);
+  await attachProvisional(live);
+
   return {
-    live: (liveRes.data ?? []).map(toLive),
+    live,
     // Un partido en vivo puede tener match_date > now si la API lo adelantó; lo excluimos de upcoming.
     upcoming: (upcomingRes.data ?? []).filter((m: any) => !liveIds.has(m.id)).map(toLive),
     recent: (recentRes.data ?? []).map(toLive),
