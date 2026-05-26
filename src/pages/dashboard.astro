@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { getLiveMatches } from '@/lib/live-data';
+import { resumenPozo, APORTE_POZO_MAX_BS } from '@/lib/payments';
 
 // Auth guard
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -190,23 +191,16 @@ const today = betaNow().toLocaleDateString('es-BO', {
 // navProfile viene de su propia query — independiente del filtro participa
 const navProfile = myProfile ?? null;
 
-// Stats para tarjetas
+// Stats para tarjetas — pozo/réferi derivados de monto_pagado (lib/payments)
 const leaderPoints = rows[0]?.puntos_totales ?? 0;
-const countPago70 = rows.filter(r => r.pago_70).length;
-const countPago50 = rows.filter(r => r.pago_70 && r.pago_50).length;
+const {
+  pozo: pozoActual,
+  referi: montoReferi,
+  completos: countPago50,
+  participantes: countPago70,
+} = resumenPozo(rows.map(r => r.monto_pagado));
+const pozoTotal = countPago70 * APORTE_POZO_MAX_BS;
 const myRank = rows.findIndex(r => r.id === user.id) + 1; // 0 si no participa
-
-// Monto efectivo: usa monto_pagado si está registrado, si no infiere del flag
-function efectivo(r: StandingRow): number {
-  const m = r.monto_pagado ?? 0;
-  if (m > 0) return m;
-  if (r.pago_50) return 120;
-  if (r.pago_70) return 70;
-  return 0;
-}
-const pozoTotal = countPago70 * 100;
-const pozoActual = rows.filter(r => r.pago_70).reduce((s, r) => s + Math.min(efectivo(r) - 20, 100), 0);
-const montoReferi = countPago70 * 20;
 const nextMatch = (proximosPartidos ?? [])[0] ?? null;
 
 // Próximo partido — countdown

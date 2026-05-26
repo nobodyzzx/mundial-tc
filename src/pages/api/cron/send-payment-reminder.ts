@@ -6,6 +6,7 @@
  */
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
+import { estadoPago, aportePozo, CUOTA_REFERI_BS, APORTE_POZO_MAX_BS, PAGO_COMPLETO_BS } from '@/lib/payments';
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -36,7 +37,7 @@ export const GET: APIRoute = async ({ request }) => {
   const [{ data: players }, { data: settingsRows }] = await Promise.all([
     supabaseAdmin
       .from('profiles')
-      .select('username, pago_70, pago_50, monto_pagado')
+      .select('username, monto_pagado')
       .eq('participa', true)
       .eq('expulsado', false)
       .order('username', { ascending: true }),
@@ -57,18 +58,10 @@ export const GET: APIRoute = async ({ request }) => {
     });
   }
 
-  function efectivo(p: any): number {
-    const m = p.monto_pagado ?? 0;
-    if (m > 0) return m;
-    if (p.pago_50) return 120;
-    if (p.pago_70) return 70;
-    return 0;
-  }
-
   const all        = players ?? [];
-  const completos  = all.filter(p => (p.monto_pagado ?? 0) >= 120 || p.pago_50);
-  const parciales  = all.filter(p => !completos.includes(p) && ((p.monto_pagado ?? 0) >= 70 || p.pago_70));
-  const pendientes = all.filter(p => !completos.includes(p) && !parciales.includes(p));
+  const completos  = all.filter(p => estadoPago(p.monto_pagado) === 'completo');
+  const parciales  = all.filter(p => estadoPago(p.monto_pagado) === 'parcial');
+  const pendientes = all.filter(p => estadoPago(p.monto_pagado) === 'pendiente');
 
   // Si todos pagaron completo no tiene sentido mandar el recordatorio
   if (pendientes.length === 0 && parciales.length === 0) {
@@ -80,17 +73,17 @@ export const GET: APIRoute = async ({ request }) => {
   if (deadline50) deadlines.push(`_⏰ 50 Bs: hasta ${fmtIso(deadline50)}_`);
 
   const lines: string[] = [];
-  completos.forEach(p => lines.push(`✅ ${p.username} — PAGADO 120 Bs ✔`));
+  completos.forEach(p => lines.push(`✅ ${p.username} — PAGADO ${PAGO_COMPLETO_BS} Bs ✔`));
   parciales.forEach(p => {
-    const m = efectivo(p);
-    lines.push(`⏳ ${p.username} — ${m} Bs dep. · faltan ${120 - m} Bs`);
+    const m = p.monto_pagado ?? 0;
+    lines.push(`⏳ ${p.username} — ${m} Bs dep. · faltan ${PAGO_COMPLETO_BS - m} Bs`);
   });
   pendientes.forEach(p => lines.push(`❌ ${p.username} — sin pago`));
 
   const participantes = [...completos, ...parciales];
-  const pozo      = participantes.reduce((s, p) => s + Math.min(efectivo(p) - 20, 100), 0);
-  const referi    = participantes.length * 20;
-  const metaTotal = participantes.length * 100;
+  const pozo      = participantes.reduce((s, p) => s + aportePozo(p.monto_pagado), 0);
+  const referi    = participantes.length * CUOTA_REFERI_BS;
+  const metaTotal = participantes.length * APORTE_POZO_MAX_BS;
 
   const text = [
     '💰 *ESTADO DE PAGOS*',

@@ -244,11 +244,13 @@ export const POST: APIRoute = async ({ cookies, redirect }) => {
   }
 
   // ── Pagos variados ────────────────────────────────────────
+  // Escribe monto_pagado (fuente de verdad); el trigger deriva los flags.
   for (let pi = 0; pi < n; pi++) {
     const rng = makeRng(pi * 999 + 1);
     const r = rng();
+    const monto = r > 0.55 ? 120 : r > 0.20 ? 70 : 0;
     await supabaseAdmin.from('profiles')
-      .update({ pago_70: r > 0.20, pago_50: r > 0.55 })
+      .update({ monto_pagado: monto })
       .eq('id', players[pi].id);
   }
 
