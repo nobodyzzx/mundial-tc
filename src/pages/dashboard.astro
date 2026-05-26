@@ -754,8 +754,10 @@ function accentLine(i: number, isMe: boolean) {
   </div>
 </Layout>
 
-<script is:inline>
-(function () {
+<script>
+// Se re-ejecuta en cada navegación (ClientRouter), no solo en la carga inicial,
+// para que los botones de compartir queden enganchados también tras un swap SPA.
+function waShareInit() {
   var WA_ICON = '\uD83D\uDCF2'; // 📲 inline para evitar encoding issues
 
   function showToast(msg) {
@@ -861,7 +863,9 @@ function accentLine(i: number, isMe: boolean) {
 
     waShare(text);
   });
-})();
+}
+
+document.addEventListener('astro:page-load', waShareInit);
 </script>
 
 <script>
