@@ -163,6 +163,11 @@ function predStyle(pred: any, m: any): string {
 
         {jornadaMatches[jornada].map((m: any, mi: number) => {
           const preds = predMap[m.id] ?? {};
+          // En knockout, el que clasifica: por penales si los hubo, si no por marcador.
+          const winner = m.winner_penalties
+            ?? (m.stage === 'knockout' && m.home_score !== m.away_score
+                  ? (m.home_score > m.away_score ? 'home' : 'away')
+                  : null);
           return (
             <div class="bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
 
@@ -184,7 +189,7 @@ function predStyle(pred: any, m: any): string {
                   </div>
                 </div>
                 <div class="flex items-center justify-center gap-3 mt-2">
-                  <span class="text-sm font-semibold text-white flex-1 text-right truncate">{spanishName(m.home_team)} {teamFlag(m.home_team)}</span>
+                  <span class={`text-sm font-semibold flex-1 text-right truncate ${winner === 'home' ? 'text-gold' : winner === 'away' ? 'text-slate-500 line-through' : 'text-white'}`}>{spanishName(m.home_team)} {teamFlag(m.home_team)}</span>
                   <div class="text-center min-w-[56px]">
                     <div class="font-display text-3xl text-white leading-none">
                       {m.home_score} – {m.away_score}
@@ -203,7 +208,7 @@ function predStyle(pred: any, m: any): string {
                       </div>
                     )}
                   </div>
-                  <span class="text-sm font-semibold text-white flex-1 text-left truncate">{teamFlag(m.away_team)} {spanishName(m.away_team)}</span>
+                  <span class={`text-sm font-semibold flex-1 text-left truncate ${winner === 'away' ? 'text-gold' : winner === 'home' ? 'text-slate-500 line-through' : 'text-white'}`}>{teamFlag(m.away_team)} {spanishName(m.away_team)}</span>
                 </div>
               </div>
 

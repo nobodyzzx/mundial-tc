@@ -42,7 +42,7 @@ const [
   supabase.from('sanctions').select('user_id, type').eq('active', true),
   supabase.from('matches').select('*').eq('is_finished', false).gte('match_date', ahora).order('match_date', { ascending: true }).limit(6),
   supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50').eq('id', user.id).single(),
-  supabase.from('matches').select('id, home_team, away_team, home_score, away_score, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
+  supabase.from('matches').select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
   supabaseAdmin.from('settings').select('key, value'),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
   getLiveMatches(),
@@ -641,19 +641,33 @@ function accentLine(i: number, isMe: boolean) {
           {lastJornadaName && <span class="text-xs text-slate-500 uppercase tracking-wide">{lastJornadaName}</span>}
         </div>
         <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {lastJornadaMatches.map((m: any) => (
-            <div class="bg-brand-900 border border-brand-800/60 rounded-xl px-4 py-3 flex items-center gap-3">
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-2 text-sm font-semibold text-white">
-                  <span class="truncate flex-1">{spanishName(m.home_team)}</span>
-                  <span class="font-display text-lg text-gold shrink-0 tabular-nums">
-                    {m.home_score} – {m.away_score}
+          {lastJornadaMatches.map((m: any) => {
+            // En knockout destacamos al que clasifica (dorado) y atenuamos/tachamos al
+            // eliminado: por penales si los hubo, si no por marcador. Penales en paréntesis.
+            const winner = m.winner_penalties
+              ?? (m.stage === 'knockout' && m.home_score !== m.away_score
+                    ? (m.home_score > m.away_score ? 'home' : 'away')
+                    : null);
+            const pen = !!m.winner_penalties;
+            return (
+              <div class="bg-brand-900 border border-brand-800/60 rounded-xl px-4 py-3">
+                <div class="flex items-center justify-between gap-2 text-sm font-semibold">
+                  <span class={`truncate flex-1 ${winner === 'home' ? 'text-gold' : winner === 'away' ? 'text-slate-500 line-through' : 'text-white'}`}>{spanishName(m.home_team)}</span>
+                  <span class="shrink-0 flex items-center gap-1.5 font-display text-lg tabular-nums">
+                    {pen && <span class="font-sans text-[10px] font-bold text-gold bg-gold/15 border border-gold/40 rounded px-1.5 py-0.5 leading-none">PEN</span>}
+                    <span class={winner === 'away' ? 'text-slate-500' : 'text-gold'}>
+                      {m.home_score}{pen && <span class="text-xs"> ({m.home_pen})</span>}
+                    </span>
+                    <span class="text-slate-500">–</span>
+                    <span class={winner === 'home' ? 'text-slate-500' : 'text-gold'}>
+                      {pen && <span class="text-xs">({m.away_pen}) </span>}{m.away_score}
+                    </span>
                   </span>
-                  <span class="truncate flex-1 text-right">{spanishName(m.away_team)}</span>
+                  <span class={`truncate flex-1 text-right ${winner === 'away' ? 'text-gold' : winner === 'home' ? 'text-slate-500 line-through' : 'text-white'}`}>{spanishName(m.away_team)}</span>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <a href="/resultados" class="inline-block text-xs text-brand-400 hover:text-brand-300 transition">
           Ver todos los pronósticos →
