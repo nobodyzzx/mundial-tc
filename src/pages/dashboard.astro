@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { getLiveMatches } from '@/lib/live-data';
-import { resumenPozo, APORTE_POZO_MAX_BS } from '@/lib/payments';
+import { resumenPozo, estadoPago, APORTE_POZO_MAX_BS, PAGO_COMPLETO_BS } from '@/lib/payments';
 
 // Auth guard
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -508,9 +508,9 @@ function accentLine(i: number, isMe: boolean) {
                 <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                   {!torneoEmpezado && (() => {
                     const m = p.monto_pagado ?? 0;
-                    if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">✅ PAGADO 120 Bs</span>;
-                    if (m >= 70)  return <span class="text-amber-400 text-sm">⏳ {m} Bs · faltan {120 - m} Bs</span>;
-                    if (p.pago_70) return <span class="text-amber-400 text-sm">⏳ 70 Bs · faltan 50 Bs</span>;
+                    const est = estadoPago(m);
+                    if (est === 'completo') return <span class="text-gol text-sm">✅ PAGADO {PAGO_COMPLETO_BS} Bs</span>;
+                    if (est === 'parcial')  return <span class="text-amber-400 text-sm">⏳ {m} Bs · faltan {PAGO_COMPLETO_BS - m} Bs</span>;
                     return <span class="text-roja text-sm">❌ sin pago</span>;
                   })()}
                   {gap > 0 && (
@@ -597,19 +597,19 @@ function accentLine(i: number, isMe: boolean) {
                       <td class="px-4 py-3 text-center">
                         {(() => {
                           const m = p.monto_pagado ?? 0;
-                          if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">PAGADO 120 Bs</span>;
-                          if (m >= 70)  return <span class="text-amber-400 text-sm">{m} Bs</span>;
-                          if (p.pago_70) return <span class="text-amber-400 text-sm">70 Bs</span>;
+                          const est = estadoPago(m);
+                          if (est === 'completo') return <span class="text-gol text-sm">PAGADO {PAGO_COMPLETO_BS} Bs</span>;
+                          if (est === 'parcial')  return <span class="text-amber-400 text-sm">{m} Bs</span>;
                           return <span class="text-slate-600 text-sm">—</span>;
                         })()}
                       </td>
                       <td class="px-4 py-3 text-center">
                         {(() => {
                           const m = p.monto_pagado ?? 0;
-                          if (m >= 120 || p.pago_50) return <span class="text-gol text-sm">✓</span>;
-                          if (m >= 70)  return <span class="text-slate-400 text-sm">{120 - m} Bs</span>;
-                          if (p.pago_70) return <span class="text-slate-400 text-sm">50 Bs</span>;
-                          return <span class="text-slate-600 text-sm">120 Bs</span>;
+                          const est = estadoPago(m);
+                          if (est === 'completo') return <span class="text-gol text-sm">✓</span>;
+                          if (est === 'parcial')  return <span class="text-slate-400 text-sm">{PAGO_COMPLETO_BS - m} Bs</span>;
+                          return <span class="text-slate-600 text-sm">{PAGO_COMPLETO_BS} Bs</span>;
                         })()}
                       </td>
                     </>
