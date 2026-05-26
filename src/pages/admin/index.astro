@@ -409,24 +409,6 @@ function formatDate(d: string) {
                     </button>
                   </form>
                   <div class="ml-auto flex items-center gap-1.5 flex-wrap justify-end">
-                    <form method="POST" action="/api/admin/payment">
-                      <input type="hidden" name="userId" value={p.id} />
-                      <input type="hidden" name="field" value="pago70" />
-                      <input type="hidden" name="value" value={p.pago_70 ? 'false' : 'true'} />
-                      <button type="submit"
-                        class={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold min-h-[36px] ${p.pago_70 ? 'bg-gol/10 border-gol/40 text-gol' : 'bg-brand-800 border-brand-700 text-slate-400'}`}>
-                        {p.pago_70 ? '✓' : '+'} 70Bs
-                      </button>
-                    </form>
-                    <form method="POST" action="/api/admin/payment">
-                      <input type="hidden" name="userId" value={p.id} />
-                      <input type="hidden" name="field" value="pago50" />
-                      <input type="hidden" name="value" value={p.pago_50 ? 'false' : 'true'} />
-                      <button type="submit" disabled={!p.pago_70}
-                        class={`text-xs px-2.5 py-1.5 rounded-lg border font-semibold min-h-[36px] ${!p.pago_70 ? 'bg-brand-800/40 border-brand-700/30 text-slate-600 cursor-not-allowed' : p.pago_50 ? 'bg-gol/10 border-gol/40 text-gol' : 'bg-gold/10 border-gold/50 text-gold'}`}>
-                        {p.pago_50 ? '✓' : '+'} 50Bs
-                      </button>
-                    </form>
                     <form method="POST" action="/api/admin/set-monto-pagado" class="flex items-center gap-1">
                       <input type="hidden" name="user_id" value={p.id} />
                       <input type="hidden" name="back" value="/admin" />

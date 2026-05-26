@@ -1,6 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { estadoPago } from '@/lib/payments';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -168,12 +169,13 @@ function avatarColor(id: string) {
                   </div>
                   <div class="w-px h-6 bg-brand-700 hidden sm:block" />
                   <div class="flex flex-col items-center gap-0.5">
-                    {u.profile?.pago_70 && u.profile?.pago_50
-                      ? <><span title="Pago completo (120 Bs)" class="text-base">✅</span><span class="text-[9px] text-gol">{u.profile?.monto_pagado > 120 ? `${u.profile.monto_pagado} Bs` : '120 Bs'}</span></>
-                      : u.profile?.pago_70
-                      ? <><span title="Pago parcial — falta 50 Bs" class="text-base">⏳</span><span class="text-[9px] text-amber-400">{u.profile?.monto_pagado > 0 ? `${u.profile.monto_pagado} Bs` : '70 Bs'}</span></>
-                      : <><span title="Sin pago" class="text-base">❌</span><span class="text-[9px] text-slate-600">{u.profile?.monto_pagado > 0 ? `${u.profile.monto_pagado} Bs` : '0 Bs'}</span></>
-                    }
+                    {(() => {
+                      const m = u.profile?.monto_pagado ?? 0;
+                      const est = estadoPago(m);
+                      if (est === 'completo') return <><span title="Pago completo" class="text-base">✅</span><span class="text-[9px] text-gol">{m} Bs</span></>;
+                      if (est === 'parcial')  return <><span title="Pago parcial" class="text-base">⏳</span><span class="text-[9px] text-amber-400">{m} Bs</span></>;
+                      return <><span title="Sin pago" class="text-base">❌</span><span class="text-[9px] text-slate-600">{m} Bs</span></>;
+                    })()}
                   </div>
                   <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -214,23 +216,7 @@ function avatarColor(id: string) {
                   </div>
                 </form>
 
-                {/* Monto depositado */}
-                <form method="POST" action="/api/admin/set-monto-pagado"
-                  class="flex items-end gap-2 pt-1 border-t border-brand-700/40">
-                  <input type="hidden" name="user_id" value={u.id} />
-                  <div class="flex-1">
-                    <label class="block text-xs text-slate-500 mb-1">
-                      Monto depositado (Bs) <span class="text-slate-600">— para transparencia con otros players</span>
-                    </label>
-                    <input name="monto_pagado" type="number" min="0" max="9999"
-                      value={u.profile?.monto_pagado ?? 0}
-                      class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-gold/50" />
-                  </div>
-                  <button type="submit"
-                    class="flex-shrink-0 bg-brand-700 hover:bg-brand-600 border border-brand-600 text-white font-semibold py-2 px-4 rounded-xl text-sm transition min-h-[40px]">
-                    Guardar
-                  </button>
-                </form>
+                {/* El monto depositado se gestiona en el Panel VAR (fuente única). */}
 
                 {/* Último acceso */}
                 {u.last_sign_in && (
