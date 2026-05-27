@@ -1,3 +1,8 @@
+-- Columna monto_pagado: se creó directo en prod sin migración formal.
+-- IF NOT EXISTS la hace idempotente: no-op en prod, agrega en proyectos nuevos.
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS monto_pagado INTEGER NOT NULL DEFAULT 0;
+
 -- Blindaje del sistema de pagos: monto_pagado es la fuente ÚNICA de verdad.
 -- pago_70 y pago_50 dejan de escribirse a mano y se derivan SIEMPRE del monto,
 -- vía trigger BEFORE INSERT/UPDATE. Así es imposible que vuelvan a desincronizarse
