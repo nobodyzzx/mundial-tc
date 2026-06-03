@@ -1,0 +1,350 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { spanishName } from '@/lib/isoFlags';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+if (!accessToken || !refreshToken) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
+if (!navProfile?.es_referi) return Astro.redirect('/dashboard');
+
+const [
+  { data: rawMatches },
+  { data: rawPlayers },
+] = await Promise.all([
+  supabaseAdmin
+    .from('matches')
+    .select('id, home_team, away_team, stage, jornada, match_date, is_finished')
+    .eq('is_finished', false)
+    .order('match_date', { ascending: true }),
+  supabaseAdmin
+    .from('profiles')
+    .select('id, username')
+    .eq('participa', true)
+    .eq('expulsado', false)
+    .order('username', { ascending: true }),
+]);
+
+const openMatches = rawMatches ?? [];
+const players = rawPlayers ?? [];
+
+// Cargar pronósticos ya existentes para partidos abiertos
+const matchIds = openMatches.map((m: any) => m.id);
+const existingPreds = matchIds.length
+  ? (await supabaseAdmin.from('predictions')
+      .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen')
+      .in('match_id', matchIds)
+    ).data ?? []
+  : [];
+
+// predMap[match_id][user_id] = prediction
+const predMap: Record<string, Record<string, any>> = {};
+for (const p of existingPreds) {
+  if (!predMap[p.match_id]) predMap[p.match_id] = {};
+  predMap[p.match_id][p.user_id] = p;
+}
+
+// Agrupar por jornada
+const jornadaOrder: string[] = [];
+const jornadaMatches: Record<string, any[]> = {};
+for (const m of openMatches) {
+  const k = (m as any).jornada ?? 'Sin jornada';
+  if (!jornadaMatches[k]) { jornadaMatches[k] = []; jornadaOrder.push(k); }
+  jornadaMatches[k].push(m);
+}
+
+const matchesJson = openMatches.map((m: any) => ({
+  id: m.id,
+  home: spanishName(m.home_team),
+  away: spanishName(m.away_team),
+  stage: m.stage,
+}));
+
+const playersJson = players.map((p: any) => ({ id: p.id, name: p.username }));
+---
+
+<Layout title="Ingresar pronósticos" navProfile={navProfile} isAuthed={true}>
+  <div class="space-y-8">
+
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <div>
+        <h1 class="font-display text-4xl text-white tracking-wide">INGRESO MANUAL</h1>
+        <p class="text-slate-500 text-sm mt-1">Registra pronósticos en nombre de un apostador</p>
+      </div>
+      <a href="/admin" class="text-xs text-slate-500 hover:text-white transition px-3 py-1.5 border border-brand-700 rounded-lg">
+        ← Panel VAR
+      </a>
+    </div>
+
+    {openMatches.length === 0 && (
+      <div class="text-center py-20 text-slate-600">
+        <div class="text-5xl mb-4">🔒</div>
+        <p>No hay partidos abiertos para pronosticar.</p>
+      </div>
+    )}
+
+    {jornadaOrder.map((jornada) => {
+      const matches = jornadaMatches[jornada];
+      return (
+        <section class="space-y-3">
+          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-widest px-1 border-b border-brand-800 pb-2">
+            {jornada}
+          </h2>
+          <div class="space-y-4">
+            {matches.map((m: any) => {
+              const existing = predMap[m.id] ?? {};
+              const withPred    = players.filter((p: any) => existing[p.id]);
+              const withoutPred = players.filter((p: any) => !existing[p.id]);
+              return (
+                <div class="bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden" data-match-card={m.id}>
+
+                  {/* Cabecera del partido */}
+                  <div class="px-5 py-3 bg-brand-800/50 flex items-center justify-between gap-2 flex-wrap">
+                    <div class="font-semibold text-white text-sm">
+                      {spanishName(m.home_team)} <span class="text-brand-600 mx-1">vs</span> {spanishName(m.away_team)}
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                      <span class="text-slate-600">
+                        {new Date(m.match_date).toLocaleDateString('es-CL', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
+                      </span>
+                      <span class="text-gol bg-gol/10 border border-gol/20 px-2 py-0.5 rounded-full">
+                        {withPred.length}/{players.length} pronósticos
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="px-5 py-4 space-y-4">
+
+                    {/* Ya pronosticaron */}
+                    {withPred.length > 0 && (
+                      <div>
+                        <p class="text-[11px] text-slate-600 mb-2 uppercase tracking-wide">Ya ingresaron</p>
+                        <div class="flex flex-wrap gap-2">
+                          {withPred.map((p: any) => {
+                            const pred = existing[p.id];
+                            const score = `${pred.user_home}–${pred.user_away}`;
+                            const pen = pred.user_home_pen !== null ? ` (${pred.user_home_pen}–${pred.user_away_pen})` : '';
+                            return (
+                              <span
+                                class="inline-flex items-center gap-1.5 text-xs bg-gol/10 border border-gol/20 text-gol px-2.5 py-1 rounded-full cursor-pointer hover:bg-gol/20 transition"
+                                data-edit-player={p.id}
+                                data-edit-name={p.username}
+                                data-edit-match={m.id}
+                                data-edit-home={pred.user_home}
+                                data-edit-away={pred.user_away}
+                                data-edit-home-pen={pred.user_home_pen ?? ''}
+                                data-edit-away-pen={pred.user_away_pen ?? ''}
+                                data-edit-stage={m.stage}
+                                title="Click para editar"
+                              >
+                                ✓ {p.username} <span class="font-mono text-gol/70">{score}{pen}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sin pronóstico */}
+                    {withoutPred.length > 0 && (
+                      <div>
+                        <p class="text-[11px] text-slate-600 mb-2 uppercase tracking-wide">Sin pronóstico</p>
+                        <div class="flex flex-wrap gap-2">
+                          {withoutPred.map((p: any) => (
+                            <button
+                              class="text-xs text-slate-400 border border-brand-700 hover:border-gold/50 hover:text-gold bg-brand-800 px-2.5 py-1 rounded-full transition"
+                              data-open-player={p.id}
+                              data-open-name={p.username}
+                              data-open-match={m.id}
+                              data-open-stage={m.stage}
+                            >
+                              + {p.username}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Formulario inline (oculto por defecto) */}
+                    <form
+                      class="pred-form hidden bg-brand-800/40 border border-brand-700 rounded-xl p-4 space-y-3"
+                      data-for-match={m.id}
+                      data-stage={m.stage}
+                    >
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-semibold text-white pred-form-title">Ingresar pronóstico</span>
+                        <button type="button" class="pred-form-close text-slate-600 hover:text-white text-lg leading-none">✕</button>
+                      </div>
+
+                      <input type="hidden" class="pred-user-id" name="user_id" value="" />
+                      <input type="hidden" class="pred-match-id" name="match_id" value={m.id} />
+
+                      <div class="flex items-center gap-3">
+                        <div class="flex-1 text-center space-y-1">
+                          <span class="text-xs text-slate-500 block truncate">{spanishName(m.home_team)}</span>
+                          <input
+                            type="number" name="user_home" min="0" max="20" required placeholder="0"
+                            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-2 py-4 text-white text-2xl font-display text-center focus:outline-none focus:border-gold transition pred-home"
+                          />
+                        </div>
+                        <span class="text-brand-600 text-xl flex-shrink-0">—</span>
+                        <div class="flex-1 text-center space-y-1">
+                          <span class="text-xs text-slate-500 block truncate">{spanishName(m.away_team)}</span>
+                          <input
+                            type="number" name="user_away" min="0" max="20" required placeholder="0"
+                            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-2 py-4 text-white text-2xl font-display text-center focus:outline-none focus:border-gold transition pred-away"
+                          />
+                        </div>
+                      </div>
+
+                      {m.stage === 'knockout' && (
+                        <div class="pen-section space-y-1">
+                          <span class="text-xs text-gold block">Score penales (si empatan):</span>
+                          <div class="flex items-center gap-3">
+                            <input
+                              type="number" name="user_home_pen" min="0" max="20" placeholder="–"
+                              class="flex-1 bg-gold/10 border border-gold/40 rounded-xl px-2 py-3 text-gold text-xl font-display text-center focus:outline-none focus:border-gold transition placeholder:text-gold/30 pred-home-pen"
+                            />
+                            <span class="text-gold/40 text-lg flex-shrink-0">–</span>
+                            <input
+                              type="number" name="user_away_pen" min="0" max="20" placeholder="–"
+                              class="flex-1 bg-gold/10 border border-gold/40 rounded-xl px-2 py-3 text-gold text-xl font-display text-center focus:outline-none focus:border-gold transition placeholder:text-gold/30 pred-away-pen"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="submit"
+                          class="flex-1 bg-gol text-white text-sm font-bold py-3 rounded-xl hover:opacity-90 transition"
+                        >
+                          Guardar pronóstico
+                        </button>
+                      </div>
+                      <p class="pred-form-msg text-xs text-center hidden"></p>
+                    </form>
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      );
+    })}
+
+  </div>
+</Layout>
+
+<script>
+  function openForm(matchId: string, playerId: string, playerName: string, stage: string,
+                    home?: string, away?: string, homePen?: string, awayPen?: string) {
+    const card = document.querySelector(`[data-match-card="${matchId}"]`);
+    if (!card) return;
+    const form = card.querySelector<HTMLFormElement>('.pred-form');
+    if (!form) return;
+
+    form.querySelector<HTMLElement>('.pred-form-title')!.textContent = `Pronóstico: ${playerName}`;
+    form.querySelector<HTMLInputElement>('.pred-user-id')!.value  = playerId;
+    form.querySelector<HTMLInputElement>('.pred-home')!.value     = home  ?? '';
+    form.querySelector<HTMLInputElement>('.pred-away')!.value     = away  ?? '';
+
+    const homePenInput = form.querySelector<HTMLInputElement>('.pred-home-pen');
+    const awayPenInput = form.querySelector<HTMLInputElement>('.pred-away-pen');
+    if (homePenInput) homePenInput.value = homePen ?? '';
+    if (awayPenInput) awayPenInput.value = awayPen ?? '';
+
+    const msg = form.querySelector<HTMLElement>('.pred-form-msg');
+    if (msg) { msg.textContent = ''; msg.classList.add('hidden'); }
+
+    form.classList.remove('hidden');
+    form.querySelector<HTMLInputElement>('.pred-home')?.focus();
+  }
+
+  // Click en "sin pronóstico"
+  document.querySelectorAll<HTMLElement>('[data-open-player]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openForm(
+        btn.dataset.openMatch!,
+        btn.dataset.openPlayer!,
+        btn.dataset.openName!,
+        btn.dataset.openStage!,
+      );
+    });
+  });
+
+  // Click en "ya ingresaron" para editar
+  document.querySelectorAll<HTMLElement>('[data-edit-player]').forEach(el => {
+    el.addEventListener('click', () => {
+      openForm(
+        el.dataset.editMatch!,
+        el.dataset.editPlayer!,
+        el.dataset.editName!,
+        el.dataset.editStage!,
+        el.dataset.editHome,
+        el.dataset.editAway,
+        el.dataset.editHomePen,
+        el.dataset.editAwayPen,
+      );
+    });
+  });
+
+  // Cerrar formulario
+  document.querySelectorAll('.pred-form-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      (btn.closest('.pred-form') as HTMLElement)?.classList.add('hidden');
+    });
+  });
+
+  // Submit
+  document.querySelectorAll<HTMLFormElement>('.pred-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = form.querySelector<HTMLElement>('.pred-form-msg')!;
+      const btn = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+
+      const userId  = (form.querySelector('.pred-user-id') as HTMLInputElement).value;
+      const matchId = (form.querySelector('.pred-match-id') as HTMLInputElement).value;
+      const home    = parseInt((form.querySelector('.pred-home') as HTMLInputElement).value);
+      const away    = parseInt((form.querySelector('.pred-away') as HTMLInputElement).value);
+      const homePenVal = (form.querySelector('.pred-home-pen') as HTMLInputElement)?.value;
+      const awayPenVal = (form.querySelector('.pred-away-pen') as HTMLInputElement)?.value;
+      const homePen = homePenVal !== '' && homePenVal != null ? parseInt(homePenVal) : null;
+      const awayPen = awayPenVal !== '' && awayPenVal != null ? parseInt(awayPenVal) : null;
+
+      btn.disabled = true;
+      btn.textContent = 'Guardando…';
+
+      try {
+        const res = await fetch('/api/admin/manual-prediction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, match_id: matchId, user_home: home, user_away: away,
+            user_home_pen: homePen, user_away_pen: awayPen }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          msg.textContent = '✓ Guardado';
+          msg.className = 'pred-form-msg text-xs text-center text-gol';
+          // Recargar la página para reflejar el cambio
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          msg.textContent = data.error ?? 'Error al guardar';
+          msg.className = 'pred-form-msg text-xs text-center text-fifared';
+        }
+      } catch {
+        msg.textContent = 'Error de red';
+        msg.className = 'pred-form-msg text-xs text-center text-fifared';
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Guardar pronóstico';
+    });
+  });
+</script>

@@ -16,14 +16,11 @@ interface Props {
   navProfile?: NavProfile | null;
   /** Pass true if page already confirmed the user is logged in */
   isAuthed?: boolean;
-  /** Pass user.id to show pending predictions badge */
-  userId?: string;
 }
-const { title, description = 'Polla Mundial 2026', navProfile, isAuthed, userId } = Astro.props;
+const { title, description = 'Polla Mundial 2026', navProfile, isAuthed } = Astro.props;
 
 let profile: NavProfile | null = navProfile ?? null;
 let showNav = isAuthed ?? false;
-let pendingCount = 0;
 
 const pathname = Astro.url.pathname;
 const navLink = (href: string) => {
@@ -53,23 +50,6 @@ if (!isAuthed) {
   }
 }
 
-// Badge de pronósticos pendientes
-if (userId && showNav) {
-  const cutoff = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
-  const [{ data: openMatches }, { data: myPreds }] = await Promise.all([
-    supabase.from('matches')
-      .select('id')
-      .eq('is_finished', false)
-      .gt('match_date', cutoff)
-      .not('home_team', 'ilike', 'TBD%')
-      .not('away_team', 'ilike', 'TBD%')
-      .not('home_team', 'ilike', 'Winner%')
-      .not('away_team', 'ilike', 'Winner%'),
-    supabase.from('predictions').select('match_id').eq('user_id', userId),
-  ]);
-  const predictedIds = new Set((myPreds ?? []).map(p => p.match_id));
-  pendingCount = (openMatches ?? []).filter(m => !predictedIds.has(m.id)).length;
-}
 ---
 
 <!DOCTYPE html>
@@ -244,6 +224,27 @@ if (userId && showNav) {
 
     document.addEventListener('DOMContentLoaded', initToasts);
     document.addEventListener('astro:page-load', initToasts);
+
+    // ── Pending predictions badge (async — no bloquea el render) ─
+    async function refreshPendingBadge() {
+      try {
+        const res = await fetch('/api/pending-count');
+        if (!res.ok) return;
+        const { count } = await res.json();
+        ['pending-badge-desktop', 'pending-badge-mobile'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          if (count > 0) {
+            el.textContent = count > 99 ? '99+' : String(count);
+            el.classList.remove('hidden');
+          } else {
+            el.classList.add('hidden');
+          }
+        });
+      } catch {}
+    }
+    document.addEventListener('DOMContentLoaded', refreshPendingBadge);
+    document.addEventListener('astro:page-load', refreshPendingBadge);
   </script>
   <body class="min-h-screen bg-brand-950 text-slate-100 antialiased">
 
@@ -270,11 +271,7 @@ if (userId && showNav) {
               <a href="/grupos"      class={navLink('/grupos')}>📊 Grupos</a>
               <a href="/predictions" class={`${navLink('/predictions')} relative`}>
                 📅 Partidos
-                {pendingCount > 0 && (
-                  <span class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-fifared text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {pendingCount}
-                  </span>
-                )}
+                <span id="pending-badge-desktop" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-fifared text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"></span>
               </a>
               <a href="/resultados"  class={navLink('/resultados')}>📋 Resultados</a>
               <a href="/live"        class={navLink('/live')}>🔴 En Vivo</a>
@@ -326,11 +323,7 @@ if (userId && showNav) {
                 class={`relative flex items-center justify-center w-10 h-10 rounded-lg transition text-lg ${pathname.startsWith('/predictions') ? 'bg-gold/15 text-gold border border-gold/25' : 'text-slate-400 active:bg-brand-800'}`}
                 title="Pronósticos">
                 📅
-                {pendingCount > 0 && (
-                  <span class="absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-0.5 bg-fifared text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {pendingCount}
-                  </span>
-                )}
+                <span id="pending-badge-mobile" class="hidden absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-0.5 bg-fifared text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none"></span>
               </a>
               <a href="/perfil"
                 class={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition ${pathname === '/perfil' ? 'bg-gold/15 border border-gold/25' : 'text-slate-300 active:bg-brand-800'}`}>

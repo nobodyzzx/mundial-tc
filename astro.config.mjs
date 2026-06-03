@@ -13,6 +13,10 @@ export default defineConfig({
     port: Number(process.env.PORT) || 47308,
     host: true,
   },
+  prefetch: {
+    prefetchAll: true,
+    defaultStrategy: 'hover',
+  },
   output: 'server',
   adapter: vercel(),
   security: {

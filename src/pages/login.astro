@@ -17,6 +17,10 @@ const message = Astro.url.searchParams.get('message');
     <title>Entrar | Polla 2026</title>
     <link rel="icon" href="/logo-fifa2026.png" />
     <ClientRouter />
+    <style>
+      @keyframes spin-ball { to { transform: rotate(360deg); } }
+      .spin-ball { display: inline-block; animation: spin-ball 0.7s linear infinite; }
+    </style>
   </head>
   <script>
     import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
@@ -123,6 +127,17 @@ const message = Astro.url.searchParams.get('message');
         input.type = show ? 'text' : 'password';
         eye.classList.toggle('hidden', show);
         eyeOff.classList.toggle('hidden', !show);
+      });
+    }
+
+    var form = document.querySelector('form[action="/api/auth/login"]');
+    var submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+    if (form && submitBtn) {
+      form.addEventListener('submit', function () {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.75';
+        submitBtn.style.cursor = 'not-allowed';
+        submitBtn.innerHTML = '<span class="spin-ball">⚽</span> Entrando...';
       });
     }
   </script>
