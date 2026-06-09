@@ -176,7 +176,7 @@ function predStyle(pred: any, m: any): string {
                   <span class="text-xs text-slate-500 uppercase tracking-wide">{matchLabel(m)}</span>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-slate-600">
-                      {new Date(m.match_date).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz' })}
+                      {new Date(m.match_date).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz', hour12: false })}
                     </span>
                     <button
                       onclick={`shareMatch(${ji}, ${mi})`}

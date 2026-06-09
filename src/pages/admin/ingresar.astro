@@ -110,7 +110,7 @@ const playersJson = players.map((p: any) => ({ id: p.id, name: p.username }));
                     </div>
                     <div class="flex items-center gap-2 text-xs">
                       <span class="text-slate-600">
-                        {new Date(m.match_date).toLocaleString('es-BO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/La_Paz' })}
+                        {new Date(m.match_date).toLocaleString('es-BO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/La_Paz', hour12:false })}
                       </span>
                       <span class="text-gol bg-gol/10 border border-gol/20 px-2 py-0.5 rounded-full">
                         {withPred.length}/{players.length} pronósticos
