@@ -102,12 +102,6 @@ const message = Astro.url.searchParams.get('message');
             </button>
           </form>
 
-          <div class="flex items-center justify-between text-xs">
-            <a href="/olvidaste" class="text-slate-400 hover:text-white transition">
-              ¿Olvidaste tu contraseña?
-            </a>
-            <span class="text-slate-600">Contacta al Réferi</span>
-          </div>
         </div>
 
         <p class="text-center text-xs text-slate-500 mt-5">
@@ -122,11 +116,14 @@ const message = Astro.url.searchParams.get('message');
     var eye   = document.getElementById('icon-eye');
     var eyeOff = document.getElementById('icon-eye-off');
     if (btn && input) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
         var show = input.type === 'password';
+        input.blur();
         input.type = show ? 'text' : 'password';
         eye.classList.toggle('hidden', show);
         eyeOff.classList.toggle('hidden', !show);
+        input.focus();
       });
     }
 
