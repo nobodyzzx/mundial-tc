@@ -724,10 +724,16 @@ function accentLine(i: number, isMe: boolean) {
                   )}
                 </div>
                 {isOpen ? (
-                  <a href={`/predictions/${m.id}`}
-                    class={`block text-center text-sm font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px] flex items-center justify-center ${hasPredicted ? 'bg-brand-800 text-slate-300 border border-brand-700' : 'bg-gold text-brand-950'}`}>
-                    {hasPredicted ? 'Ver pronóstico →' : 'Hacer pronóstico →'}
-                  </a>
+                  hasPredicted ? (
+                    <div class="text-center text-sm font-semibold py-3 rounded-xl border border-gol/30 bg-gol/5 text-gol min-h-[48px] flex items-center justify-center">
+                      ✓ Pronóstico enviado
+                    </div>
+                  ) : (
+                    <a href={`/predictions/${m.id}`}
+                      class="block text-center text-sm font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px] flex items-center justify-center bg-gold text-brand-950">
+                      Hacer pronóstico →
+                    </a>
+                  )
                 ) : (
                   <div class={`text-center text-sm font-semibold py-3 rounded-xl min-h-12 flex items-center justify-center ${
                     lockState === 'pago'        ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' :
