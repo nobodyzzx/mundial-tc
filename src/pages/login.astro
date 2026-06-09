@@ -119,11 +119,11 @@ const message = Astro.url.searchParams.get('message');
       btn.addEventListener('click', function (e) {
         e.preventDefault();
         var show = input.type === 'password';
-        input.blur();
+        var val = input.value;
         input.type = show ? 'text' : 'password';
+        input.value = val;
         eye.classList.toggle('hidden', show);
         eyeOff.classList.toggle('hidden', !show);
-        input.focus();
       });
     }
 

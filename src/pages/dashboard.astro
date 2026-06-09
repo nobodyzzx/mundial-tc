@@ -119,11 +119,15 @@ function getMatchLockState(m: any): 'prevPending' | 'ongoingLock' | 'closed' | '
   // Mismo día ya empezó → ongoingLock
   const sameDayStarted = daysWithStartedMatch.has(dayKey);
 
-  // Partido anterior sin terminar → prevPending (tiene prioridad sobre ongoingLock)
+  // Jornada anterior pendiente: partidos ya iniciados sin terminar O partidos
+  // futuros de una jornada anterior (no alcanzados por startedMatchData)
   const hasPrevUnfinished = (startedMatchData ?? []).some(
     (sm: any) => !sm.is_finished && new Date(sm.match_date).getTime() < firstTime
   );
-  if (!sameDayStarted && hasPrevUnfinished) return 'prevPending';
+  const hasEarlierUpcoming = (proximosPartidos ?? []).some(
+    (pm: any) => new Date(pm.match_date).getTime() < firstTime
+  );
+  if (!sameDayStarted && (hasPrevUnfinished || hasEarlierUpcoming)) return 'prevPending';
 
   if (sameDayStarted || hasMatchInProgress) return 'ongoingLock';
 
