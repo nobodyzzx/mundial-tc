@@ -115,16 +115,13 @@ const message = Astro.url.searchParams.get('message');
     var input = document.getElementById('password-input');
     var eye   = document.getElementById('icon-eye');
     var eyeOff = document.getElementById('icon-eye-off');
-    if (btn && input) {
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        var show = input.type === 'password';
-        var val = input.value;
-        input.type = show ? 'text' : 'password';
-        input.value = val;
-        eye.classList.toggle('hidden', show);
-        eyeOff.classList.toggle('hidden', !show);
-      });
+    if (btn && input && eye && eyeOff) {
+      btn.onclick = function () {
+        var isPassword = input.type === 'password';
+        input.setAttribute('type', isPassword ? 'text' : 'password');
+        eye.classList.toggle('hidden', isPassword);
+        eyeOff.classList.toggle('hidden', !isPassword);
+      };
     }
 
     var form = document.querySelector('form[action="/api/auth/login"]');
