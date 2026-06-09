@@ -270,11 +270,10 @@ if (!isAuthed) {
               <a href="/dashboard"   class={navLink('/dashboard')}>🏆 Tabla</a>
               <a href="/grupos"      class={navLink('/grupos')}>📊 Grupos</a>
               <a href="/predictions" class={`${navLink('/predictions')} relative`}>
-                📅 Partidos
+                📅 Mis Pronósticos
                 <span id="pending-badge-desktop" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-fifared text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"></span>
               </a>
               <a href="/resultados"  class={navLink('/resultados')}>📋 Resultados</a>
-              <a href="/live"        class={navLink('/live')}>🔴 En Vivo</a>
               <a href="/reglas"      class={navLink('/reglas')}>📖 Reglas</a>
               {profile?.es_referi && (
                 <div class="relative group">
@@ -343,9 +342,6 @@ if (!isAuthed) {
           </>
         ) : (
           <div class="flex items-center gap-2">
-            <a href="/live" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/live' ? 'bg-gold/15 text-gold border border-gold/25' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
-              🔴 En Vivo
-            </a>
             <a href="/reglas" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/reglas' ? 'bg-gold/15 text-gold border border-gold/25' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
               📖 Reglas
             </a>
@@ -385,7 +381,6 @@ if (!isAuthed) {
               { href: '/grupos',      icon: '📊', label: 'Grupos y Eliminatorias' },
               { href: '/predictions', icon: '📅', label: 'Mis Pronósticos', startsWith: true },
               { href: '/resultados',  icon: '📋', label: 'Resultados' },
-              { href: '/live',        icon: '🔴', label: 'En Vivo' },
               { href: '/reglas',      icon: '📖', label: 'Reglamento' },
               { href: '/pago',        icon: '💰', label: 'Cómo pagar' },
             ].map(({ href, icon, label, startsWith }) => {

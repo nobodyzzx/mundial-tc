@@ -11,7 +11,7 @@
  */
 
 // Punto del torneo a simular como "ahora" al arrancar el dev server.
-const BETA_SIMULATED_NOW_MS = new Date('2026-06-28T22:00:00Z').getTime();
+const BETA_SIMULATED_NOW_MS = new Date('2026-06-11T12:00:00Z').getTime();
 
 // Momento real en que se cargó el módulo (arranque del server). El reloj
 // fluye normal a partir de aquí, anclado a BETA_SIMULATED_NOW_MS.

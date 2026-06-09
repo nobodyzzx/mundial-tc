@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase';
 import { supabaseAdmin } from '@/lib/supabase';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
-import { getLiveMatches } from '@/lib/live-data';
 import { resumenPozo, estadoPago, APORTE_POZO_MAX_BS, PAGO_COMPLETO_BS } from '@/lib/payments';
 
 // Auth guard
@@ -37,7 +36,6 @@ const [
   { data: recentFinished },
   { data: settingsRows },
   { data: startedMatchData },
-  liveMatches,
 ] = await Promise.all([
   supabase.from('profiles').select('id, username, puntos_totales, pago_70, pago_50, es_referi, participa, monto_pagado').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
   supabase.from('sanctions').select('user_id, type').eq('active', true),
@@ -46,7 +44,6 @@ const [
   supabase.from('matches').select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
   supabaseAdmin.from('settings').select('key, value'),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
-  getLiveMatches(),
 ]);
 
 // Un partido en curso (IN_PLAY/PAUSED) no es "próximo": lo excluimos de la lista.
@@ -303,10 +300,6 @@ function accentLine(i: number, isMe: boolean) {
         </div>
       </div>
     )}
-
-    <!-- EN VIVO AHORA — visible solo cuando hay partidos en curso -->
-    <section id="dash-live" class="hidden space-y-3"></section>
-    <script type="application/json" id="dash-live-data" set:html={JSON.stringify(liveMatches)}></script>
 
     <script type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
     <script type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pozoActual, montoReferi, pagosDeadline70, pagosDeadline50 })}></script>
@@ -868,88 +861,6 @@ function waShareInit() {
 document.addEventListener('astro:page-load', waShareInit);
 </script>
 
-<script>
-  // ── EN VIVO AHORA: banner del dashboard con polling cada 30s ──
-  type DLive = {
-    id: string; home: string; away: string; homeFlag: string; awayFlag: string;
-    hs: number | null; as_: number | null; status: string | null; minute: number | null; label: string;
-    provTotal: number; provExact: number; provResult: number;
-  };
-
-  let dashLiveTimer: ReturnType<typeof setInterval> | null = null;
-
-  function dashEsc(s: string): string {
-    return s.replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-  }
-
-  function dashStatusText(m: DLive): string {
-    if (m.status === 'PAUSED') return 'ET';
-    if (m.minute != null) return `${m.minute}'`;
-    return 'EN JUEGO';
-  }
-
-  function dashLiveCard(m: DLive): string {
-    return `
-      <a href="/live" class="block bg-brand-900 border border-fifared/40 rounded-2xl px-4 py-3 hover:border-fifared/70 transition active:opacity-80">
-        <div class="flex items-center justify-between mb-2">
-          <span class="flex items-center gap-1.5 text-xs font-bold text-fifared uppercase tracking-wide">
-            <span class="inline-block w-2 h-2 rounded-full bg-fifared animate-pulse"></span>
-            En vivo · ${dashEsc(m.label)}
-          </span>
-          <span class="text-xs font-bold text-fifared">${dashEsc(dashStatusText(m))}</span>
-        </div>
-        <div class="flex items-center justify-center gap-3">
-          <span class="text-sm font-semibold text-white flex-1 text-right truncate">${dashEsc(m.home)} ${m.homeFlag}</span>
-          <span class="font-display text-2xl text-white leading-none min-w-[52px] text-center">${m.hs ?? 0} – ${m.as_ ?? 0}</span>
-          <span class="text-sm font-semibold text-white flex-1 text-left truncate">${m.awayFlag} ${dashEsc(m.away)}</span>
-        </div>
-        ${m.provTotal ? `<div class="mt-2 pt-2 border-t border-brand-800/60 text-center text-xs"><span class="text-gold">🎯 ${m.provExact} exacto</span> · <span class="text-gol">📊 ${m.provResult} resultado</span> <span class="text-slate-600">/ ${m.provTotal}</span></div>` : ''}
-      </a>`;
-  }
-
-  function dashRenderLive(matches: DLive[]) {
-    const root = document.getElementById('dash-live');
-    if (!root) return;
-    if (!matches.length) {
-      root.classList.add('hidden');
-      root.innerHTML = '';
-      return;
-    }
-    root.classList.remove('hidden');
-    root.innerHTML = `
-      <div class="flex items-center gap-3">
-        <h2 class="font-display text-2xl text-white tracking-wide">🔴 EN VIVO AHORA</h2>
-        <div class="flex-1 h-px bg-fifared/20"></div>
-      </div>
-      <div class="grid gap-3 sm:grid-cols-2">${matches.map(dashLiveCard).join('')}</div>`;
-  }
-
-  async function dashPollLive() {
-    try {
-      const res = await fetch('/api/live', { headers: { 'Accept': 'application/json' } });
-      if (!res.ok) return;
-      const data = await res.json();
-      dashRenderLive(data.live ?? []);
-    } catch { /* reintenta en el próximo ciclo */ }
-  }
-
-  function dashLiveInit() {
-    const el = document.getElementById('dash-live-data');
-    if (el?.textContent) {
-      try { dashRenderLive(JSON.parse(el.textContent)); } catch { /**/ }
-    }
-    if (dashLiveTimer) clearInterval(dashLiveTimer);
-    dashLiveTimer = setInterval(dashPollLive, 30_000);
-  }
-
-  function dashLiveTeardown() {
-    if (dashLiveTimer) { clearInterval(dashLiveTimer); dashLiveTimer = null; }
-  }
-
-  document.addEventListener('astro:page-load', dashLiveInit);
-  document.addEventListener('astro:before-swap', dashLiveTeardown);
-</script>
 
 <style>
   @keyframes deadline-shimmer {

@@ -47,11 +47,6 @@ export async function getFinishedMatches(code: string, season: number): Promise<
 
 // IN_PLAY (jugando) + PAUSED (medio tiempo). Es 1 sola llamada — la API acepta
 // múltiples valores separados por coma.
-export async function getLiveMatches(code: string, season: number): Promise<ApiMatch[]> {
-  const data = await apiFetch(`/competitions/${code}/matches?season=${season}&status=IN_PLAY,PAUSED`);
-  return data.matches ?? [];
-}
-
 // ── Mapeo al esquema de la app ───────────────────────────────────
 // Stages que se tratan como "fase de grupos" (antes del cuadro eliminatorio)
 const GROUP_STAGES = new Set(['GROUP_STAGE', 'LEAGUE_STAGE', 'LEAGUE_PHASE']);
