@@ -271,7 +271,7 @@ function accentLine(i: number, isMe: boolean) {
               </div>
             );
             return isOpen && !hasPredicted
-              ? <a href={`/predictions/${m.id}`} class="block transition active:bg-brand-800/50">{row}</a>
+              ? <a href="/predictions" class="block transition active:bg-brand-800/50">{row}</a>
               : row;
           })}
         </div>
