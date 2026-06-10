@@ -5,6 +5,7 @@ import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { resumenPozo } from '@/lib/payments';
 import { fmtFecha } from '@/lib/fechas';
+import { boliviaDayStart } from '@/lib/jornada';
 
 // Auth guard
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -27,6 +28,12 @@ if (!user) {
 
 const ahora = betaNow().toISOString();
 
+// Día de juego Bolivia actual (frontera 03:00 BOT) — las sanciones "se limpian
+// cada jornada": solo se cuentan/muestran las del día en curso.
+const diaStart = boliviaDayStart(betaNowMs());
+const diaInicio = diaStart.toISOString();
+const diaFin = new Date(diaStart.getTime() + 24 * 3600 * 1000).toISOString();
+
 // Todas las queries en paralelo — una sola ronda de red
 const [
   { data: standings },
@@ -38,7 +45,7 @@ const [
   { count: totalPartidos },
 ] = await Promise.all([
   supabase.from('profiles').select('id, username, puntos_totales, es_referi, participa, monto_pagado').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
-  supabase.from('sanctions').select('user_id, type').eq('active', true),
+  supabase.from('sanctions').select('user_id, type').eq('active', true).gte('created_at', diaInicio).lt('created_at', diaFin),
   supabase.from('matches').select('*').eq('is_finished', false).gte('match_date', ahora).order('match_date', { ascending: true }).limit(6),
   supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single(),
   supabase.from('matches').select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),

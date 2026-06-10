@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { getAdminUser } from '@/lib/auth-helpers';
+import { boliviaDayStart } from '@/lib/jornada';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
@@ -38,40 +39,18 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     active: true,
   });
 
-  // ROJA o DOBLE ROJA: anular puntos de la jornada activa
+  // ROJA o DOBLE ROJA: anular puntos del DÍA de juego activo (frontera 03:00 BOT,
+  // igual que calculate_match_points y el cierre de jornada).
   if (type === 'red' || type === 'double_red') {
-    const now = Date.now();
-    const windowStart = new Date(now - 3600 * 1000).toISOString();
-    const nowIso = new Date(now).toISOString();
+    const dayStart = boliviaDayStart(Date.now());
+    const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
 
-    const { data: recentMatch } = await supabaseAdmin
+    const { data: dayMatches } = await supabaseAdmin
       .from('matches')
-      .select('id, jornada')
-      .gte('match_date', windowStart)
-      .lte('match_date', nowIso)
-      .order('match_date', { ascending: false })
-      .limit(1)
-      .single();
-
-    let matchIds: string[] = [];
-
-    if (recentMatch?.jornada) {
-      const { data: jornadaMatches } = await supabaseAdmin
-        .from('matches')
-        .select('id')
-        .eq('jornada', recentMatch.jornada);
-      matchIds = jornadaMatches?.map(m => m.id) ?? [];
-    } else {
-      const shifted = new Date(now - 4 * 3600 * 1000);
-      const dayStart = new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) + 4 * 3600 * 1000);
-      const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
-      const { data: dayMatches } = await supabaseAdmin
-        .from('matches')
-        .select('id')
-        .gte('match_date', dayStart.toISOString())
-        .lt('match_date', dayEnd.toISOString());
-      matchIds = dayMatches?.map(m => m.id) ?? [];
-    }
+      .select('id')
+      .gte('match_date', dayStart.toISOString())
+      .lt('match_date', dayEnd.toISOString());
+    const matchIds = dayMatches?.map(m => m.id) ?? [];
 
     if (matchIds.length > 0) {
       await supabaseAdmin
