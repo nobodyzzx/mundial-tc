@@ -35,6 +35,7 @@ const [
   { data: myProfile },
   { data: recentFinished },
   { data: startedMatchData },
+  { count: totalPartidos },
 ] = await Promise.all([
   supabase.from('profiles').select('id, username, puntos_totales, es_referi, participa, monto_pagado').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
   supabase.from('sanctions').select('user_id, type').eq('active', true),
@@ -42,6 +43,7 @@ const [
   supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single(),
   supabase.from('matches').select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
+  supabase.from('matches').select('*', { count: 'exact', head: true }),
 ]);
 
 // Un partido en curso (IN_PLAY/PAUSED) no es "próximo": lo excluimos de la lista.
@@ -149,8 +151,17 @@ const navProfile = myProfile ?? null;
 // Premio/réferi derivados de monto_pagado (lib/payments) — todos pagaron
 const leaderPoints = rows[0]?.puntos_totales ?? 0;
 const { pozo: pozoActual, referi: montoReferi } = resumenPozo(rows.map(r => r.monto_pagado));
-const myRank = rows.findIndex(r => r.id === user.id) + 1; // 0 si no participa
 const nextMatch = (proximosPartidos ?? [])[0] ?? null;
+
+// Estado del torneo (bloque después de la tabla)
+const partidosJugados = (startedMatchData ?? []).filter((m: any) => m.is_finished).length;
+const jornadaActual = nextMatch?.jornada ?? lastJornadaName ?? '—';
+const proximoCierreMs = (() => {
+  if (!nextMatch) return null;
+  const dayKey = toBoliviaDay(nextMatch.match_date);
+  const dayMatches = upcomingByDay.get(dayKey) ?? [nextMatch];
+  return Math.min(...dayMatches.map((m: any) => new Date(m.match_date).getTime())) - 2 * 3600 * 1000;
+})();
 
 // Próximo partido — countdown
 function countdownLabel(matchDate: string): string {
@@ -266,71 +277,6 @@ function accentLine(i: number, isMe: boolean) {
     <script is:inline type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
     <script is:inline type="application/json" id="standings-meta" set:html={JSON.stringify({ pozoActual, montoReferi })}></script>
 
-    <!-- STATS CARDS -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <!-- Participantes -->
-      <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
-        <div class="absolute inset-0 bg-gradient-to-br from-violet-600 to-indigo-800"></div>
-        <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-        <span class="relative text-xs text-white/70 uppercase tracking-wide">Jugadores</span>
-        <span class="relative text-2xl">👥</span>
-        <span class="relative font-display text-3xl text-white leading-none">{rows.length}</span>
-      </div>
-
-      <!-- Mi posición · Réferi -->
-      {navProfile?.es_referi ? (
-        <a href="/admin" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
-          <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
-          <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/80 to-teal-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-          <span class="relative text-xs text-white/70 uppercase tracking-wide">Mi rol</span>
-          <span class="relative text-2xl">⚖️</span>
-          <span class="relative font-display text-3xl text-white leading-none">Réferi</span>
-        </a>
-      ) : (
-        <a href="/predictions" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
-          <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
-          <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/80 to-teal-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-          <span class="relative text-xs text-white/70 uppercase tracking-wide">Mi posición</span>
-          <span class="relative text-2xl">🏅</span>
-          <span class="relative font-display text-3xl text-white leading-none">
-            {myRank > 0 ? <Fragment>#{myRank}<span class="text-white/40 text-base font-sans"> / {rows.length}</span></Fragment> : '—'}
-          </span>
-        </a>
-      )}
-
-      <!-- Próximo partido -->
-      {nextMatch ? (
-        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
-          <div class="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-700"></div>
-          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-          <span class="relative text-xs text-white/70 uppercase tracking-wide">Próximo partido</span>
-          <span class="relative text-2xl">⚽</span>
-          <span class="relative font-display text-3xl text-white leading-none">{countdownLabel(nextMatch.match_date)}</span>
-          <span class="relative text-xs text-white/60 truncate">{teamLabel(nextMatch.home_team)} vs {teamLabel(nextMatch.away_team)}</span>
-        </div>
-      ) : (
-        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
-          <div class="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-700"></div>
-          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-          <span class="relative text-xs text-white/70 uppercase tracking-wide">Próximo partido</span>
-          <span class="relative text-2xl">⚽</span>
-          <span class="relative text-sm text-white/50">
-            {recentFinished && recentFinished.length > 0 ? 'No hay más partidos programados' : 'El torneo aún no ha comenzado'}
-          </span>
-        </div>
-      )}
-      <!-- Resultados -->
-      <a href="/resultados" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
-        <div class="absolute inset-0 bg-gradient-to-br from-sky-600 to-blue-800"></div>
-        <div class="absolute inset-0 bg-gradient-to-br from-sky-500/80 to-blue-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-        <span class="relative text-xs text-white/70 uppercase tracking-wide">Resultados</span>
-        <span class="relative text-2xl">📋</span>
-        <span class="relative font-display text-3xl text-white leading-none">Ver →</span>
-      </a>
-    </div>
 
     <!-- PREMIO AL GANADOR (compacto) -->
     <div class="relative overflow-hidden rounded-2xl px-5 py-4">
@@ -465,6 +411,47 @@ function accentLine(i: number, isMe: boolean) {
             Aún no hay participantes registrados.
           </div>
         )}
+      </div>
+    </div>
+
+    <!-- ESTADO DEL TORNEO -->
+    <div class="space-y-3">
+      <h2 class="font-display text-2xl text-white tracking-wide">ESTADO DEL TORNEO</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <!-- Jugadores -->
+        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
+          <div class="absolute inset-0 bg-gradient-to-br from-violet-600 to-indigo-800"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Jugadores</span>
+          <span class="relative text-2xl">👥</span>
+          <span class="relative font-display text-3xl text-white leading-none">{rows.length}</span>
+        </div>
+        <!-- Jornada actual -->
+        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
+          <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Jornada</span>
+          <span class="relative text-2xl">📅</span>
+          <span class="relative font-display text-2xl text-white leading-tight truncate capitalize">{jornadaActual}</span>
+        </div>
+        <!-- Partidos jugados -->
+        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
+          <div class="absolute inset-0 bg-gradient-to-br from-amber-500 to-orange-700"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Partidos</span>
+          <span class="relative text-2xl">⚽</span>
+          <span class="relative font-display text-3xl text-white leading-none">{partidosJugados}<span class="text-white/40 text-base font-sans"> / {totalPartidos ?? '—'}</span></span>
+        </div>
+        <!-- Próximo cierre -->
+        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
+          <div class="absolute inset-0 bg-gradient-to-br from-sky-600 to-blue-800"></div>
+          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+          <span class="relative text-xs text-white/70 uppercase tracking-wide">Próximo cierre</span>
+          <span class="relative text-2xl">⏱</span>
+          <span class="relative font-display text-2xl text-white leading-tight">
+            {proximoCierreMs ? fmtFecha(proximoCierreMs, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+          </span>
+        </div>
       </div>
     </div>
 
