@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
-import { boliviaDayStart, isCutoffPassed, JORNADA_CLOSE_MS } from '@/lib/jornada';
+import { boliviaDayStart, isCutoffPassed } from '@/lib/jornada';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const accessToken = cookies.get('sb-access-token')?.value;

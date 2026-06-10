@@ -125,7 +125,7 @@ const jornadaHistory = [...jornadaMap.entries()].map(([day, v]) => ({ day, ...v 
           <span class="text-gold font-bold text-sm">{profile?.puntos_totales ?? 0} pts total</span>
         </div>
         <div class="space-y-1.5">
-          {jornadaHistory.map(({ day, pts, partidos, label }) => (
+          {jornadaHistory.map(({ day, pts, partidos }) => (
             <div class="flex items-center justify-between py-2 border-b border-brand-800/60 last:border-0">
               <div class="min-w-0">
                 <p class="text-sm text-slate-300 capitalize leading-tight">{day}</p>

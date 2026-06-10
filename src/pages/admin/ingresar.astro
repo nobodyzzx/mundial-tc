@@ -59,14 +59,6 @@ for (const m of openMatches) {
   jornadaMatches[k].push(m);
 }
 
-const matchesJson = openMatches.map((m: any) => ({
-  id: m.id,
-  home: spanishName(m.home_team),
-  away: spanishName(m.away_team),
-  stage: m.stage,
-}));
-
-const playersJson = players.map((p: any) => ({ id: p.id, name: p.username }));
 ---
 
 <Layout title="Ingresar pronósticos" navProfile={navProfile} isAuthed={true}>
@@ -244,7 +236,7 @@ const playersJson = players.map((p: any) => ({ id: p.id, name: p.username }));
 </Layout>
 
 <script>
-  function openForm(matchId: string, playerId: string, playerName: string, stage: string,
+  function openForm(matchId: string, playerId: string, playerName: string,
                     home?: string, away?: string, homePen?: string, awayPen?: string) {
     const card = document.querySelector(`[data-match-card="${matchId}"]`);
     if (!card) return;
@@ -275,7 +267,6 @@ const playersJson = players.map((p: any) => ({ id: p.id, name: p.username }));
         btn.dataset.openMatch!,
         btn.dataset.openPlayer!,
         btn.dataset.openName!,
-        btn.dataset.openStage!,
       );
     });
   });
@@ -287,7 +278,6 @@ const playersJson = players.map((p: any) => ({ id: p.id, name: p.username }));
         el.dataset.editMatch!,
         el.dataset.editPlayer!,
         el.dataset.editName!,
-        el.dataset.editStage!,
         el.dataset.editHome,
         el.dataset.editAway,
         el.dataset.editHomePen,

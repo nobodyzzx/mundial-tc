@@ -320,7 +320,7 @@ function predStyle(pred: any, m: any): string {
   </div>
 </Layout>
 
-<script type="application/json" id="resultados-data" set:html={JSON.stringify(shareData)} />
+<script is:inline type="application/json" id="resultados-data" set:html={JSON.stringify(shareData)} />
 
 <script>
   async function waShare(text: string) {

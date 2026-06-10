@@ -32,12 +32,6 @@ const [
 
 const predMap = new Map(myPredictions?.map(p => [p.match_id, p]) ?? []);
 
-function formatDate(dateStr: string): string {
-  return fmtFecha(dateStr, {
-    weekday: 'short', day: 'numeric', month: 'short',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
 function formatTime(dateStr: string): string {
   return fmtFecha(dateStr, {
     hour: '2-digit', minute: '2-digit',
@@ -205,7 +199,6 @@ let globalFormIdx = 0;
       const predCount = jornadaMatches.filter(m => predMap.has(m.id)).length;
       const allDone = predCount === jornadaMatches.length;
       const hasSome = predCount > 0;
-      const unpredicted = jornadaMatches.filter(m => !predMap.has(m.id));
       const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
       const cutoffStr = fmtFecha(firstTime - 2 * 3600 * 1000, {
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
@@ -617,8 +610,8 @@ let globalFormIdx = 0;
 
   function initSteppers() {
     document.querySelectorAll<HTMLButtonElement>('.stepper-btn').forEach(btn => {
-      if (btn._stepInit) return;
-      btn._stepInit = true;
+      if (btn.dataset.stepInit) return;
+      btn.dataset.stepInit = '1';
       btn.addEventListener('click', () => {
         const input = document.querySelector<HTMLInputElement>(`input[name="${btn.dataset.target}"]`);
         if (!input) return;

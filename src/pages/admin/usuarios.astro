@@ -325,7 +325,7 @@ function avatarColor(id: string) {
   </div>
 </Layout>
 
-<script define:vars={{ csvData: users.map(u => ({
+<script is:inline define:vars={{ csvData: users.map(u => ({
   username:   u.profile?.username ?? '',
   email:      u.email,
   puntos:     u.profile?.puntos_totales ?? 0,

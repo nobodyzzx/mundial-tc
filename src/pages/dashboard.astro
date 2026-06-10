@@ -303,9 +303,9 @@ function accentLine(i: number, isMe: boolean) {
       </div>
     )}
 
-    <script type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
-    <script type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pozoActual, montoReferi, pagosDeadline70, pagosDeadline50 })}></script>
-    <script type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username ?? '?', pago_70: p.pago_70 ?? false, pago_50: p.pago_50 ?? false, monto_pagado: p.monto_pagado ?? 0 })))}></script>
+    <script is:inline type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
+    <script is:inline type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pozoActual, montoReferi, pagosDeadline70, pagosDeadline50 })}></script>
+    <script is:inline type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username ?? '?', pago_70: p.pago_70 ?? false, pago_50: p.pago_50 ?? false, monto_pagado: p.monto_pagado ?? 0 })))}></script>
 
     <!-- STATS CARDS -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -755,12 +755,16 @@ function accentLine(i: number, isMe: boolean) {
 
 <script>
 import { fmtFecha } from '@/lib/fechas';
+
+// Formas de los JSON embebidos en los <script type="application/json"> de arriba.
+interface StandingShare { pos: number; username: string; pts: number; }
+interface PagoShare { username: string; pago_70: boolean; pago_50: boolean; monto_pagado: number; }
+
 // Se re-ejecuta en cada navegación (ClientRouter), no solo en la carga inicial,
 // para que los botones de compartir queden enganchados también tras un swap SPA.
 function waShareInit() {
-  var WA_ICON = '\uD83D\uDCF2'; // 📲 inline para evitar encoding issues
 
-  function showToast(msg) {
+  function showToast(msg: string) {
     var el = document.createElement('div');
     el.textContent = msg;
     el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';
@@ -768,7 +772,7 @@ function waShareInit() {
     setTimeout(function () { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 300); }, 3500);
   }
 
-  function waShare(text) {
+  function waShare(text: string) {
     var isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile) {
       // location.href no puede ser bloqueado por el navegador (es navegación, no popup)
@@ -785,8 +789,8 @@ function waShareInit() {
   var btnTabla = document.getElementById('btn-share-tabla');
   if (btnTabla) {
     btnTabla.addEventListener('click', function () {
-      var rows = JSON.parse(document.getElementById('standings-data').textContent);
-      var meta = JSON.parse(document.getElementById('standings-meta').textContent);
+      var rows: StandingShare[] = JSON.parse(document.getElementById('standings-data')!.textContent!);
+      var meta = JSON.parse(document.getElementById('standings-meta')!.textContent!);
       var MEDALS = ['\uD83E\uDD47', '\uD83E\uDD48', '\uD83E\uDD49'];
       var lines = rows.map(function (p) {
         var medal = MEDALS[p.pos - 1] || (p.pos + '.');
@@ -808,9 +812,9 @@ function waShareInit() {
   // ── Compartir pagos ──────────────────────────────────────
   var btnPagos = document.getElementById('btn-share-pagos');
   if (btnPagos) btnPagos.addEventListener('click', function () {
-    var players = JSON.parse(document.getElementById('pagos-data').textContent);
-    var meta    = JSON.parse(document.getElementById('standings-meta').textContent);
-    function fmtIso(iso) {
+    var players: PagoShare[] = JSON.parse(document.getElementById('pagos-data')!.textContent!);
+    var meta    = JSON.parse(document.getElementById('standings-meta')!.textContent!);
+    function fmtIso(iso: string) {
       if (!iso) return '';
       return fmtFecha(iso, {
         weekday: 'short', day: 'numeric', month: 'short',
@@ -823,7 +827,7 @@ function waShareInit() {
     if (meta.pagosDeadline50) deadlines.push('_\u23F0 50 Bs: hasta ' + fmtIso(meta.pagosDeadline50) + '_');
 
     // Monto efectivo igual que en el servidor
-    function efectivoWA(p) {
+    function efectivoWA(p: PagoShare) {
       var m = p.monto_pagado || 0;
       if (m > 0) return m;
       if (p.pago_50) return 120;
@@ -835,7 +839,7 @@ function waShareInit() {
     var parciales  = players.filter(function (p) { return !completos.includes(p) && (p.monto_pagado >= 70 || p.pago_70); });
     var pendientes = players.filter(function (p) { return !completos.includes(p) && !parciales.includes(p); });
 
-    var lines = [];
+    var lines: string[] = [];
     completos.forEach(function (p) {
       lines.push('\u2705 ' + p.username + ' \u2014 PAGADO 120 Bs \u2714');
     });

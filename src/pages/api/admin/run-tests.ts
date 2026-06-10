@@ -12,7 +12,7 @@ interface TestResult {
   description: string;
   expected: number;
   actual: number | null;
-  passed: boolean;
+  passed?: boolean;
   note?: string;
 }
 

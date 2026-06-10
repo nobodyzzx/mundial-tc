@@ -156,7 +156,7 @@ const { pozo, completos } = resumenPozo((pagosData ?? []).map(p => p.monto_pagad
 
 </Layout>
 
-<script define:vars={{ BETA_OFFSET_MS }}>
+<script is:inline define:vars={{ BETA_OFFSET_MS }}>
   (function tick() {
     var target = new Date('2026-06-11T18:00:00Z').getTime();
     function update() {

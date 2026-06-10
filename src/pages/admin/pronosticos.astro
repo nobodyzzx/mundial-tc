@@ -79,7 +79,7 @@ const shareData = jornadaOrder.map((jornada) => ({
   })),
 }));
 
-function predLabel(pred: any, m: any): string {
+function predLabel(pred: any): string {
   if (!pred) return '—';
   const s = `${pred.user_home}–${pred.user_away}`;
   if (pred.user_home_pen !== null && pred.user_away_pen !== null)
@@ -202,7 +202,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                           <div class="flex items-center gap-1.5 min-w-[120px]">
                             <span class="text-xs text-slate-500 truncate max-w-[70px]">{pl.username}</span>
                             <span class={`text-xs font-mono ${predClass(pred, m)}`}>
-                              {predLabel(pred, m)}
+                              {predLabel(pred)}
                             </span>
                             {m.is_finished && pred && (
                               <span class={`text-[10px] font-bold ${pred.points_earned > 0 ? 'text-gol' : 'text-slate-600'}`}>
@@ -246,7 +246,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   </div>
 </Layout>
 
-<script type="application/json" id="pronosticos-data" set:html={JSON.stringify(shareData)} />
+<script is:inline type="application/json" id="pronosticos-data" set:html={JSON.stringify(shareData)} />
 
 <script>
   async function waShare(text: string) {
@@ -303,7 +303,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     return line;
   }
 
-  function playerLine(pl: Player, m: MatchData, hf: string, af: string): string {
+  function playerLine(pl: Player, m: MatchData): string {
     if (pl.uh === null || pl.ua === null) return `\u2796 ${pl.name}`;
     let predStr = `${pl.uh}\u2013${pl.ua}`;
     // Pen solo si pronosticó empate
@@ -333,7 +333,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 
     let text = matchHeader(m, hf, af, j.jornada) + '\n\n';
     const sorted = m.finished ? [...m.players].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0)) : m.players;
-    for (const pl of sorted) text += playerLine(pl, m, hf, af) + '\n';
+    for (const pl of sorted) text += playerLine(pl, m) + '\n';
     if (m.finished) {
       const total = sorted.reduce((s, p) => s + (p.pts ?? 0), 0);
       if (total > 0) text += `\n_Total: ${total}pts_`;
@@ -361,13 +361,13 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
         }
         text += header + '\n';
         for (const pl of m.players) {
-          text += playerLine(pl, m, hf, af) + '\n';
+          text += playerLine(pl, m) + '\n';
           if (pl.uh !== null) playerTotals[pl.name] = (playerTotals[pl.name] ?? 0) + (pl.pts ?? 0);
         }
       } else {
         text += `*${m.home} ${hf} vs ${af} ${m.away}*\n`;
         for (const pl of m.players) {
-          text += playerLine(pl, m, hf, af) + '\n';
+          text += playerLine(pl, m) + '\n';
         }
       }
       text += '\n';

@@ -1,7 +1,6 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { betaNow } from '@/lib/betaTime';
 import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -363,7 +362,7 @@ function formatDate(d: string) {
                   return (
                     <form method="POST" action="/api/admin/undo-sanction" class="inline">
                       <input type="hidden" name="sanctionId" value={s.id} />
-                      <button type="submit" onclick="return confirm('¿Anular esta sanción?')"
+                      <button type="submit" onclick={"return confirm('¿Anular esta sanción?')"}
                         class={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition ${cls}`}>
                         {icon} {label} ×
                       </button>
@@ -407,7 +406,7 @@ function formatDate(d: string) {
                     <input type="hidden" name="userId" value={p.id} />
                     <input type="hidden" name="type" value="double_red" />
                     <input type="hidden" name="reason" value="Doble roja — expulsión definitiva" />
-                    <button type="submit" onclick="return confirm('¿Expulsión definitiva?')"
+                    <button type="submit" onclick={"return confirm('¿Expulsión definitiva?')"}
                       class="text-xs px-2.5 py-1.5 rounded-lg border bg-fifared-dark/20 border-fifared-dark/50 text-red-300 active:bg-fifared-dark/40 min-h-[36px]">
                       🟥🟥 2ª Roja
                     </button>
@@ -542,7 +541,7 @@ function formatDate(d: string) {
               Después del reset: cambiá <code class="bg-brand-800 px-1 rounded">PUBLIC_BETA=false</code> en <code class="bg-brand-800 px-1 rounded">.env</code> y redesplegá la app.
             </p>
             <form method="POST" action="/api/admin/launch-official"
-              onsubmit="return confirm('¿Confirmas el lanzamiento oficial? Se borrarán TODOS los pronósticos y puntos. Esta acción no se puede deshacer.')">
+              onsubmit={"return confirm('¿Confirmas el lanzamiento oficial? Se borrarán TODOS los pronósticos y puntos. Esta acción no se puede deshacer.')"}>
               <button type="submit"
                 class="bg-fifared/20 hover:bg-fifared/30 border border-fifared/50 text-red-300 text-sm font-bold px-5 py-2.5 rounded-xl transition min-h-[44px] w-full">
                 🚀 Lanzar versión oficial y resetear todo
