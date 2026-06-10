@@ -1,6 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { fmtFecha } from '@/lib/fechas';
 
 const accessToken  = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -31,8 +32,8 @@ const jornadaMap = new Map<string, { pts: number; partidos: number; label: strin
 for (const p of (predHistory ?? []) as any[]) {
   const m = p.match;
   if (!m?.is_finished) continue;
-  const dayKey = new Date(m.match_date).toLocaleDateString('es-BO', {
-    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
+  const dayKey = fmtFecha(m.match_date, {
+    weekday: 'long', day: 'numeric', month: 'long',
   });
   const label = m.stage === 'group'
     ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada ?? dayKey)

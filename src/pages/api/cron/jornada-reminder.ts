@@ -14,6 +14,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { spanishName, teamFlag } from '@/lib/isoFlags';
 import { boliviaDayStart, JORNADA_CLOSE_MS } from '@/lib/jornada';
 import { betaNowMs } from '@/lib/betaTime';
+import { fmtFecha, fmtDiaKey } from '@/lib/fechas';
 
 // Cuánto antes del cierre se considera "hora de recordar".
 // Con cron-job.org corriendo cada 30–60 min, esta ventana garantiza que al
@@ -48,8 +49,8 @@ async function timingSafeEqual(a: string, b: string): Promise<boolean> {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleString('es-BO', {
-    hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz', hour12: false,
+  return fmtFecha(iso, {
+    hour: '2-digit', minute: '2-digit',
   });
 }
 
@@ -63,7 +64,7 @@ function humanRemaining(ms: number): string {
 
 // Clave única de jornada: fecha Bolivia (YYYY-MM-DD) del primer partido del día.
 function boliviaDateKey(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-CA', { timeZone: 'America/La_Paz' });
+  return fmtDiaKey(ms);
 }
 
 export const GET: APIRoute = async ({ url, request }) => {

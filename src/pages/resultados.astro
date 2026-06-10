@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { teamFlag, isoForTeam, spanishName } from '@/lib/isoFlags';
+import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -176,7 +177,7 @@ function predStyle(pred: any, m: any): string {
                   <span class="text-xs text-slate-500 uppercase tracking-wide">{matchLabel(m)}</span>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-slate-600">
-                      {new Date(m.match_date).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/La_Paz', hour12: false })}
+                      {fmtFecha(m.match_date, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </span>
                     <button
                       onclick={`shareMatch(${ji}, ${mi})`}

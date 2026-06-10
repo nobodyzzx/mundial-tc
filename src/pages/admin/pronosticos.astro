@@ -3,6 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
+import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -172,7 +173,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0 text-xs flex-wrap justify-end">
                       <span class="text-slate-600">
-                        {new Date(m.match_date).toLocaleString('es-BO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/La_Paz', hour12:false })}
+                        {fmtFecha(m.match_date, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
                       </span>
                       {m.is_finished
                         ? <span class="text-gol bg-gol/10 border border-gol/20 px-2 py-0.5 rounded-full">✓ Terminado</span>

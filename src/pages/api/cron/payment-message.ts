@@ -8,6 +8,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
 import { estadoPago, aportePozo, CUOTA_REFERI_BS, APORTE_POZO_MAX_BS, PAGO_COMPLETO_BS } from '@/lib/payments';
+import { fmtFecha } from '@/lib/fechas';
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -64,11 +65,9 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   function fmtIso(iso: string) {
     if (!iso) return '';
-    return new Date(iso).toLocaleString('es-BO', {
+    return fmtFecha(iso, {
       weekday: 'short', day: 'numeric', month: 'short',
       hour: '2-digit', minute: '2-digit',
-      timeZone: 'America/La_Paz',
-    hour12: false
     });
   }
 

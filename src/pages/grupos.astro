@@ -3,6 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { flagUrl } from '@/lib/flags';
 import { spanishName } from '@/lib/isoFlags';
+import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -73,25 +74,19 @@ const groups = [...groupMap.entries()]
   });
 
 function fmtDate(d: string) {
-  return new Date(d).toLocaleString('es-BO', {
+  return fmtFecha(d, {
     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/La_Paz',
-    hour12: false
   });
 }
 function fmtDateShort(d: string) {
-  return new Date(d).toLocaleString('es-BO', {
+  return fmtFecha(d, {
     weekday: 'short', day: '2-digit', month: 'short',
     hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/La_Paz',
-    hour12: false
   });
 }
 function fmtTime(d: string) {
-  return new Date(d).toLocaleString('es-BO', {
+  return fmtFecha(d, {
     hour: '2-digit', minute: '2-digit',
-    hour12: false,
-    timeZone: 'America/La_Paz',
   });
 }
 
@@ -354,7 +349,7 @@ function isPending(name: string | null): boolean {
                           );
                         })()}
                         <p class="text-xs text-slate-600">
-                          {new Date(m.match_date).toLocaleDateString('es-BO', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/La_Paz' })}
+                          {fmtFecha(m.match_date, { weekday: 'short', day: 'numeric', month: 'short' })}
                         </p>
                       </div>
                     ) : (

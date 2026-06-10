@@ -4,6 +4,7 @@ import { betaNowMs } from '@/lib/betaTime';
 import { supabase } from '@/lib/supabase';
 import { spanishName } from '@/lib/isoFlags';
 import { boliviaDayStart, isCutoffPassed } from '@/lib/jornada';
+import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -90,17 +91,13 @@ if (import.meta.env.PUBLIC_BETA !== "true" && !(navProfile?.pago_70 && navProfil
 
 const error = Astro.url.searchParams.get('error');
 
-const matchDate = new Date(match.match_date).toLocaleString('es-BO', {
+const matchDate = fmtFecha(match.match_date, {
   weekday: 'long', day: 'numeric', month: 'long',
   hour: '2-digit', minute: '2-digit',
-  timeZone: 'America/La_Paz',
-    hour12: false
 });
 
-const cutoffDate = new Date(firstMatchTime - 2 * 3600 * 1000).toLocaleString('es-BO', {
+const cutoffDate = fmtFecha(firstMatchTime - 2 * 3600 * 1000, {
   hour: '2-digit', minute: '2-digit',
-  timeZone: 'America/La_Paz',
-    hour12: false
 });
 ---
 

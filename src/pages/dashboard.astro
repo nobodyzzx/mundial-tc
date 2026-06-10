@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { resumenPozo, estadoPago, APORTE_POZO_MAX_BS, PAGO_COMPLETO_BS } from '@/lib/payments';
+import { fmtFecha } from '@/lib/fechas';
 
 // Auth guard
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -70,11 +71,9 @@ const expired50 = pagosDeadline50 ? parseDeadline(pagosDeadline50) < now : false
 const pagosExpired = expired70 && expired50;
 
 function fmtDeadline(iso: string) {
-  return parseDeadline(iso).toLocaleString('es-BO', {
+  return fmtFecha(parseDeadline(iso), {
     weekday: 'short', day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
-    timeZone: 'America/La_Paz',
-    hour12: false
   });
 }
 
@@ -89,8 +88,8 @@ for (const s of sanctions ?? []) {
 
 // Datos para calcular estados de bloqueo (igual que predictions/index.astro)
 function toBoliviaDay(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('es-BO', {
-    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/La_Paz',
+  return fmtFecha(dateStr, {
+    weekday: 'long', day: 'numeric', month: 'long',
   });
 }
 
@@ -184,9 +183,8 @@ type StandingRow = {
 };
 
 const rows: StandingRow[] = standings ?? [];
-const today = betaNow().toLocaleDateString('es-BO', {
+const today = fmtFecha(betaNow(), {
   weekday: 'long', day: 'numeric', month: 'long',
-  timeZone: 'America/La_Paz',
 });
 
 // navProfile viene de su propia query — independiente del filtro participa
@@ -710,10 +708,8 @@ function accentLine(i: number, isMe: boolean) {
                 </div>
                 <div class="flex items-center justify-between">
                   <div class="text-xs text-slate-600">
-                    {new Date(m.match_date).toLocaleString('es-BO', {
+                    {fmtFecha(m.match_date, {
                       hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short',
-                      timeZone: 'America/La_Paz',
-    hour12: false
                     })}
                   </div>
                   {isOpen && hasPredicted && (
@@ -758,6 +754,7 @@ function accentLine(i: number, isMe: boolean) {
 </Layout>
 
 <script>
+import { fmtFecha } from '@/lib/fechas';
 // Se re-ejecuta en cada navegación (ClientRouter), no solo en la carga inicial,
 // para que los botones de compartir queden enganchados también tras un swap SPA.
 function waShareInit() {
@@ -815,11 +812,9 @@ function waShareInit() {
     var meta    = JSON.parse(document.getElementById('standings-meta').textContent);
     function fmtIso(iso) {
       if (!iso) return '';
-      return new Date(iso).toLocaleString('es-BO', {
+      return fmtFecha(iso, {
         weekday: 'short', day: 'numeric', month: 'short',
         hour: '2-digit', minute: '2-digit',
-        timeZone: 'America/La_Paz',
-    hour12: false
       });
     }
 
