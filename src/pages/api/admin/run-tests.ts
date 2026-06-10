@@ -30,42 +30,48 @@ export const POST: APIRoute = async ({ cookies }) => {
   }
 
   const p = (i: number) => players[i % players.length];
-  const now = new Date();
-  const ago = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+
+  // La regla "jornada incompleta" agrupa por DÍA de juego Bolivia (frontera 03:00
+  // BOT). Para aislar cada test, cada uno va en SU PROPIO día, a una hora fija
+  // (15:00 BOT = 19:00 UTC) lejos de la frontera. Se usan días de ENERO 2020 (sin
+  // partidos reales del Mundial 2026) para que no choquen aunque la suite corra
+  // durante el torneo.
+  const diaBOT = (dayOffset: number, hourBOT = 15): string =>
+    new Date(Date.UTC(2020, 0, dayOffset, hourBOT + 4, 0, 0)).toISOString(); // BOT = UTC-4
 
   // ── Definición de partidos de prueba ─────────────────────
   //
-  //  Cada partido tiene su propia jornada (TEST_XX) para aislar las reglas
-  //  salvo T15 (jornada incompleta) que comparte TEST_15, y T16 (sanción)
-  //  que usa una fecha reciente para que el window de sanción incluya "ahora".
+  //  Cada partido va en su propio DÍA de juego para aislar las reglas, salvo
+  //  T15a/T15b (jornada incompleta) que comparten día, y T16 (sanción) que usa
+  //  una fecha reciente para que el window de sanción incluya "ahora".
   //
   const matchDefs = [
-    // id        stage       hs  as  hp     ap     wp       jornada    hoursAgo
-    ['T01', 'group',    2,  1,  null,  null,  null,  'TEST_01', 48],
-    ['T02', 'group',    2,  1,  null,  null,  null,  'TEST_02', 48],
-    ['T03', 'group',    2,  1,  null,  null,  null,  'TEST_03', 48],
-    ['T04', 'group',    1,  1,  null,  null,  null,  'TEST_04', 48],
-    ['T05', 'group',    1,  1,  null,  null,  null,  'TEST_05', 48],
-    ['T06', 'group',    1,  1,  null,  null,  null,  'TEST_06', 48],
-    ['T07', 'knockout', 2,  1,  null,  null,  null,  'TEST_07', 48],
-    ['T08', 'knockout', 2,  1,  null,  null,  null,  'TEST_08', 48],
-    ['T09', 'knockout', 2,  1,  null,  null,  null,  'TEST_09', 48],
-    ['T10', 'knockout', 1,  1,  5,     3,    'home', 'TEST_10', 48],
-    ['T11', 'knockout', 1,  1,  5,     3,    'home', 'TEST_11', 48],
-    ['T12', 'knockout', 1,  1,  5,     3,    'home', 'TEST_12', 48],
-    ['T13', 'knockout', 1,  1,  5,     3,    'home', 'TEST_13', 48],
-    ['T14', 'knockout', 1,  1,  5,     3,    'home', 'TEST_14', 48],
-    // Jornada incompleta: 2 partidos en TEST_15
-    ['T15a', 'group',   2,  0,  null,  null,  null,  'TEST_15', 48],
-    ['T15b', 'group',   1,  1,  null,  null,  null,  'TEST_15', 47.5],
-    // Sanción: match reciente (window incluye ahora)
-    ['T16', 'group',    2,  1,  null,  null,  null,  'TEST_16', 1],
+    // id        stage       hs  as  hp     ap     wp       jornada    match_date (día propio)
+    ['T01', 'group',    2,  1,  null,  null,  null,  'TEST_01', diaBOT(2)],
+    ['T02', 'group',    2,  1,  null,  null,  null,  'TEST_02', diaBOT(3)],
+    ['T03', 'group',    2,  1,  null,  null,  null,  'TEST_03', diaBOT(4)],
+    ['T04', 'group',    1,  1,  null,  null,  null,  'TEST_04', diaBOT(5)],
+    ['T05', 'group',    1,  1,  null,  null,  null,  'TEST_05', diaBOT(6)],
+    ['T06', 'group',    1,  1,  null,  null,  null,  'TEST_06', diaBOT(7)],
+    ['T07', 'knockout', 2,  1,  null,  null,  null,  'TEST_07', diaBOT(8)],
+    ['T08', 'knockout', 2,  1,  null,  null,  null,  'TEST_08', diaBOT(9)],
+    ['T09', 'knockout', 2,  1,  null,  null,  null,  'TEST_09', diaBOT(10)],
+    ['T10', 'knockout', 1,  1,  5,     3,    'home', 'TEST_10', diaBOT(11)],
+    ['T11', 'knockout', 1,  1,  5,     3,    'home', 'TEST_11', diaBOT(12)],
+    ['T12', 'knockout', 1,  1,  5,     3,    'home', 'TEST_12', diaBOT(13)],
+    ['T13', 'knockout', 1,  1,  5,     3,    'home', 'TEST_13', diaBOT(14)],
+    ['T14', 'knockout', 1,  1,  5,     3,    'home', 'TEST_14', diaBOT(15)],
+    // Jornada incompleta: 2 partidos en el MISMO día (16 días atrás)
+    ['T15a', 'group',   2,  0,  null,  null,  null,  'TEST_15', diaBOT(16, 15)],
+    ['T15b', 'group',   1,  1,  null,  null,  null,  'TEST_15', diaBOT(16, 18)],
+    // Sanción: en su propio día (la sanción de prueba se crea dentro de su ventana)
+    ['T16', 'group',    2,  1,  null,  null,  null,  'TEST_16', diaBOT(17)],
   ] as const;
 
-  const matchRows = matchDefs.map(([label, stage, hs, as_, hp, ap, wp, jornada, h]) => ({
+  const matchRows = matchDefs.map(([label, stage, hs, as_, hp, ap, wp, jornada, fecha]) => ({
     home_team:        `Local_${label}`,
     away_team:        `Visit_${label}`,
-    match_date:       ago(h),
+    match_date:       fecha,
     stage,
     group_name:       stage === 'group' ? 'T' : null,
     round:            stage === 'knockout' ? 'TEST' : null,
@@ -150,12 +156,15 @@ export const POST: APIRoute = async ({ cookies }) => {
   }
 
   // ── Tarjeta roja para T16 ────────────────────────────────
+  // created_at dentro de la ventana del día de T16 (1h después del partido) para
+  // que la regla de roja-por-día la capture, independiente de cuándo corra el test.
   const { error: sanctErr } = await supabaseAdmin.from('sanctions').insert({
     user_id:    p(3).id,
     type:       'red',
     reason:     'TEST_T16: sanción de prueba',
     active:     true,
     created_by: admin.user.id,
+    created_at: diaBOT(17, 16),
   });
   if (sanctErr) {
     await cleanup(mid);
