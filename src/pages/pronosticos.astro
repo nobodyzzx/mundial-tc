@@ -1,0 +1,251 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { betaNowMs } from '@/lib/betaTime';
+import { boliviaDayStart } from '@/lib/jornada';
+import { spanishName } from '@/lib/isoFlags';
+import { fmtFecha } from '@/lib/fechas';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+if (!accessToken || !refreshToken) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
+
+// La revelación abre 1h55m antes del primer partido del día (5 min después del
+// cierre de apuestas, que es 2h antes). Para entonces nadie puede ya enviar.
+const REVEAL_BEFORE_MS = 115 * 60 * 1000; // 1h 55m
+
+const nowMs = betaNowMs();
+
+// Datos vía service-role (SSR): los pronósticos NO se mandan al navegador hasta
+// que el día esté revelado. La compuerta se aplica acá, en el servidor.
+const [
+  { data: rawMatches },
+  { data: rawPlayers },
+] = await Promise.all([
+  supabaseAdmin.from('matches')
+    .select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, stage, group_name, round, match_date, is_finished')
+    .not('home_team', 'ilike', 'TBD%').not('away_team', 'ilike', 'TBD%')
+    .not('home_team', 'ilike', 'Winner%').not('away_team', 'ilike', 'Winner%')
+    .order('match_date', { ascending: true }),
+  supabaseAdmin.from('profiles').select('id, username').eq('participa', true).eq('expulsado', false).order('username', { ascending: true }),
+]);
+
+const allMatches = rawMatches ?? [];
+const players    = rawPlayers ?? [];
+
+// Agrupar por día de juego Bolivia (frontera 03:00 BOT)
+type DayGroup = {
+  key: string;            // dayStart ISO
+  label: string;          // "jueves, 11 de junio"
+  matches: any[];
+  firstMatchMs: number;
+  revealAtMs: number;
+  revealed: boolean;
+};
+
+const dayMap = new Map<string, DayGroup>();
+for (const m of allMatches) {
+  const dayStart = boliviaDayStart(new Date(m.match_date).getTime());
+  const key = dayStart.toISOString();
+  if (!dayMap.has(key)) {
+    dayMap.set(key, {
+      key,
+      label: fmtFecha(dayStart, { weekday: 'long', day: 'numeric', month: 'long' }),
+      matches: [],
+      firstMatchMs: Infinity,
+      revealAtMs: 0,
+      revealed: false,
+    });
+  }
+  const g = dayMap.get(key)!;
+  g.matches.push(m);
+  g.firstMatchMs = Math.min(g.firstMatchMs, new Date(m.match_date).getTime());
+}
+for (const g of dayMap.values()) {
+  g.revealAtMs = g.firstMatchMs - REVEAL_BEFORE_MS;
+  g.revealed = nowMs >= g.revealAtMs;
+}
+
+const allDays = [...dayMap.values()];
+const revealedDays = allDays.filter(d => d.revealed).sort((a, b) => b.firstMatchMs - a.firstMatchMs); // más reciente primero
+const upcomingDays = allDays.filter(d => !d.revealed).sort((a, b) => a.firstMatchMs - b.firstMatchMs);
+const nextDay = upcomingDays[0] ?? null; // solo el próximo por revelar (teaser)
+
+// Predicciones solo de los días revelados — nada del futuro llega al cliente
+const revealedMatchIds = revealedDays.flatMap(d => d.matches.map((m: any) => m.id));
+const rawPreds = revealedMatchIds.length
+  ? (await supabaseAdmin.from('predictions')
+      .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, points_earned')
+      .in('match_id', revealedMatchIds)
+    ).data ?? []
+  : [];
+
+const predMap: Record<string, Record<string, any>> = {};
+for (const p of rawPreds) {
+  if (!predMap[p.match_id]) predMap[p.match_id] = {};
+  predMap[p.match_id][p.user_id] = p;
+}
+
+function predLabel(pred: any): string {
+  if (!pred) return '—';
+  const s = `${pred.user_home}–${pred.user_away}`;
+  if (pred.user_home_pen !== null && pred.user_away_pen !== null)
+    return `${s} (${pred.user_home_pen}–${pred.user_away_pen})`;
+  return s;
+}
+
+function predClass(pred: any, m: any): string {
+  if (!pred) return 'text-slate-700';
+  if (!m.is_finished) return 'text-slate-300';
+  if (pred.points_earned === null) return 'text-slate-500';
+  if (pred.user_home === m.home_score && pred.user_away === m.away_score) return 'text-gold font-bold';
+  const pr = pred.user_home > pred.user_away ? 'H' : pred.user_home < pred.user_away ? 'A' : 'E';
+  const mr = m.home_score  > m.away_score   ? 'H' : m.home_score  < m.away_score   ? 'A' : 'E';
+  if (pr === mr) return 'text-gol';
+  return 'text-slate-500';
+}
+
+function timeLabel(ms: number): string {
+  return fmtFecha(ms, { hour: '2-digit', minute: '2-digit' });
+}
+function dayTimeLabel(ms: number): string {
+  return fmtFecha(ms, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+---
+
+<Layout title="Pronósticos de todos" navProfile={navProfile} isAuthed={true}>
+  <div class="space-y-6">
+
+    <div>
+      <h1 class="font-display text-4xl text-white tracking-wide">PRONÓSTICOS DE TODOS</h1>
+      <p class="text-slate-500 text-sm mt-1">
+        Se revelan <strong class="text-slate-400">1h 55m antes</strong> del primer partido de cada día — cuando las apuestas ya están cerradas.
+      </p>
+    </div>
+
+    {/* ── Próximo día por revelar (teaser bloqueado) ── */}
+    {nextDay && (
+      <div class="rounded-2xl border border-brand-700/60 bg-brand-900 px-5 py-4 flex items-center gap-4">
+        <span class="text-3xl flex-shrink-0">🔒</span>
+        <div class="min-w-0">
+          <h2 class="font-display text-lg text-white tracking-wide capitalize">{nextDay.label}</h2>
+          <p class="text-xs text-slate-500 mt-0.5">
+            {nextDay.matches.length} partido{nextDay.matches.length !== 1 ? 's' : ''} · se revela el <span class="text-gold">{dayTimeLabel(nextDay.revealAtMs)}</span>
+          </p>
+        </div>
+      </div>
+    )}
+
+    {revealedDays.length === 0 && !nextDay && (
+      <div class="text-center py-20 text-slate-600">
+        <div class="text-5xl mb-4">📋</div>
+        <p>No hay partidos cargados aún.</p>
+      </div>
+    )}
+
+    {revealedDays.length === 0 && nextDay && (
+      <div class="text-center py-12 text-slate-600 text-sm">
+        Todavía no se ha revelado ningún día. Vuelve cuando se acerque el primer partido.
+      </div>
+    )}
+
+    {/* ── Días revelados (más reciente primero) ── */}
+    {revealedDays.map((day) => {
+      const allFinished = day.matches.every((m: any) => m.is_finished);
+      const anyFinished = day.matches.some((m: any) => m.is_finished);
+      return (
+        <details open={!allFinished} class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
+          <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none select-none">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="font-display text-lg text-white tracking-wide capitalize truncate">{day.label}</span>
+              <span class={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${allFinished ? 'border-brand-600 text-slate-500' : anyFinished ? 'border-gold/40 text-gold' : 'border-gol/40 text-gol'}`}>
+                {allFinished ? 'Terminada' : anyFinished ? 'En curso' : 'Revelada'}
+              </span>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xs text-slate-600">{day.matches.length} partido{day.matches.length !== 1 ? 's' : ''}</span>
+              <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </summary>
+
+          <div class="border-t border-brand-800">
+            {day.matches.map((m: any) => {
+              const preds     = predMap[m.id] ?? {};
+              const submitted = players.filter((pl: any) => preds[pl.id]);
+              const missing   = players.filter((pl: any) => !preds[pl.id]);
+              return (
+                <div class="border-b border-brand-800/60 last:border-b-0">
+                  <div class="px-5 py-3 bg-brand-800/40 flex items-center gap-3 flex-wrap">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                      <span class="text-sm font-semibold text-white truncate">{spanishName(m.home_team)}</span>
+                      <span class="text-brand-600 font-display text-sm flex-shrink-0">
+                        {m.is_finished ? `${m.home_score}–${m.away_score}` : 'vs'}
+                      </span>
+                      <span class="text-sm font-semibold text-white truncate">{spanishName(m.away_team)}</span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0 text-xs flex-wrap justify-end">
+                      <span class="text-slate-600">{timeLabel(new Date(m.match_date).getTime())}</span>
+                      {m.is_finished
+                        ? <span class="text-gol bg-gol/10 border border-gol/20 px-2 py-0.5 rounded-full">✓ Terminado</span>
+                        : <span class="text-gold bg-gold/10 border border-gold/20 px-2 py-0.5 rounded-full">🔒 Cerrado</span>
+                      }
+                      <span class="text-slate-500">{submitted.length}/{players.length}</span>
+                    </div>
+                  </div>
+
+                  <div class="px-5 py-3">
+                    <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {players.map((pl: any) => {
+                        const pred = preds[pl.id];
+                        return (
+                          <div class="flex items-center gap-1.5 min-w-[120px]">
+                            <span class="text-xs text-slate-500 truncate max-w-[80px]">{pl.username}</span>
+                            <span class={`text-xs font-mono ${predClass(pred, m)}`}>{predLabel(pred)}</span>
+                            {m.is_finished && pred && pred.points_earned !== null && (
+                              <span class={`text-[10px] font-bold ${pred.points_earned > 0 ? 'text-gol' : 'text-slate-600'}`}>
+                                {pred.points_earned}p
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {missing.length > 0 && (
+                      <div class="mt-2 flex flex-wrap gap-1.5 items-start">
+                        <span class="text-[11px] text-fifared/60 mt-0.5">Sin pronóstico:</span>
+                        <div class="flex flex-wrap gap-1">
+                          {missing.map((pl: any) => (
+                            <span class="text-[11px] text-fifared/60 bg-fifared/5 border border-fifared/20 px-1.5 py-0.5 rounded">{pl.username}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      );
+    })}
+
+    {revealedDays.length > 0 && (
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600 pb-4">
+        <div class="flex items-center gap-1.5"><span class="text-gold font-bold font-mono">2–1</span><span>Exacto</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-gol font-mono">1–0</span><span>Resultado correcto</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-slate-500 font-mono">0–2</span><span>Incorrecto</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-slate-300 font-mono">1–1</span><span>Pendiente</span></div>
+        <div class="flex items-center gap-1.5"><span class="text-slate-700 font-mono">—</span><span>Sin pronóstico</span></div>
+      </div>
+    )}
+
+  </div>
+</Layout>
