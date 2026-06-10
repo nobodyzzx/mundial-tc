@@ -491,22 +491,36 @@ let globalFormIdx = 0;
 </Layout>
 
 <script>
+  async function copyText(text: string): Promise<boolean> {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fallback */ }
+    // Fallback síncrono (Firefox / permiso denegado): textarea + execCommand durante el click
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      const ok = (document as any).execCommand('copy'); // fallback legacy (Firefox)
+      ta.remove();
+      return ok;
+    } catch { return false; }
+  }
+
   async function waShare(text: string) {
-    // 1. Web Share API nativo (mobile Chrome/Safari — más confiable)
-    if (navigator.share) {
-      try { await navigator.share({ text }); return; } catch (e) {
-        if ((e as Error).name === 'AbortError') return; // usuario canceló
-      }
-    }
-    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
-    // 2. Mobile sin Web Share API: abrir wa.me
+    // Mobile: compartir nativo (app WhatsApp) o wa.me directo
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      window.open(waUrl, '_blank'); return;
+      if (navigator.share) {
+        try { await navigator.share({ text }); return; } catch (e) {
+          if ((e as Error).name === 'AbortError') return; // usuario canceló
+        }
+      }
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+      return;
     }
-    // 3. Desktop: intentar clipboard; si falla, abrir wa.me web
-    let copied = false;
-    try { await navigator.clipboard.writeText(text); copied = true; } catch { /**/ }
-    if (!copied) { window.open(waUrl, '_blank'); return; }
+    // Desktop: SIEMPRE copiar. Nunca abrir WhatsApp web (mangla emojis y salen rombos).
+    const copied = await copyText(text);
+    if (!copied) return;
     const el = document.createElement('div');
     el.textContent = '\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V';
     el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';

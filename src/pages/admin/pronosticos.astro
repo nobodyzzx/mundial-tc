@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
+import { boliviaDayStart } from '@/lib/jornada';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
 import { fmtFecha } from '@/lib/fechas';
 
@@ -49,11 +50,17 @@ for (const m of allMatches) {
   jornadaMatches[k].push(m);
 }
 
+// Día de juego Bolivia (frontera 03:00 BOT) — para agrupar y compartir por día
+const dayKeyOf   = (d: string) => boliviaDayStart(new Date(d).getTime()).toISOString();
+const dayLabelOf = (d: string) => fmtFecha(boliviaDayStart(new Date(d).getTime()), { weekday: 'short', day: 'numeric', month: 'short' });
+
 // Datos para compartir via WhatsApp
 const shareData = jornadaOrder.map((jornada) => ({
   jornada,
   matches: jornadaMatches[jornada].map((m: any) => ({
     id: m.id,
+    dayKey: dayKeyOf(m.match_date),
+    dayLabel: dayLabelOf(m.match_date),
     home: spanishName(m.home_team),
     away: spanishName(m.away_team),
     homeISO: isoForTeam(m.home_team),
@@ -142,9 +149,10 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
             <div class="flex items-center gap-2">
               <span class="text-xs text-slate-600">{matches.length} partido{matches.length !== 1 ? 's' : ''}</span>
               <button
-                onclick={`event.preventDefault();event.stopPropagation();shareJornada(${ji})`}
+                data-share-jornada
+                data-ji={ji}
                 class="flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full text-xs font-medium"
-                title="Compartir jornada en WhatsApp"
+                title="Copiar la jornada completa para WhatsApp"
               >
                 <Fragment set:html={WA_ICON} /> Jornada
               </button>
@@ -160,7 +168,25 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
               const submitted = players.filter((pl: any) => preds[pl.id]);
               const missing   = players.filter((pl: any) => !preds[pl.id]);
               const isClosed  = new Date(m.match_date).getTime() - 7200000 < betaNowMs();
+              const dk      = dayKeyOf(m.match_date);
+              const showDay = mi === 0 || dayKeyOf(matches[mi - 1].match_date) !== dk;
               return (
+                <Fragment>
+                {showDay && (
+                  <div class="flex items-center gap-3 px-5 py-2 bg-brand-950/40 border-b border-brand-800/60">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap capitalize">{dayLabelOf(m.match_date)}</span>
+                    <div class="flex-1 h-px bg-brand-700/40"></div>
+                    <button
+                      data-share-day
+                      data-ji={ji}
+                      data-day={dk}
+                      class="flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full text-xs font-medium flex-shrink-0"
+                      title="Copiar solo este día para WhatsApp"
+                    >
+                      <Fragment set:html={WA_ICON} /> Día
+                    </button>
+                  </div>
+                )}
                 <div class="border-b border-brand-800/60 last:border-b-0">
                   {/* Cabecera del partido */}
                   <div class="px-5 py-3 bg-brand-800/40 flex items-center gap-3 flex-wrap">
@@ -184,9 +210,11 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                       <span class="text-slate-500">{submitted.length}/{players.length}</span>
                       {/* Botón WA por partido */}
                       <button
-                        onclick={`shareMatch(${ji}, ${mi})`}
+                        data-share-match
+                        data-ji={ji}
+                        data-mi={mi}
                         class="flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full font-medium"
-                        title="Compartir en WhatsApp"
+                        title="Copiar este partido para WhatsApp"
                       >
                         <Fragment set:html={WA_ICON} /> WA
                       </button>
@@ -226,6 +254,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                     )}
                   </div>
                 </div>
+                </Fragment>
               );
             })}
           </div>
@@ -249,27 +278,44 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 <script is:inline type="application/json" id="pronosticos-data" set:html={JSON.stringify(shareData)} />
 
 <script>
-  async function waShare(text: string) {
-    // 1. Web Share API nativo (mobile Chrome/Safari — más confiable)
-    if (navigator.share) {
-      try { await navigator.share({ text }); return; } catch (e) {
-        if ((e as Error).name === 'AbortError') return; // usuario canceló
-      }
-    }
-    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
-    // 2. Mobile sin Web Share API: abrir wa.me
-    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      window.open(waUrl, '_blank'); return;
-    }
-    // 3. Desktop: intentar clipboard; si falla, abrir wa.me web
-    let copied = false;
-    try { await navigator.clipboard.writeText(text); copied = true; } catch { /**/ }
-    if (!copied) { window.open(waUrl, '_blank'); return; }
+  function showToast(msg: string) {
     const el = document.createElement('div');
-    el.textContent = '\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V';
-    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap;text-align:center;max-width:90vw';
     document.body.appendChild(el);
     setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
+  }
+
+  async function copyText(text: string): Promise<boolean> {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fallback */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      const ok = (document as any).execCommand('copy'); // fallback legacy (Firefox)
+      ta.remove();
+      return ok;
+    } catch { return false; }
+  }
+
+  async function waShare(text: string) {
+    // Mobile: compartir nativo (app WhatsApp) o wa.me directo
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      if (navigator.share) {
+        try { await navigator.share({ text }); return; } catch (e) {
+          if ((e as Error).name === 'AbortError') return; // usuario canceló
+        }
+      }
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+      return;
+    }
+    // Desktop: SIEMPRE copiar. Nunca abrir WhatsApp web (mangla emojis y salen rombos).
+    const copied = await copyText(text);
+    if (!copied) { showToast('⚠️ No se pudo copiar al portapapeles'); return; }
+    showToast('\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V');
   }
 
   function flagFromISO(iso: string): string {
@@ -280,7 +326,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   }
 
   type Player = { name: string; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; uwp: string|null; pts: number|null };
-  type MatchData = { id: string; home: string; away: string; homeISO: string; awayISO: string; hs: number|null; as_: number|null; homePen: number|null; awayPen: number|null; winnerPen: string|null; finished: boolean; players: Player[] };
+  type MatchData = { id: string; dayKey: string; dayLabel: string; home: string; away: string; homeISO: string; awayISO: string; hs: number|null; as_: number|null; homePen: number|null; awayPen: number|null; winnerPen: string|null; finished: boolean; players: Player[] };
   type JornadaData = { jornada: string; matches: MatchData[] };
 
   function getData(): JornadaData[] {
@@ -385,6 +431,67 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     waShare(text);
   }
 
-  (window as any).shareMatch   = shareMatch;
-  (window as any).shareJornada = shareJornada;
+  function shareDay(ji: number, dayKey: string) {
+    const j = getData()[ji];
+    if (!j) return;
+    const matches = j.matches.filter(m => m.dayKey === dayKey);
+    if (!matches.length) return;
+    const title = (matches[0].dayLabel || 'Día').toUpperCase();
+
+    let text = `⚽ *POLLA 2026 · ${title}*\n\n`;
+    const playerTotals: Record<string, number> = {};
+    for (const m of matches) {
+      const hf = flagFromISO(m.homeISO);
+      const af = flagFromISO(m.awayISO);
+      if (m.finished && m.hs !== null) {
+        let header = `*${m.home} ${hf} ${m.hs}–${m.as_} ${af} ${m.away}*`;
+        if (m.winnerPen) {
+          const winner   = m.winnerPen === 'home' ? m.home : m.away;
+          const penScore = m.homePen !== null ? `${m.homePen}–${m.awayPen} pen` : 'pen';
+          header += `\n_(${penScore} · clasifica ${winner})_`;
+        }
+        text += header + '\n';
+        for (const pl of m.players) {
+          text += playerLine(pl, m) + '\n';
+          if (pl.uh !== null) playerTotals[pl.name] = (playerTotals[pl.name] ?? 0) + (pl.pts ?? 0);
+        }
+      } else {
+        text += `*${m.home} ${hf} vs ${af} ${m.away}*\n`;
+        for (const pl of m.players) text += playerLine(pl, m) + '\n';
+      }
+      text += '\n';
+    }
+    const sorted = Object.entries(playerTotals).sort(([, a], [, b]) => b - a);
+    if (sorted.length) {
+      text += `📊 *Puntos ${title}:*\n`;
+      sorted.forEach(([name, pts], i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+        text += `${medal} ${name} → ${pts}pts\n`;
+      });
+    }
+    waShare(text);
+  }
+
+  // Cableado robusto: addEventListener + data-* (no depende del global `event`,
+  // que no existe en Firefox → por eso el botón Jornada fallaba en PC).
+  function initShareButtons() {
+    document.querySelectorAll<HTMLButtonElement>('[data-share-jornada]').forEach(btn => {
+      if (btn.dataset.shareInit) return;
+      btn.dataset.shareInit = '1';
+      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareJornada(Number(btn.dataset.ji)); });
+    });
+    document.querySelectorAll<HTMLButtonElement>('[data-share-day]').forEach(btn => {
+      if (btn.dataset.shareInit) return;
+      btn.dataset.shareInit = '1';
+      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareDay(Number(btn.dataset.ji), btn.dataset.day ?? ''); });
+    });
+    document.querySelectorAll<HTMLButtonElement>('[data-share-match]').forEach(btn => {
+      if (btn.dataset.shareInit) return;
+      btn.dataset.shareInit = '1';
+      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareMatch(Number(btn.dataset.ji), Number(btn.dataset.mi)); });
+    });
+  }
+
+  initShareButtons();
+  document.addEventListener('astro:page-load', initShareButtons);
 </script>
