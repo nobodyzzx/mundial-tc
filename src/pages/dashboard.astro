@@ -1,10 +1,9 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabase';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
-import { resumenPozo, estadoPago, APORTE_POZO_MAX_BS, PAGO_COMPLETO_BS } from '@/lib/payments';
+import { resumenPozo } from '@/lib/payments';
 import { fmtFecha } from '@/lib/fechas';
 
 // Auth guard
@@ -35,47 +34,18 @@ const [
   { data: proximosPartidosRaw },
   { data: myProfile },
   { data: recentFinished },
-  { data: settingsRows },
   { data: startedMatchData },
 ] = await Promise.all([
-  supabase.from('profiles').select('id, username, puntos_totales, pago_70, pago_50, es_referi, participa, monto_pagado').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
+  supabase.from('profiles').select('id, username, puntos_totales, es_referi, participa, monto_pagado').eq('expulsado', false).eq('participa', true).order('puntos_totales', { ascending: false }),
   supabase.from('sanctions').select('user_id, type').eq('active', true),
   supabase.from('matches').select('*').eq('is_finished', false).gte('match_date', ahora).order('match_date', { ascending: true }).limit(6),
-  supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50').eq('id', user.id).single(),
+  supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single(),
   supabase.from('matches').select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, match_date, jornada, stage').eq('is_finished', true).order('match_date', { ascending: false }).limit(20),
-  supabaseAdmin.from('settings').select('key, value'),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', ahora),
 ]);
 
 // Un partido en curso (IN_PLAY/PAUSED) no es "próximo": lo excluimos de la lista.
 const proximosPartidos = (proximosPartidosRaw ?? []).filter((m: any) => !['IN_PLAY', 'PAUSED'].includes(m.status));
-
-// El torneo ya empezó si algún partido tiene fecha pasada (≤ ahora). A partir de
-// ahí solo juegan los que pagaron completo, así que las columnas de pago sobran.
-const torneoEmpezado = (startedMatchData ?? []).length > 0;
-
-const sMap = new Map((settingsRows ?? []).map((r: any) => [r.key, r.value as string | null]));
-const pagosDeadline70: string = sMap.get('pagos_deadline_70') ?? '';
-const pagosDeadline50: string = sMap.get('pagos_deadline_50') ?? '';
-
-// Parsea deadline con backward compat: sin TZ → era Bolivia, con TZ → OK
-function parseDeadline(iso: string): Date {
-  const withTz = /Z|[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + '-04:00';
-  return new Date(withTz);
-}
-
-// El botón se deshabilita cuando ambos plazos hayan vencido
-const now = betaNow();
-const expired70 = pagosDeadline70 ? parseDeadline(pagosDeadline70) < now : false;
-const expired50 = pagosDeadline50 ? parseDeadline(pagosDeadline50) < now : false;
-const pagosExpired = expired70 && expired50;
-
-function fmtDeadline(iso: string) {
-  return fmtFecha(parseDeadline(iso), {
-    weekday: 'short', day: 'numeric', month: 'short',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
 
 // Mapa userId → { yellows, reds }
 const sanctionMap = new Map<string, { yellows: number; reds: number }>();
@@ -160,24 +130,10 @@ function teamLabel(name: string): string {
   return isoForTeam(name) ? spanishName(name) : 'Por definir';
 }
 
-function tiempoRestante(matchDate: string): string {
-  const diff = new Date(matchDate).getTime() - betaNowMs();
-  if (diff <= 0) return 'En curso';
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return `${Math.floor(diff / 60000)} min`;
-  if (h < 24) return `${h}h ${Math.floor((diff % 3600000) / 60000)}m`;
-  const d = Math.floor(h / 24);
-  const rh = h % 24;
-  return rh > 0 ? `${d}d ${rh}h` : `${d}d`;
-}
-
-
 type StandingRow = {
   id: string;
   username: string;
   puntos_totales: number;
-  pago_70: boolean;
-  pago_50: boolean;
   es_referi: boolean;
   monto_pagado: number;
 };
@@ -190,15 +146,9 @@ const today = fmtFecha(betaNow(), {
 // navProfile viene de su propia query — independiente del filtro participa
 const navProfile = myProfile ?? null;
 
-// Stats para tarjetas — pozo/réferi derivados de monto_pagado (lib/payments)
+// Premio/réferi derivados de monto_pagado (lib/payments) — todos pagaron
 const leaderPoints = rows[0]?.puntos_totales ?? 0;
-const {
-  pozo: pozoActual,
-  referi: montoReferi,
-  completos: countPago50,
-  participantes: countPago70,
-} = resumenPozo(rows.map(r => r.monto_pagado));
-const pozoTotal = countPago70 * APORTE_POZO_MAX_BS;
+const { pozo: pozoActual, referi: montoReferi } = resumenPozo(rows.map(r => r.monto_pagado));
 const myRank = rows.findIndex(r => r.id === user.id) + 1; // 0 si no participa
 const nextMatch = (proximosPartidos ?? [])[0] ?? null;
 
@@ -262,50 +212,59 @@ function accentLine(i: number, isMe: boolean) {
               </svg>
               Tabla
             </button>
-            <!-- Compartir pagos -->
-            <button id="btn-share-pagos"
-              disabled={pagosExpired}
-              class="flex items-center gap-2 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-sm font-semibold px-4 py-2.5 rounded-xl transition active:bg-[#25D366]/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 flex-shrink-0">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.859L.057 23.428a.5.5 0 0 0 .609.61l5.699-1.451A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-4.964-1.347l-.356-.211-3.683.938.974-3.562-.232-.367A9.818 9.818 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/>
-              </svg>
-              {pagosExpired ? 'Pagos 🔒' : 'Pagos 💰'}
-            </button>
           </div>
         </div>
       )}
     </div>
-    {!torneoEmpezado && (pagosDeadline70 || pagosDeadline50) && (
-      <div class="relative rounded-2xl overflow-hidden">
-        {!pagosExpired && <div class="absolute inset-0 bg-linear-to-r from-gold/10 via-gold/25 to-gold/10 animate-deadline-shimmer bg-size-[200%_100%]"></div>}
-        <div class={`relative flex flex-wrap gap-x-6 gap-y-2 items-center px-4 py-3 rounded-2xl border ${pagosExpired ? 'border-fifared/40 bg-fifared/5' : 'border-gold/40'}`}>
-          <span class={`text-xs font-bold tracking-widest uppercase ${pagosExpired ? 'text-fifared' : 'text-gold animate-pulse-slow'}`}>
-            💰 Fechas de pago
-          </span>
-          <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-            {pagosDeadline70 && (
-              <span class={expired70 ? 'text-fifared font-semibold' : 'text-slate-200'}>
-                <span class="text-slate-400 text-sm mr-1">70 Bs →</span>
-                <strong>{fmtDeadline(pagosDeadline70)}</strong>
-                {expired70 && <span class="ml-1">🔒</span>}
-              </span>
-            )}
-            {pagosDeadline50 && (
-              <span class={expired50 ? 'text-fifared font-semibold' : 'text-slate-200'}>
-                <span class="text-slate-400 text-sm mr-1">50 Bs →</span>
-                <strong>{fmtDeadline(pagosDeadline50)}</strong>
-                {expired50 && <span class="ml-1">🔒</span>}
-              </span>
-            )}
-          </div>
+    {/* ── MIS PRÓXIMOS PARTIDOS — acceso rápido a pronosticar ── */}
+    {proximosPartidos && proximosPartidos.length > 0 && (
+      <section class="rounded-2xl border border-gold/40 bg-gradient-to-br from-brand-900 to-brand-800/40 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-brand-700/50">
+          <h2 class="font-display text-xl text-white tracking-wide">⚽ MIS PRÓXIMOS PARTIDOS</h2>
+          {nextMatch && <span class="text-xs text-gold font-semibold flex-shrink-0">⏱ {countdownLabel(nextMatch.match_date)}</span>}
         </div>
-      </div>
+        <div class="divide-y divide-brand-800/60">
+          {proximosPartidos.map((m: any) => {
+            const lockState = getMatchLockState(m);
+            const isOpen = lockState === 'open';
+            const hasPredicted = predictedSet.has(m.id);
+            const row = (
+              <div class="flex items-center gap-3 px-4 py-3">
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-semibold text-white truncate">
+                    {teamLabel(m.home_team)} <span class="text-slate-600 font-normal">vs</span> {teamLabel(m.away_team)}
+                  </div>
+                  <div class="text-xs text-slate-500 mt-0.5">
+                    {fmtFecha(m.match_date, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+                <span class={`text-xs font-semibold flex-shrink-0 ${
+                  hasPredicted               ? 'text-gol' :
+                  isOpen                     ? 'text-gold' :
+                  lockState === 'closed'     ? 'text-fifared' :
+                  'text-slate-500'
+                }`}>
+                  {hasPredicted               ? '✓ Pronosticado' :
+                   isOpen                     ? 'Pronosticar →' :
+                   lockState === 'closed'     ? '🔒 Cerrada' :
+                   lockState === 'ongoingLock'? '⏳ En curso' :
+                   '⏳ Espera'}
+                </span>
+              </div>
+            );
+            return isOpen && !hasPredicted
+              ? <a href={`/predictions/${m.id}`} class="block transition active:bg-brand-800/50">{row}</a>
+              : row;
+          })}
+        </div>
+        <a href="/predictions" class="block text-center text-sm font-bold py-3.5 bg-gold text-brand-950 transition active:opacity-80">
+          Ir a mis pronósticos →
+        </a>
+      </section>
     )}
 
     <script is:inline type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
-    <script is:inline type="application/json" id="standings-meta" set:html={JSON.stringify({ today, pozoTotal, pozoActual, montoReferi, pagosDeadline70, pagosDeadline50 })}></script>
-    <script is:inline type="application/json" id="pagos-data" set:html={JSON.stringify(rows.map(p => ({ username: p.username ?? '?', pago_70: p.pago_70 ?? false, pago_50: p.pago_50 ?? false, monto_pagado: p.monto_pagado ?? 0 })))}></script>
+    <script is:inline type="application/json" id="standings-meta" set:html={JSON.stringify({ pozoActual, montoReferi })}></script>
 
     <!-- STATS CARDS -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -318,16 +277,8 @@ function accentLine(i: number, isMe: boolean) {
         <span class="relative font-display text-3xl text-white leading-none">{rows.length}</span>
       </div>
 
-      <!-- Pago completo (pre-torneo) / Mi posición · Réferi (torneo) -->
-      {!torneoEmpezado ? (
-        <div class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1">
-          <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
-          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-          <span class="relative text-xs text-white/70 uppercase tracking-wide">Pago completo</span>
-          <span class="relative text-2xl">✅</span>
-          <span class="relative font-display text-3xl text-white leading-none">{countPago50}<span class="text-white/40 text-base font-sans"> / {rows.length}</span></span>
-        </div>
-      ) : navProfile?.es_referi ? (
+      <!-- Mi posición · Réferi -->
+      {navProfile?.es_referi ? (
         <a href="/admin" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
           <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800"></div>
           <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/80 to-teal-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -370,104 +321,34 @@ function accentLine(i: number, isMe: boolean) {
           </span>
         </div>
       )}
-      <!-- Pagar QR (pre-torneo) / Resultados (torneo) -->
-      {torneoEmpezado ? (
-        <a href="/resultados" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
-          <div class="absolute inset-0 bg-gradient-to-br from-sky-600 to-blue-800"></div>
-          <div class="absolute inset-0 bg-gradient-to-br from-sky-500/80 to-blue-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-          <span class="relative text-xs text-white/70 uppercase tracking-wide">Resultados</span>
-          <span class="relative text-2xl">📋</span>
-          <span class="relative font-display text-3xl text-white leading-none">Ver →</span>
-        </a>
-      ) : (
-        <a href="/pago" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
-          <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C] to-[#0066B3]"></div>
-          <div class="absolute inset-0 bg-gradient-to-br from-[#E91E8C]/80 to-[#0066B3]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          <div class="absolute inset-0 bg-[url('/qr-bancofie.png')] bg-center bg-cover opacity-5"></div>
-          <span class="relative text-xs text-white/70 uppercase tracking-wide">Pagar QR</span>
-          <span class="relative text-2xl">📲</span>
-          <span class="relative font-display text-3xl text-white leading-none">Banco Fie</span>
-        </a>
-      )}
+      <!-- Resultados -->
+      <a href="/resultados" class="relative overflow-hidden rounded-2xl px-4 py-3 flex flex-col gap-1 group transition active:scale-95">
+        <div class="absolute inset-0 bg-gradient-to-br from-sky-600 to-blue-800"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-sky-500/80 to-blue-700/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div class="absolute -top-4 -right-4 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
+        <span class="relative text-xs text-white/70 uppercase tracking-wide">Resultados</span>
+        <span class="relative text-2xl">📋</span>
+        <span class="relative font-display text-3xl text-white leading-none">Ver →</span>
+      </a>
     </div>
 
-    <!-- POZO / PREMIO -->
-    {torneoEmpezado ? (
-      <div class="relative overflow-hidden rounded-2xl px-5 py-4">
-        <div class="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-800"></div>
-        <div class="absolute -top-6 -right-6 w-28 h-28 bg-white/10 rounded-full blur-2xl"></div>
-        <div class="absolute -bottom-4 -left-4 w-20 h-20 bg-black/10 rounded-full blur-xl"></div>
-
-        <div class="relative flex items-center gap-4">
-          <div class="flex-1 space-y-3">
-            <div class="space-y-1">
-              <span class="text-xs text-white/70 uppercase tracking-wide">🏆 Premio al ganador</span>
-              <div class="flex items-end gap-2">
-                <span class="font-display text-5xl text-white leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]">{pozoActual}</span>
-                <span class="text-white/70 text-lg mb-1 font-semibold">Bs</span>
-              </div>
-            </div>
-            <p class="text-sm text-white/85 italic leading-snug max-w-md">
-              El campeón ostentará el título durante 4 años y tendrá derecho ilimitado a fanfarronear. 🏆😏
-            </p>
+    <!-- PREMIO AL GANADOR (compacto) -->
+    <div class="relative overflow-hidden rounded-2xl px-5 py-4">
+      <div class="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-800"></div>
+      <div class="absolute -top-6 -right-6 w-28 h-28 bg-white/10 rounded-full blur-2xl"></div>
+      <div class="absolute -bottom-4 -left-4 w-20 h-20 bg-black/10 rounded-full blur-xl"></div>
+      <div class="relative flex items-center gap-4">
+        <span class="text-5xl drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)] select-none flex-shrink-0">🏆</span>
+        <div class="flex-1 min-w-0">
+          <span class="text-xs text-white/70 uppercase tracking-wide">Premio al ganador</span>
+          <div class="flex items-baseline gap-x-2 gap-y-0 flex-wrap">
+            <span class="font-display text-4xl text-white leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]">{pozoActual} Bs</span>
+            <span class="text-xs text-white/70">· ⚖️ Réferi {montoReferi} Bs</span>
           </div>
-          <div class="hidden sm:flex items-center justify-center flex-shrink-0 pr-2 pl-4">
-            <span class="text-7xl lg:text-8xl drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)] opacity-90 select-none">🏆</span>
-          </div>
-        </div>
-
-        <div class="relative border-t border-white/20 pt-2.5 mt-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-          <span class="text-white/60">⚖️ Réferi</span>
-          <strong class="text-white/90">{montoReferi} Bs</strong>
-          <span class="text-white/40">·</span>
-          <span class="text-white/65 italic">Las decisiones del réferi no se votan ni están sujetas a discusión.</span>
+          <p class="text-xs text-white/80 italic mt-1.5 leading-snug">El campeón ostentará el título 4 años y derecho ilimitado a fanfarronear. 😏</p>
         </div>
       </div>
-    ) : (() => {
-      const soloPrimero = countPago70 - countPago50;
-      const maxPozo = rows.length * 100;
-      const pct = maxPozo > 0 ? Math.round(pozoActual / maxPozo * 100) : 0;
-      return (
-        <div class="relative overflow-hidden rounded-2xl px-5 py-4 space-y-3">
-          <div class="absolute inset-0 bg-gradient-to-br from-yellow-600 to-amber-800"></div>
-          <div class="absolute -top-6 -right-6 w-28 h-28 bg-white/10 rounded-full blur-2xl"></div>
-          <div class="absolute -bottom-4 -left-4 w-20 h-20 bg-black/10 rounded-full blur-xl"></div>
-          <!-- Header -->
-          <div class="relative flex items-center justify-between">
-            <span class="text-xs text-white/70 uppercase tracking-wide">💰 Pozo actual</span>
-            <span class="text-xs text-white/50">{countPago50} completo · {soloPrimero} parcial · {rows.length - countPago70} sin pago</span>
-          </div>
-          <!-- Monto -->
-          <div class="relative flex items-end gap-3">
-            <span class="font-display text-4xl text-white leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]">{pozoActual}</span>
-            <span class="text-white/60 text-sm mb-1">Bs de <strong class="text-white/90">{maxPozo} Bs</strong></span>
-          </div>
-          <!-- Barra -->
-          <div class="relative space-y-1">
-            <div class="w-full bg-black/20 rounded-full h-2.5 overflow-hidden">
-              <div class="h-2.5 rounded-full bg-white/80 transition-all duration-700" style={`width: ${pct}%`}></div>
-            </div>
-            <div class="text-right text-xs text-white/50">{pct}%</div>
-          </div>
-          <!-- Footer -->
-          <div class="relative grid grid-cols-3 text-xs border-t border-white/20 pt-2 gap-2">
-            <div class="flex flex-col gap-0.5">
-              <span class="text-white/50">🏆 Premio máx.</span>
-              <strong class="text-white/90">{maxPozo} Bs</strong>
-            </div>
-            <div class="flex flex-col gap-0.5 items-center">
-              <span class="text-white/50">⚖️ Réferi</span>
-              <strong class="text-white/80">{montoReferi} Bs</strong>
-            </div>
-            <div class="flex flex-col gap-0.5 items-end">
-              <span class="text-white/50">📉 Falta</span>
-              <strong class="text-white/80">{maxPozo - pozoActual} Bs</strong>
-            </div>
-          </div>
-        </div>
-      );
-    })()}
+    </div>
 
     <!-- STANDINGS — mobile cards / desktop table -->
     <div>
@@ -500,18 +381,11 @@ function accentLine(i: number, isMe: boolean) {
                     </span>
                   ) : null; })()}
                 </div>
-                <div class="flex items-center gap-2 mt-0.5 flex-wrap">
-                  {!torneoEmpezado && (() => {
-                    const m = p.monto_pagado ?? 0;
-                    const est = estadoPago(m);
-                    if (est === 'completo') return <span class="text-gol text-sm">✅ PAGADO {PAGO_COMPLETO_BS} Bs</span>;
-                    if (est === 'parcial')  return <span class="text-amber-400 text-sm">⏳ {m} Bs · faltan {PAGO_COMPLETO_BS - m} Bs</span>;
-                    return <span class="text-roja text-sm">❌ sin pago</span>;
-                  })()}
-                  {gap > 0 && (
+                {gap > 0 && (
+                  <div class="flex items-center gap-2 mt-0.5">
                     <span class="text-xs text-slate-600">−{gap} pts</span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
               <div class="text-right flex-shrink-0">
                 <span class={`font-display text-3xl tabular-nums ${pointColor(i, isMe)}`}>
@@ -538,12 +412,6 @@ function accentLine(i: number, isMe: boolean) {
               <th class="px-4 py-3 text-left">Jugador</th>
               <th class="px-4 py-3 text-right">Puntos</th>
               <th class="px-4 py-3 text-center hidden md:table-cell">Diferencia</th>
-              {!torneoEmpezado && (
-                <>
-                  <th class="px-4 py-3 text-center">Dep. mín 70 Bs</th>
-                  <th class="px-4 py-3 text-center">Falta</th>
-                </>
-              )}
             </tr>
           </thead>
           <tbody>
@@ -587,28 +455,6 @@ function accentLine(i: number, isMe: boolean) {
                         : <span class="text-gold text-xs">líder</span>
                     }
                   </td>
-                  {!torneoEmpezado && (
-                    <>
-                      <td class="px-4 py-3 text-center">
-                        {(() => {
-                          const m = p.monto_pagado ?? 0;
-                          const est = estadoPago(m);
-                          if (est === 'completo') return <span class="text-gol text-sm">PAGADO {PAGO_COMPLETO_BS} Bs</span>;
-                          if (est === 'parcial')  return <span class="text-amber-400 text-sm">{m} Bs</span>;
-                          return <span class="text-slate-600 text-sm">—</span>;
-                        })()}
-                      </td>
-                      <td class="px-4 py-3 text-center">
-                        {(() => {
-                          const m = p.monto_pagado ?? 0;
-                          const est = estadoPago(m);
-                          if (est === 'completo') return <span class="text-gol text-sm">✓</span>;
-                          if (est === 'parcial')  return <span class="text-slate-400 text-sm">{PAGO_COMPLETO_BS - m} Bs</span>;
-                          return <span class="text-slate-600 text-sm">{PAGO_COMPLETO_BS} Bs</span>;
-                        })()}
-                      </td>
-                    </>
-                  )}
                 </tr>
               );
             })}
@@ -664,101 +510,12 @@ function accentLine(i: number, isMe: boolean) {
       </div>
     )}
 
-    <!-- PRÓXIMOS PARTIDOS -->
-    {proximosPartidos && proximosPartidos.length > 0 && (
-      <div class="space-y-4">
-        <h2 class="font-display text-2xl text-white tracking-wide">PRÓXIMOS PARTIDOS</h2>
-        <div class="grid gap-3 sm:grid-cols-2">
-          {proximosPartidos.map((m: any) => {
-            const pagoIncompleto = import.meta.env.PUBLIC_BETA !== 'true' && !(navProfile?.pago_70 && navProfile?.pago_50);
-            const lockState = pagoIncompleto ? 'pago' : getMatchLockState(m);
-            const isOpen = lockState === 'open';
-            const hasPredicted = predictedSet.has(m.id);
-            return (
-              <div class={`bg-brand-900 border rounded-2xl p-4 space-y-3 transition ${
-                lockState === 'pago'        ? 'border-amber-500/30' :
-                lockState === 'closed'      ? 'border-fifared/40' :
-                lockState === 'ongoingLock' ? 'border-amber-500/30' :
-                lockState === 'prevPending' ? 'border-brand-700/40' :
-                'border-brand-700/60'
-              }`}>
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-slate-500 uppercase tracking-wide">
-                    {m.stage === 'group' ? `Grupo ${m.group_name}` : m.round}
-                    {m.jornada && m.jornada !== m.round && <span class="ml-1 text-brand-600">· {m.jornada}</span>}
-                  </span>
-                  <span class={`font-semibold ${
-                    lockState === 'pago'        ? 'text-amber-400' :
-                    lockState === 'closed'      ? 'text-fifared' :
-                    lockState === 'ongoingLock' ? 'text-amber-400' :
-                    lockState === 'prevPending' ? 'text-slate-500' :
-                    'text-gol'
-                  }`}>
-                    {lockState === 'pago'        ? '🔒 Requiere pago completo' :
-                     lockState === 'closed'      ? '🔒 Jornada cerrada' :
-                     lockState === 'ongoingLock' ? '⏳ Partido en curso' :
-                     lockState === 'prevPending' ? '⏳ Espera la jornada anterior' :
-                     `⏱ ${tiempoRestante(m.match_date)}`}
-                  </span>
-                </div>
-                <div class="flex items-center justify-between text-base font-semibold text-white">
-                  <span class="flex-1">{teamLabel(m.home_team)}</span>
-                  <span class="text-slate-600 text-xs px-2 font-normal">vs</span>
-                  <span class="flex-1 text-right">{teamLabel(m.away_team)}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="text-xs text-slate-600">
-                    {fmtFecha(m.match_date, {
-                      hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short',
-                    })}
-                  </div>
-                  {isOpen && hasPredicted && (
-                    <span class="text-xs text-gol font-medium">✓ Pronosticado</span>
-                  )}
-                  {isOpen && !hasPredicted && (
-                    <span class="text-xs text-amarilla font-medium">⚠ Sin pronóstico</span>
-                  )}
-                </div>
-                {isOpen ? (
-                  hasPredicted ? (
-                    <div class="text-center text-sm font-semibold py-3 rounded-xl border border-gol/30 bg-gol/5 text-gol min-h-[48px] flex items-center justify-center">
-                      ✓ Pronóstico enviado
-                    </div>
-                  ) : (
-                    <a href={`/predictions/${m.id}`}
-                      class="block text-center text-sm font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px] flex items-center justify-center bg-gold text-brand-950">
-                      Hacer pronóstico →
-                    </a>
-                  )
-                ) : (
-                  <div class={`text-center text-sm font-semibold py-3 rounded-xl min-h-12 flex items-center justify-center ${
-                    lockState === 'pago'        ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' :
-                    lockState === 'closed'      ? 'bg-fifared/10 text-fifared border border-fifared/30' :
-                    lockState === 'ongoingLock' ? 'bg-amber-900/20 text-amber-400 border border-amber-500/30' :
-                    'bg-brand-800/60 text-slate-600 border border-brand-700/40'
-                  }`}>
-                    {lockState === 'pago'        ? '🔒 Completá el pago para pronosticar' :
-                     lockState === 'closed'      ? '🔒 Jornada cerrada' :
-                     lockState === 'ongoingLock' ? '⏳ Esperá que termine' :
-                     '⏳ Disponible al terminar los anteriores'}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    )}
-
   </div>
 </Layout>
 
 <script>
-import { fmtFecha } from '@/lib/fechas';
-
-// Formas de los JSON embebidos en los <script type="application/json"> de arriba.
+// Forma del JSON embebido en el <script type="application/json"> de arriba.
 interface StandingShare { pos: number; username: string; pts: number; }
-interface PagoShare { username: string; pago_70: boolean; pago_50: boolean; monto_pagado: number; }
 
 // Se re-ejecuta en cada navegación (ClientRouter), no solo en la carga inicial,
 // para que los botones de compartir queden enganchados también tras un swap SPA.
@@ -808,78 +565,8 @@ function waShareInit() {
       waShare(text);
     });
   }
-
-  // ── Compartir pagos ──────────────────────────────────────
-  var btnPagos = document.getElementById('btn-share-pagos');
-  if (btnPagos) btnPagos.addEventListener('click', function () {
-    var players: PagoShare[] = JSON.parse(document.getElementById('pagos-data')!.textContent!);
-    var meta    = JSON.parse(document.getElementById('standings-meta')!.textContent!);
-    function fmtIso(iso: string) {
-      if (!iso) return '';
-      return fmtFecha(iso, {
-        weekday: 'short', day: 'numeric', month: 'short',
-        hour: '2-digit', minute: '2-digit',
-      });
-    }
-
-    var deadlines = [];
-    if (meta.pagosDeadline70) deadlines.push('_\u23F0 70 Bs: hasta ' + fmtIso(meta.pagosDeadline70) + '_');
-    if (meta.pagosDeadline50) deadlines.push('_\u23F0 50 Bs: hasta ' + fmtIso(meta.pagosDeadline50) + '_');
-
-    // Monto efectivo igual que en el servidor
-    function efectivoWA(p: PagoShare) {
-      var m = p.monto_pagado || 0;
-      if (m > 0) return m;
-      if (p.pago_50) return 120;
-      if (p.pago_70) return 70;
-      return 0;
-    }
-
-    var completos  = players.filter(function (p) { return p.monto_pagado >= 120 || p.pago_50; });
-    var parciales  = players.filter(function (p) { return !completos.includes(p) && (p.monto_pagado >= 70 || p.pago_70); });
-    var pendientes = players.filter(function (p) { return !completos.includes(p) && !parciales.includes(p); });
-
-    var lines: string[] = [];
-    completos.forEach(function (p) {
-      lines.push('\u2705 ' + p.username + ' \u2014 PAGADO 120 Bs \u2714');
-    });
-    parciales.forEach(function (p) {
-      var dep = efectivoWA(p);
-      var faltan = 120 - dep;
-      lines.push('\u23F3 ' + p.username + ' \u2014 ' + dep + ' Bs dep. \u00b7 faltan ' + faltan + ' Bs');
-    });
-    pendientes.forEach(function (p) { lines.push('\u274C ' + p.username + ' \u2014 sin pago'); });
-
-    var participantes = completos.concat(parciales);
-    var pozoWA   = participantes.reduce(function (s, p) { return s + Math.min(efectivoWA(p) - 20, 100); }, 0);
-    var referiWA = participantes.length * 20;
-    var metaTotal = participantes.length * 100;
-
-    var header = ['\uD83D\uDCB0 *ESTADO DE PAGOS*', '_Polla Mundial 2026_'].concat(deadlines);
-
-    var text = header.concat([''])
-      .concat(lines)
-      .concat(['', '\uD83D\uDCB0 Pozo: ' + pozoWA + ' Bs de ' + metaTotal + ' posibles \u2502 \u2696\uFE0F R\u00e9feri: ' + referiWA + ' Bs'])
-      .concat(['\uD83D\uDD17 mundial.tecnocondor.dev/pago'])
-      .join('\n');
-
-    waShare(text);
-  });
 }
 
 document.addEventListener('astro:page-load', waShareInit);
 </script>
 
-
-<style>
-  @keyframes deadline-shimmer {
-    0%   { background-position: 200% center; }
-    100% { background-position: -200% center; }
-  }
-  @keyframes pulse-slow {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.55; }
-  }
-  .animate-deadline-shimmer { animation: deadline-shimmer 3s linear infinite; }
-  .animate-pulse-slow       { animation: pulse-slow 2s ease-in-out infinite; }
-</style>
