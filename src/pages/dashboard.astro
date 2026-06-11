@@ -65,6 +65,14 @@ for (const s of sanctions ?? []) {
   sanctionMap.set(s.user_id, cur);
 }
 
+// Tarjetas de hoy para compartir (cualquier usuario): rojas primero. El expulsado
+// no aparece (queda fuera de standings), igual que en el resto de la app.
+const dayLabelTarjetas = fmtFecha(diaStart, { weekday: 'long', day: 'numeric', month: 'long' });
+const tarjetasShare = (standings ?? [])
+  .map((p: any) => ({ username: p.username as string, ...(sanctionMap.get(p.id) ?? { yellows: 0, reds: 0 }) }))
+  .filter((x) => x.yellows > 0 || x.reds > 0)
+  .sort((a, b) => b.reds - a.reds);
+
 // Datos para calcular estados de bloqueo (igual que predictions/index.astro)
 function toBoliviaDay(dateStr: string): string {
   return fmtFecha(dateStr, {
@@ -218,18 +226,31 @@ function accentLine(i: number, isMe: boolean) {
         <h1 class="font-display text-4xl text-white tracking-wide">TABLA DE POSICIONES</h1>
         <span class="text-sm text-slate-500 capitalize">{today}</span>
       </div>
-      {navProfile?.es_referi && (
+      {(navProfile?.es_referi || tarjetasShare.length > 0) && (
         <div class="flex flex-col gap-2 self-start sm:self-auto sm:items-end">
           <div class="flex gap-2 flex-wrap">
-            <!-- Compartir tabla -->
-            <button id="btn-share-tabla"
-              class="flex items-center gap-2 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-sm font-semibold px-4 py-2.5 rounded-xl transition active:bg-[#25D366]/20">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 flex-shrink-0">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.859L.057 23.428a.5.5 0 0 0 .609.61l5.699-1.451A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-4.964-1.347l-.356-.211-3.683.938.974-3.562-.232-.367A9.818 9.818 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/>
-              </svg>
-              Tabla
-            </button>
+            {navProfile?.es_referi && (
+              <!-- Compartir tabla (solo réferi) -->
+              <button id="btn-share-tabla"
+                class="flex items-center gap-2 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-sm font-semibold px-4 py-2.5 rounded-xl transition active:bg-[#25D366]/20">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 flex-shrink-0">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                  <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.859L.057 23.428a.5.5 0 0 0 .609.61l5.699-1.451A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-4.964-1.347l-.356-.211-3.683.938.974-3.562-.232-.367A9.818 9.818 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/>
+                </svg>
+                Tabla
+              </button>
+            )}
+            {tarjetasShare.length > 0 && (
+              <!-- Compartir tarjetas de hoy (cualquier usuario) -->
+              <button id="btn-share-tarjetas"
+                class="flex items-center gap-2 bg-fifared/10 border border-fifared/30 text-fifared text-sm font-semibold px-4 py-2.5 rounded-xl transition active:bg-fifared/20">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 flex-shrink-0">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                  <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.859L.057 23.428a.5.5 0 0 0 .609.61l5.699-1.451A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 0 1-4.964-1.347l-.356-.211-3.683.938.974-3.562-.232-.367A9.818 9.818 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/>
+                </svg>
+                🟨🟥 Tarjetas
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -283,6 +304,7 @@ function accentLine(i: number, isMe: boolean) {
 
     <script is:inline type="application/json" id="standings-data" set:html={JSON.stringify(rows.map((p, i) => ({ pos: i + 1, username: p.username ?? '?', pts: p.puntos_totales ?? 0 })))}></script>
     <script is:inline type="application/json" id="standings-meta" set:html={JSON.stringify({ pozoActual, montoReferi })}></script>
+    <script is:inline type="application/json" id="tarjetas-data" set:html={JSON.stringify({ dayLabel: dayLabelTarjetas, items: tarjetasShare })}></script>
 
 
     <!-- PREMIO AL GANADOR (compacto) -->
@@ -557,6 +579,23 @@ function waShareInit() {
         '\uD83D\uDD17 mundial.tecnocondor.dev',
       ]).join('\n');
       waShare(text);
+    });
+  }
+
+  // ── Compartir tarjetas de hoy (cualquier usuario) ────────
+  var btnTarjetas = document.getElementById('btn-share-tarjetas');
+  if (btnTarjetas) {
+    btnTarjetas.addEventListener('click', function () {
+      var data = JSON.parse(document.getElementById('tarjetas-data')!.textContent!) as { dayLabel: string; items: { username: string; yellows: number; reds: number }[] };
+      var lines = ['🟨🟥 *TARJETAS DE HOY*', '_' + data.dayLabel + '_', ''];
+      for (var i = 0; i < data.items.length; i++) {
+        var it = data.items[i];
+        if (it.reds > 0) lines.push('🟥 ' + it.username + ' — jornada anulada');
+        else lines.push('🟨'.repeat(it.yellows) + ' ' + it.username);
+      }
+      lines.push('');
+      lines.push('_Polla Mundial 2026_ 🏆');
+      waShare(lines.join('\n'));
     });
   }
 }
