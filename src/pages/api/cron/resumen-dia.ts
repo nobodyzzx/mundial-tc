@@ -101,6 +101,31 @@ export const GET: APIRoute = async ({ url, request }) => {
     dayPts.set(pr.user_id, (dayPts.get(pr.user_id) ?? 0) + (pr.points_earned ?? 0));
   }
 
+  // Tarjetas dadas durante este día Bolivia (mismo criterio que anula la jornada).
+  const { data: dayCards } = await supabaseAdmin
+    .from('sanctions')
+    .select('type, user_id, created_at')
+    .eq('active', true)
+    .gte('created_at', dayStart.toISOString())
+    .lt('created_at', dayEnd.toISOString())
+    .order('created_at', { ascending: true });
+
+  let cardNames = new Map<string, string>();
+  if (dayCards?.length) {
+    const ids = [...new Set(dayCards.map(c => c.user_id))];
+    const { data: cardProfiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, username')
+      .in('id', ids);
+    cardNames = new Map((cardProfiles ?? []).map(p => [p.id, p.username]));
+  }
+  const cardLines = (dayCards ?? []).map(c => {
+    const name = cardNames.get(c.user_id) ?? '—';
+    if (c.type === 'yellow') return `🟨 ${name}`;
+    if (c.type === 'red') return `🟥 ${name} — jornada anulada`;
+    return `🟥🟥 ${name} — expulsado`;
+  });
+
   // 6. Construir mensaje.
   const resultLines = dayMatches.map(m => {
     let s = `${spanishName(m.home_team)} ${teamFlag(m.home_team)} ${m.home_score}–${m.away_score} ${teamFlag(m.away_team)} ${spanishName(m.away_team)}`;
@@ -130,6 +155,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     '',
     '📊 *TABLA GENERAL* _(+ puntos de hoy)_',
     ...tableLines,
+    ...(cardLines.length ? ['', '🟨🟥 *Tarjetas de hoy*', ...cardLines] : []),
     '',
     '👉 mundial.tecnocondor.dev/resultados',
     '_Polla Mundial 2026_ 🏆',
