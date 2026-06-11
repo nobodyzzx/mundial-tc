@@ -90,6 +90,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     '📊 *TABLA ACTUALIZADA*',
     ...tableLines,
     '',
+    '👉 mundial.tecnocondor.dev/resultados',
     '_Polla Mundial 2026_ 🏆',
   ].join('\n');
 

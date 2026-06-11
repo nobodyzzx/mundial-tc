@@ -122,6 +122,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     if (missing.length) lines.push(`  💀 Sin pronóstico: ${missing.join(', ')}`);
     lines.push('');
   }
+  lines.push('👉 mundial.tecnocondor.dev/pronosticos');
   lines.push('_Polla Mundial 2026_ 🏆');
   const text = lines.join('\n');
 
