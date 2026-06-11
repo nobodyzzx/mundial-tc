@@ -108,6 +108,9 @@ export const GET: APIRoute = async ({ url, request }) => {
     const matchId = dbMap.get(f.id);
     if (!matchId) continue;
 
+    // La API a veces marca FINISHED sin marcador cargado aún: no escribir null.
+    if (f.score.fullTime.home === null || f.score.fullTime.away === null) continue;
+
     const { error } = await supabaseAdmin
       .from('matches')
       .update({
@@ -115,8 +118,8 @@ export const GET: APIRoute = async ({ url, request }) => {
         away_team:        f.awayTeam?.name || undefined,
         home_score:       f.score.fullTime.home,
         away_score:       f.score.fullTime.away,
-        home_pen:         f.score.penalties.home,
-        away_pen:         f.score.penalties.away,
+        home_pen:         f.score.penalties?.home ?? null,
+        away_pen:         f.score.penalties?.away ?? null,
         winner_penalties: deriveWinnerPenalties(f.score),
         is_finished:      true,
       })

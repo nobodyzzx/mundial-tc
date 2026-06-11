@@ -30,7 +30,7 @@ export interface ApiMatch {
     duration: 'REGULAR' | 'EXTRA_TIME' | 'PENALTY_SHOOTOUT';
     fullTime: { home: number | null; away: number | null };
     halfTime?: { home: number | null; away: number | null };
-    penalties: { home: number | null; away: number | null };
+    penalties?: { home: number | null; away: number | null };
   };
 }
 
@@ -86,7 +86,8 @@ export function deriveWinnerPenalties(
   score: ApiMatch['score'],
 ): 'home' | 'away' | null {
   if (score.duration !== 'PENALTY_SHOOTOUT') return null;
-  const { home, away } = score.penalties;
+  const home = score.penalties?.home ?? null;
+  const away = score.penalties?.away ?? null;
   if (home === null || away === null) return null;
   return home > away ? 'home' : 'away';
 }
