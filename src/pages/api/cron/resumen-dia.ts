@@ -114,12 +114,12 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   // Puntos ganados HOY (orden descendente por puntos del día).
   const dayRanking = (standings ?? [])
-    .map(p => ({ username: p.username, gained: dayPts.get(p.id) ?? 0 }))
+    .map(p => ({ username: p.username, gained: dayPts.get(p.id) ?? 0, total: p.puntos_totales }))
     .sort((a, b) => b.gained - a.gained);
   const topGained = dayRanking[0]?.gained ?? 0;
   const dayLines = dayRanking.map(p => {
     const star = p.gained > 0 && p.gained === topGained ? ' ⭐' : '';
-    return `  ${p.username} +${p.gained}${star}`;
+    return `  ${p.username} +${p.gained} _(total ${p.total})_${star}`;
   });
 
   // Tabla general acumulada.
