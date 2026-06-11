@@ -82,13 +82,24 @@ export const GET: APIRoute = async ({ url, request }) => {
     }
   }
 
-  // 5. Tabla de posiciones final del día.
+  // 5. Tabla general (acumulado) + puntos ganados en el día por usuario.
   const { data: standings } = await supabaseAdmin
     .from('profiles')
-    .select('username, puntos_totales')
+    .select('id, username, puntos_totales')
     .eq('participa', true)
     .eq('expulsado', false)
     .order('puntos_totales', { ascending: false });
+
+  const dayIds = dayMatches.map(m => m.id);
+  const { data: dayPreds } = await supabaseAdmin
+    .from('predictions')
+    .select('user_id, points_earned')
+    .in('match_id', dayIds);
+
+  const dayPts = new Map<string, number>();
+  for (const pr of dayPreds ?? []) {
+    dayPts.set(pr.user_id, (dayPts.get(pr.user_id) ?? 0) + (pr.points_earned ?? 0));
+  }
 
   // 6. Construir mensaje.
   const resultLines = dayMatches.map(m => {
@@ -101,6 +112,17 @@ export const GET: APIRoute = async ({ url, request }) => {
     return `  ${s}`;
   });
 
+  // Puntos ganados HOY (orden descendente por puntos del día).
+  const dayRanking = (standings ?? [])
+    .map(p => ({ username: p.username, gained: dayPts.get(p.id) ?? 0 }))
+    .sort((a, b) => b.gained - a.gained);
+  const topGained = dayRanking[0]?.gained ?? 0;
+  const dayLines = dayRanking.map(p => {
+    const star = p.gained > 0 && p.gained === topGained ? ' ⭐' : '';
+    return `  ${p.username} +${p.gained}${star}`;
+  });
+
+  // Tabla general acumulada.
   const tableLines = (standings ?? []).map((p, i) => {
     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
     return `${medal} ${p.username} — ${p.puntos_totales} pts`;
@@ -111,6 +133,9 @@ export const GET: APIRoute = async ({ url, request }) => {
     '',
     '⚽ *Resultados*',
     ...resultLines,
+    '',
+    '🔥 *Puntos de hoy*',
+    ...dayLines,
     '',
     '📊 *TABLA GENERAL*',
     ...tableLines,
