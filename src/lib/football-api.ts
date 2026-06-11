@@ -1,10 +1,27 @@
-const BASE = 'https://api.football-data.org/v4';
+/**
+ * Facade de datos de partidos. Enruta entre proveedores según MATCH_PROVIDER:
+ *   - 'football-data' (por defecto): football-data.org v4 (consulta por temporada).
+ *   - 'api-football': API-Football / api-sports.io (consulta por fecha / en vivo).
+ *
+ * Ambos devuelven ApiMatch (forma normalizada en lib/match-types). El resto de la
+ * app (sync, import-fixture, scoring) no sabe qué proveedor está activo.
+ */
+import type { ApiMatch } from './match-types';
+import * as apiFootball from './providers/api-football';
 
-async function apiFetch(path: string) {
+export type { ApiMatch };
+export const getLiveMatches = apiFootball.getLiveMatches;
+
+const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
+
+// ── Proveedor football-data.org ──────────────────────────────────
+const FD_BASE = 'https://api.football-data.org/v4';
+
+async function fdFetch(path: string) {
   const key = import.meta.env.FOOTBALL_API_KEY;
   if (!key) throw new Error('FOOTBALL_API_KEY no configurada');
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${FD_BASE}${path}`, {
     headers: { 'X-Auth-Token': key },
   });
   if (!res.ok) {
@@ -14,40 +31,28 @@ async function apiFetch(path: string) {
   return res.json();
 }
 
-// ── Tipos ────────────────────────────────────────────────────────
-export interface ApiMatch {
-  id: number;
-  utcDate: string;
-  status: 'SCHEDULED' | 'TIMED' | 'IN_PLAY' | 'PAUSED' | 'FINISHED' | 'AWARDED' | 'CANCELLED' | 'SUSPENDED' | 'POSTPONED';
-  stage: string;   // GROUP_STAGE, LAST_32, LAST_16, QUARTER_FINALS, SEMI_FINALS, THIRD_PLACE, FINAL
-  group: string | null;    // GROUP_A … GROUP_L | null
-  matchday: number | null;
-  minute?: number | null;   // solo presente en partidos LIVE
-  homeTeam: { name: string };
-  awayTeam: { name: string };
-  score: {
-    winner: 'HOME_TEAM' | 'AWAY_TEAM' | 'DRAW' | null;
-    duration: 'REGULAR' | 'EXTRA_TIME' | 'PENALTY_SHOOTOUT';
-    fullTime: { home: number | null; away: number | null };
-    halfTime?: { home: number | null; away: number | null };
-    penalties?: { home: number | null; away: number | null };
-  };
+async function fdGetFixtures(code: string, season: number): Promise<ApiMatch[]> {
+  const data = await fdFetch(`/competitions/${code}/matches?season=${season}`);
+  return data.matches ?? [];
 }
 
-// ── Queries ──────────────────────────────────────────────────────
-export async function getFixtures(code: string, season: number): Promise<ApiMatch[]> {
-  const data = await apiFetch(`/competitions/${code}/matches?season=${season}`);
+async function fdGetFinishedMatches(code: string, season: number): Promise<ApiMatch[]> {
+  const data = await fdFetch(`/competitions/${code}/matches?season=${season}&status=FINISHED`);
   return data.matches ?? [];
+}
+
+// ── API pública (enruta por proveedor) ───────────────────────────
+export async function getFixtures(code: string, season: number): Promise<ApiMatch[]> {
+  if (PROVIDER === 'api-football') return apiFootball.getFixtures();
+  return fdGetFixtures(code, season);
 }
 
 export async function getFinishedMatches(code: string, season: number): Promise<ApiMatch[]> {
-  const data = await apiFetch(`/competitions/${code}/matches?season=${season}&status=FINISHED`);
-  return data.matches ?? [];
+  if (PROVIDER === 'api-football') return apiFootball.getFinishedMatches();
+  return fdGetFinishedMatches(code, season);
 }
 
-// IN_PLAY (jugando) + PAUSED (medio tiempo). Es 1 sola llamada — la API acepta
-// múltiples valores separados por coma.
-// ── Mapeo al esquema de la app ───────────────────────────────────
+// ── Mapeo al esquema de la app (común a ambos proveedores) ────────
 // Stages que se tratan como "fase de grupos" (antes del cuadro eliminatorio)
 const GROUP_STAGES = new Set(['GROUP_STAGE', 'LEAGUE_STAGE', 'LEAGUE_PHASE']);
 
