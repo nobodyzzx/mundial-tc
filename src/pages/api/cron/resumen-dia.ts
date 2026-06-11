@@ -112,20 +112,13 @@ export const GET: APIRoute = async ({ url, request }) => {
     return `  ${s}`;
   });
 
-  // Puntos ganados HOY (orden descendente por puntos del día).
-  const dayRanking = (standings ?? [])
-    .map(p => ({ username: p.username, gained: dayPts.get(p.id) ?? 0, total: p.puntos_totales }))
-    .sort((a, b) => b.gained - a.gained);
-  const topGained = dayRanking[0]?.gained ?? 0;
-  const dayLines = dayRanking.map(p => {
-    const star = p.gained > 0 && p.gained === topGained ? ' ⭐' : '';
-    return `  ${p.username} +${p.gained} _(total ${p.total})_${star}`;
-  });
-
-  // Tabla general acumulada.
+  // Tabla general (acumulado) con los puntos ganados HOY al lado.
+  const topGained = Math.max(0, ...(standings ?? []).map(p => dayPts.get(p.id) ?? 0));
   const tableLines = (standings ?? []).map((p, i) => {
     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-    return `${medal} ${p.username} — ${p.puntos_totales} pts`;
+    const gained = dayPts.get(p.id) ?? 0;
+    const star = gained > 0 && gained === topGained ? ' ⭐' : '';
+    return `${medal} ${p.username} — ${p.puntos_totales} pts _(+${gained} hoy)_${star}`;
   });
 
   const text = [
@@ -134,10 +127,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     '⚽ *Resultados*',
     ...resultLines,
     '',
-    '🔥 *Puntos de hoy*',
-    ...dayLines,
-    '',
-    '📊 *TABLA GENERAL*',
+    '📊 *TABLA GENERAL* _(+ puntos de hoy)_',
     ...tableLines,
     '',
     '_Polla Mundial 2026_ 🏆',
