@@ -239,10 +239,10 @@ function formatDate(d: string) {
           <button id="toggle-manual"
             class="w-full flex items-center justify-between border-b border-brand-800 pb-2 group">
             <h2 class="font-display text-2xl text-white tracking-wide">📊 CARGA MANUAL</h2>
-            <span id="toggle-manual-icon" class="text-slate-500 text-sm transition">▼ mostrar</span>
+            <span id="toggle-manual-icon" class="text-slate-500 text-sm transition">▲ ocultar</span>
           </button>
-          <p class="text-xs text-slate-600 -mt-2">Respaldo por si la API falla. Normalmente usar 🔄 Sync Scores.</p>
-          <div id="manual-section" class="hidden space-y-4">
+          <p class="text-xs text-slate-600 -mt-2">Ingresa el marcador a mano. La API del plan gratuito no trae el marcador del Mundial, así que este es el camino fiable.</p>
+          <div id="manual-section" class="space-y-4">
 
             {(!matches || matches.length === 0) && (
               <p class="text-slate-600 text-sm">No hay partidos pendientes de resultado.</p>
