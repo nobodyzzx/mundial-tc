@@ -115,7 +115,11 @@ export const GET: APIRoute = async ({ url, request }) => {
         return s;
       })
       .filter(Boolean) as string[];
-    lines.push(picks.length ? `  ${picks.join(' · ')}` : '  _(sin pronósticos)_');
+    lines.push(picks.length ? `  ${picks.join(' · ')}` : '  _(nadie pronosticó)_');
+    const missing = (participants ?? [])
+      .filter(p => !predMap.has(`${m.id}:${p.id}`))
+      .map(p => p.username);
+    if (missing.length) lines.push(`  💀 Sin pronóstico: ${missing.join(', ')}`);
     lines.push('');
   }
   lines.push('_Polla Mundial 2026_ 🏆');
