@@ -113,18 +113,12 @@ export const GET: APIRoute = async ({ url, request }) => {
   });
 
   // Tabla general (acumulado) con los puntos ganados HOY al lado.
-  const gainedAll = (standings ?? []).map(p => dayPts.get(p.id) ?? 0);
-  const topGained = Math.max(0, ...gainedAll);
-  const bottomGained = Math.min(...(gainedAll.length ? gainedAll : [0]));
+  const topGained = Math.max(0, ...(standings ?? []).map(p => dayPts.get(p.id) ?? 0));
   const tableLines = (standings ?? []).map((p, i) => {
     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
     const gained = dayPts.get(p.id) ?? 0;
-    // ⭐ al que más ganó hoy, 💀 al que menos (solo si hay diferencia entre ambos).
-    let mark = '';
-    if (topGained > bottomGained) {
-      if (gained === topGained) mark = ' ⭐';
-      else if (gained === bottomGained) mark = ' 💀';
-    }
+    // ⭐ al que más ganó hoy (si ganó algo); 💀 a quien no sumó nada.
+    const mark = gained === 0 ? ' 💀' : gained === topGained ? ' ⭐' : '';
     return `${medal} ${p.username} — ${p.puntos_totales} pts _(+${gained} hoy)_${mark}`;
   });
 
