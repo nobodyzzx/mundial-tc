@@ -95,6 +95,16 @@ export const GET: APIRoute = async ({ url, request }) => {
   const predMap = new Map<string, any>();
   for (const pr of preds ?? []) predMap.set(`${pr.match_id}:${pr.user_id}`, pr);
 
+  // Sancionados (roja del día Bolivia): su jornada está anulada, se marcan aparte.
+  const { data: dayCards } = await supabaseAdmin
+    .from('sanctions')
+    .select('user_id')
+    .in('type', ['red', 'double_red'])
+    .eq('active', true)
+    .gte('created_at', dayStart.toISOString())
+    .lt('created_at', dayEnd.toISOString());
+  const sanctionedIds = new Set((dayCards ?? []).map(c => c.user_id));
+
   // 6. Construir mensaje.
   const lines: string[] = [
     `📊 *PRONÓSTICOS DE HOY · ${dayLabel}*`,
@@ -104,6 +114,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   for (const m of dayMatches) {
     lines.push(`⚽ *${spanishName(m.home_team)} ${teamFlag(m.home_team)} vs ${teamFlag(m.away_team)} ${spanishName(m.away_team)}* · ${fmtTime(m.match_date)}`);
     const picks = (participants ?? [])
+      .filter(p => !sanctionedIds.has(p.id))
       .map(p => {
         const pr = predMap.get(`${m.id}:${p.id}`);
         if (!pr) return null;
@@ -117,9 +128,16 @@ export const GET: APIRoute = async ({ url, request }) => {
       .filter(Boolean) as string[];
     lines.push(picks.length ? `  ${picks.join(' · ')}` : '  _(nadie pronosticó)_');
     const missing = (participants ?? [])
-      .filter(p => !predMap.has(`${m.id}:${p.id}`))
+      .filter(p => !sanctionedIds.has(p.id) && !predMap.has(`${m.id}:${p.id}`))
       .map(p => p.username);
     if (missing.length) lines.push(`  💀 Sin pronóstico: ${missing.join(', ')}`);
+    lines.push('');
+  }
+  const sanctionedNames = (participants ?? [])
+    .filter(p => sanctionedIds.has(p.id))
+    .map(p => p.username);
+  if (sanctionedNames.length) {
+    lines.push(`🟥 *Jornada anulada (roja):* ${sanctionedNames.join(', ')}`);
     lines.push('');
   }
   lines.push('👉 mundial.tecnocondor.dev/pronosticos');

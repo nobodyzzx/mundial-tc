@@ -19,13 +19,20 @@ if (!navProfile?.es_referi) return Astro.redirect('/dashboard');
 const [
   { data: rawMatches },
   { data: rawPlayers },
+  { data: rawSanctions },
 ] = await Promise.all([
   supabaseAdmin.from('matches').select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, stage, group_name, round, jornada, match_date, is_finished').order('match_date', { ascending: true }),
   supabaseAdmin.from('profiles').select('id, username').eq('participa', true).eq('expulsado', false).order('puntos_totales', { ascending: false }),
+  supabaseAdmin.from('sanctions').select('user_id, created_at').in('type', ['red', 'double_red']).eq('active', true),
 ]);
 
 const allMatches = rawMatches ?? [];
 const players    = rawPlayers ?? [];
+
+// Roja activa por usuario y día Bolivia (frontera 03:00 BOT) → jornada anulada.
+const dayTimeOf = (d: string) => boliviaDayStart(new Date(d).getTime()).getTime();
+const sanctionSet = new Set((rawSanctions ?? []).map((s: any) => `${s.user_id}|${dayTimeOf(s.created_at)}`));
+const isSanctioned = (userId: string, matchDate: string) => sanctionSet.has(`${userId}|${dayTimeOf(matchDate)}`);
 
 const allMatchIds = allMatches.map((m: any) => m.id);
 const rawPreds = allMatchIds.length
@@ -75,6 +82,7 @@ const shareData = jornadaOrder.map((jornada) => ({
       const pred = predMap[m.id]?.[pl.id];
       return {
         name: pl.username,
+        sanctioned: isSanctioned(pl.id, m.match_date),
         uh: pred?.user_home   ?? null,
         ua: pred?.user_away   ?? null,
         uhp: pred?.user_home_pen ?? null,
@@ -228,6 +236,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                         const pred = preds[pl.id];
                         return (
                           <div class="flex items-center gap-1.5 min-w-[120px]">
+                            {isSanctioned(pl.id, m.match_date) && <span title="Tarjeta roja — jornada anulada">🟥</span>}
                             <span class="text-xs text-slate-500 truncate max-w-[70px]">{pl.username}</span>
                             <span class={`text-xs font-mono ${predClass(pred, m)}`}>
                               {predLabel(pred)}
@@ -247,7 +256,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                         <span class="text-[11px] text-fifared/70 mt-0.5">No pronosticaron <span class="text-fifared/40">(pago incompleto o no ingresaron a tiempo)</span>:</span>
                         <div class="flex flex-wrap gap-1">
                           {missing.map((pl: any) => (
-                            <span class="text-[11px] text-fifared/60 bg-fifared/5 border border-fifared/20 px-1.5 py-0.5 rounded">{pl.username}</span>
+                            <span class="text-[11px] text-fifared/60 bg-fifared/5 border border-fifared/20 px-1.5 py-0.5 rounded">{isSanctioned(pl.id, m.match_date) ? '🟥 ' : ''}{pl.username}</span>
                           ))}
                         </div>
                       </div>
@@ -325,7 +334,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     return String.fromCodePoint(code.charCodeAt(0) + base, code.charCodeAt(1) + base);
   }
 
-  type Player = { name: string; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; uwp: string|null; pts: number|null };
+  type Player = { name: string; sanctioned?: boolean; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; uwp: string|null; pts: number|null };
   type MatchData = { id: string; dayKey: string; dayLabel: string; home: string; away: string; homeISO: string; awayISO: string; hs: number|null; as_: number|null; homePen: number|null; awayPen: number|null; winnerPen: string|null; finished: boolean; players: Player[] };
   type JornadaData = { jornada: string; matches: MatchData[] };
 
@@ -350,6 +359,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   }
 
   function playerLine(pl: Player, m: MatchData): string {
+    if (pl.sanctioned) return `\ud83d\udfe5 ${pl.name} _(jornada anulada)_`;
     if (pl.uh === null || pl.ua === null) return `\u2796 ${pl.name}`;
     let predStr = `${pl.uh}\u2013${pl.ua}`;
     // Pen solo si pronosticó empate
