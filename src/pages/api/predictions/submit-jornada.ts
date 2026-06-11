@@ -15,8 +15,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   ]);
   if (!user) return redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('pago_70, pago_50').eq('id', user.id).single();
+  const { data: profile } = await supabase.from('profiles').select('pago_70, pago_50, expulsado').eq('id', user.id).single();
   if (import.meta.env.PUBLIC_BETA !== "true" && !(profile?.pago_70 && profile?.pago_50)) return redirect('/predictions');
+  if (profile?.expulsado) return redirect(`/predictions?error=${encodeURIComponent('Estás expulsado: no puedes pronosticar')}`);
 
   // Leer entradas del form
   const entries: {
@@ -95,6 +96,18 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const firstMatchTime = Math.min(...(dayMatches ?? []).map(m => new Date(m.match_date).getTime()));
   if (isCutoffPassed(firstMatchTime, Date.now()))
     return redirect(`/predictions?error=${encodeURIComponent('La jornada ya está cerrada')}`);
+
+  // Sanción roja del día Bolivia (frontera 03:00 BOT): jornada anulada, no se pronostica.
+  const { data: redCards } = await supabase
+    .from('sanctions')
+    .select('id')
+    .eq('user_id', user.id)
+    .in('type', ['red', 'double_red'])
+    .eq('active', true)
+    .gte('created_at', dayStart.toISOString())
+    .lt('created_at', dayEnd.toISOString());
+  if (redCards && redCards.length > 0)
+    return redirect(`/predictions?error=${encodeURIComponent('Jornada anulada por tarjeta roja')}`);
 
   // Validar knockout con empate sin score de penales (usa matchIndex en vez de queries)
   for (const e of entries) {

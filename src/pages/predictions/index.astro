@@ -23,14 +23,28 @@ const [
   { data: navProfile },
   { data: myPredictions },
   { data: startedMatchData },
+  { data: mySanctions },
 ] = await Promise.all([
   supabase.from('matches').select('*').eq('is_finished', false).not('home_team', 'ilike', 'TBD%').not('away_team', 'ilike', 'TBD%').not('home_team', 'ilike', 'Winner%').not('away_team', 'ilike', 'Winner%').order('match_date', { ascending: true }),
-  supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50').eq('id', user.id).single(),
+  supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50, expulsado').eq('id', user.id).single(),
   supabase.from('predictions').select('match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties').eq('user_id', user.id),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', new Date(nowMs).toISOString()),
+  supabase.from('sanctions').select('type, created_at').eq('user_id', user.id).in('type', ['red', 'double_red']).eq('active', true),
 ]);
 
 const predMap = new Map(myPredictions?.map(p => [p.match_id, p]) ?? []);
+
+// Bloqueo por sanción: el expulsado (doble roja) no pronostica nunca; una roja
+// anula la jornada de su día Bolivia (frontera 03:00 BOT), igual que en scoring.
+const isExpulsado = navProfile?.expulsado === true;
+const sanctionedDayTimes = new Set(
+  (mySanctions ?? []).map(s => boliviaDayStart(new Date(s.created_at).getTime()).getTime())
+);
+function isSanctioned(jornadaMatches: MatchRow[]): boolean {
+  if (isExpulsado) return true;
+  const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
+  return sanctionedDayTimes.has(boliviaDayStart(firstTime).getTime());
+}
 
 function formatTime(dateStr: string): string {
   return fmtFecha(dateStr, {
@@ -193,6 +207,7 @@ let globalFormIdx = 0;
     )}
 
     {(import.meta.env.PUBLIC_BETA === 'true' || (navProfile?.pago_70 && navProfile?.pago_50)) && [...grouped.entries()].map(([jornadaKey, jornadaMatches]) => {
+      const sanctioned = isSanctioned(jornadaMatches);
       const closed = isJornadaClosed(jornadaMatches);
       const prevPending = isPrevDayPending(jornadaMatches);
       const ongoingLock = isLockedByOngoing(jornadaMatches);
@@ -210,6 +225,7 @@ let globalFormIdx = 0;
 
           {/* ── Encabezado de jornada ── */}
           <div class={`flex items-center justify-between px-4 py-3 rounded-xl border ${
+            sanctioned   ? 'bg-fifared/12 border-fifared/40' :
             prevPending  ? 'bg-brand-900 border-brand-700/40' :
             ongoingLock  ? 'bg-amber-900/10 border-amber-500/30' :
             closed       ? 'bg-fifared/8 border-fifared/30' :
@@ -218,8 +234,10 @@ let globalFormIdx = 0;
           }`}>
             <div>
               <h2 class={`font-display text-xl tracking-wide capitalize ${prevPending ? 'text-slate-500' : 'text-white'}`}>{jornadaKey}</h2>
-              <p class={`text-xs mt-0.5 ${prevPending ? 'text-slate-600' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
-                {prevPending
+              <p class={`text-xs mt-0.5 ${sanctioned ? 'text-fifared' : prevPending ? 'text-slate-600' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
+                {sanctioned
+                  ? (isExpulsado ? '🟥🟥 Expulsado — no puedes pronosticar' : '🟥 Jornada anulada por tarjeta roja')
+                  : prevPending
                   ? '🔒 Disponible cuando terminen los partidos anteriores'
                   : ongoingLock
                   ? '⏳ Esperá que termine el partido de hoy'
@@ -231,13 +249,16 @@ let globalFormIdx = 0;
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
               <span class={`text-xs px-2 py-1 rounded-full border ${
+                sanctioned ? 'text-fifared border-fifared/40 bg-fifared/15' :
                 allDone    ? 'text-gol border-gol/30 bg-gol/10' :
                 hasSome    ? 'text-amarilla border-amarilla/30 bg-amarilla/10' :
                 prevPending ? 'text-slate-600 border-brand-700/40 bg-brand-800/40' :
                 closed     ? 'text-fifared border-fifared/30 bg-fifared/10' :
                               'text-slate-500 border-brand-600 bg-brand-700/30'
               }`}>
-                {allDone
+                {sanctioned
+                  ? '🟥 Anulada'
+                  : allDone
                   ? '✅ Completa'
                   : hasSome
                   ? `${predCount}/${jornadaMatches.length}`
@@ -264,7 +285,7 @@ let globalFormIdx = 0;
           </div>
 
           {/* ── Si la jornada está abierta y hay partidos sin pronosticar: form inline ── */}
-          {!closed && !allDone ? (
+          {!sanctioned && !closed && !allDone ? (
             <form method="POST" action="/api/predictions/submit-jornada" class="space-y-2">
 
               {jornadaMatches.map((m) => {
@@ -470,8 +491,10 @@ let globalFormIdx = 0;
                       </p>
                     )}
                     {!existing && (
-                      <button disabled class="w-full mt-2 flex items-center justify-center gap-2 text-sm text-slate-300 bg-brand-800/50 border border-brand-700/50 rounded-xl py-3 cursor-not-allowed opacity-75">
-                        {prevPending
+                      <button disabled class={`w-full mt-2 flex items-center justify-center gap-2 text-sm rounded-xl py-3 cursor-not-allowed opacity-75 ${sanctioned ? 'text-fifared bg-fifared/10 border border-fifared/40' : 'text-slate-300 bg-brand-800/50 border border-brand-700/50'}`}>
+                        {sanctioned
+                          ? (isExpulsado ? '🟥🟥 Expulsado, sin pronóstico' : '🟥 Jornada anulada por tarjeta roja')
+                          : prevPending
                           ? '⏳ Espera que terminen los partidos anteriores'
                           : ongoingLock
                           ? '⏳ El partido ya comenzó, sin pronóstico'
