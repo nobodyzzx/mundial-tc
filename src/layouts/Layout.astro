@@ -19,6 +19,15 @@ interface Props {
 }
 const { title, description = 'Polla Mundial 2026', navProfile, isAuthed } = Astro.props;
 
+// Identificador único del despliegue actual. Cambia en cada deploy de Vercel.
+// Se incrusta en cada página para detectar (en cliente) cuando se navega a una
+// versión distinta y forzar recarga completa en vez del swap SPA del ClientRouter.
+const APP_VERSION =
+  process.env.VERCEL_DEPLOYMENT_ID ??
+  process.env.VERCEL_URL ??
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  'dev';
+
 let profile: NavProfile | null = navProfile ?? null;
 let showNav = isAuthed ?? false;
 
@@ -58,10 +67,24 @@ if (!isAuthed) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={description} />
+    <meta name="app-version" content={APP_VERSION} />
     <title>{title} | Polla 2026</title>
     <link rel="icon" href="/logo-fifa2026.png" />
     <ClientRouter />
   </head>
+  <script is:inline>
+    // Anti "versión vieja": tras un deploy nuevo, los clientes con la app abierta
+    // conservan JS/assets viejos. Si al navegar por ClientRouter la página destino
+    // viene de otra versión del deploy, forzamos una recarga COMPLETA (assets +
+    // datos frescos) en vez del intercambio SPA, que rompería con la versión vieja.
+    document.addEventListener('astro:before-swap', function (e) {
+      var cur = document.querySelector('meta[name="app-version"]');
+      var next = e.newDocument && e.newDocument.querySelector('meta[name="app-version"]');
+      if (cur && next && cur.content && next.content && cur.content !== next.content) {
+        window.location.assign(e.to);
+      }
+    });
+  </script>
   <script>
     import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill';
     polyfillCountryFlagEmojis();
