@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
 import { boliviaDayStart, isCutoffPassed } from '@/lib/jornada';
 import { logEvent } from '@/lib/system-log';
@@ -24,22 +24,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   // el flujo (best-effort). El detalle se rellena cuando ya se parseó el form.
   let attemptDetail = '';
   const reject = async (reason: string, url: string) => {
-    try {
-      await supabaseAdmin.from('submit_attempts').insert({
-        user_id: user.id,
-        username: profile?.username ?? null,
-        reason,
-        detail: attemptDetail || null,
-      });
-      // También a la bitácora central.
-      await logEvent({
-        category: 'pronostico',
-        event: `rechazo:${reason}`,
-        actor: profile?.username ?? null,
-        summary: `${profile?.username ?? '—'} — envío rechazado (${reason})`,
-        detail: attemptDetail || null,
-      });
-    } catch { /* el registro nunca debe romper el envío */ }
+    // Bitácora central (best-effort, nunca rompe el envío).
+    await logEvent({
+      category: 'pronostico',
+      event: `rechazo:${reason}`,
+      actor: profile?.username ?? null,
+      summary: `${profile?.username ?? '—'} — envío rechazado (${reason})`,
+      detail: attemptDetail || null,
+    });
     return redirect(url);
   };
 

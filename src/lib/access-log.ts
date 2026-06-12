@@ -14,8 +14,6 @@ export async function logAccess(
   try {
     const { data } = await supabaseAdmin.from('profiles').select('username').eq('id', userId).single();
     const username = data?.username ?? null;
-    await supabaseAdmin.from('access_log').insert({ user_id: userId, username, event, method });
-    // También a la bitácora central.
     await logEvent({
       category: 'acceso',
       event,
