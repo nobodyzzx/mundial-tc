@@ -92,7 +92,8 @@ export const GET: APIRoute = async ({ url, request }) => {
   const tableLines = (standings ?? []).map((p, i) => {
     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
     const gained = matchPts.get(p.id) ?? 0;
-    return `${medal} ${p.username} — ${p.puntos_totales} pts _(+${gained})_`;
+    const prev = p.puntos_totales - gained;
+    return `${medal} ${p.username} — ${gained} + ${prev} = ${p.puntos_totales} pts`;
   });
 
   const text = [
