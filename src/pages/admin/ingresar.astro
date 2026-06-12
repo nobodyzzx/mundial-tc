@@ -38,7 +38,7 @@ const players = rawPlayers ?? [];
 const matchIds = openMatches.map((m: any) => m.id);
 const existingPreds = matchIds.length
   ? (await supabaseAdmin.from('predictions')
-      .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen')
+      .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, ingresado_por_referi')
       .in('match_id', matchIds)
     ).data ?? []
   : [];
@@ -133,9 +133,9 @@ for (const m of openMatches) {
                                 data-edit-home-pen={pred.user_home_pen ?? ''}
                                 data-edit-away-pen={pred.user_away_pen ?? ''}
                                 data-edit-stage={m.stage}
-                                title="Click para editar"
+                                title={pred.ingresado_por_referi ? 'Ingresado por el réferi · click para editar' : 'Click para editar'}
                               >
-                                ✓ {p.username} <span class="font-mono text-gol/70">{score}{pen}</span>
+                                ✓ {p.username} {pred.ingresado_por_referi && <span title="Ingresado por el réferi">⚖️</span>} <span class="font-mono text-gol/70">{score}{pen}</span>
                               </span>
                             );
                           })}

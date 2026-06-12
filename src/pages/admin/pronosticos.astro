@@ -37,7 +37,7 @@ const isSanctioned = (userId: string, matchDate: string) => sanctionSet.has(`${u
 const allMatchIds = allMatches.map((m: any) => m.id);
 const rawPreds = allMatchIds.length
   ? (await supabaseAdmin.from('predictions')
-      .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, points_earned')
+      .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, points_earned, ingresado_por_referi')
       .in('match_id', allMatchIds)
     ).data ?? []
   : [];
@@ -241,6 +241,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                             <span class={`text-xs font-mono ${predClass(pred, m)}`}>
                               {predLabel(pred)}
                             </span>
+                            {pred?.ingresado_por_referi && <span class="text-[10px]" title="Ingresado por el réferi">⚖️</span>}
                             {m.is_finished && pred && (
                               <span class={`text-[10px] font-bold ${pred.points_earned > 0 ? 'text-gol' : 'text-slate-600'}`}>
                                 {ptsLabel(pred, m)}

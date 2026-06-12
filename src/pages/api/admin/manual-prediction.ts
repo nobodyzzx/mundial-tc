@@ -65,6 +65,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       user_home_pen: homePen,
       user_away_pen: awayPen,
       user_winner_penalties: winnerPen,
+      ingresado_por_referi: true,
     },
     { onConflict: 'user_id,match_id' }
   );
