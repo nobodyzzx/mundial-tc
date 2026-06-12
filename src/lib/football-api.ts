@@ -8,11 +8,16 @@
  */
 import type { ApiMatch } from './match-types';
 import * as apiFootball from './providers/api-football';
+import * as espn from './providers/espn';
 
 export type { ApiMatch };
-export const getLiveMatches = apiFootball.getLiveMatches;
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
+
+export function getLiveMatches(): Promise<ApiMatch[]> {
+  if (PROVIDER === 'espn') return espn.getLiveMatches();
+  return apiFootball.getLiveMatches();
+}
 
 // ── Proveedor football-data.org ──────────────────────────────────
 const FD_BASE = 'https://api.football-data.org/v4';
@@ -43,11 +48,13 @@ async function fdGetFinishedMatches(code: string, season: number): Promise<ApiMa
 
 // ── API pública (enruta por proveedor) ───────────────────────────
 export async function getFixtures(code: string, season: number): Promise<ApiMatch[]> {
+  if (PROVIDER === 'espn') return espn.getFixtures();
   if (PROVIDER === 'api-football') return apiFootball.getFixtures();
   return fdGetFixtures(code, season);
 }
 
 export async function getFinishedMatches(code: string, season: number): Promise<ApiMatch[]> {
+  if (PROVIDER === 'espn') return espn.getFinishedMatches();
   if (PROVIDER === 'api-football') return apiFootball.getFinishedMatches();
   return fdGetFinishedMatches(code, season);
 }

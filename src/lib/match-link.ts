@@ -2,7 +2,7 @@
  * Empareja partidos del proveedor (ApiMatch) con filas de la BD.
  *
  * - football-data: por external_id (cada partido de la BD guarda el id del proveedor).
- * - api-football: por hora de inicio (UTC, al minuto). El plan free solo da una
+ * - api-football / espn: por hora de inicio (UTC, al minuto). El plan free solo da una
  *   ventana móvil de ~3 días, así que no se puede pre-mapear el torneo; se empareja
  *   al vuelo. Si dos partidos comparten exactamente la misma hora (última fecha de
  *   grupos), se desempata por equipos (con normalización de nombres entre proveedores).
@@ -62,7 +62,7 @@ export function linkMatches(
 ): Map<ApiMatch, string> {
   const out = new Map<ApiMatch, string>();
 
-  if (provider === 'api-football') {
+  if (provider === 'api-football' || provider === 'espn') {
     const byMinute = new Map<number, DbMatchRow[]>();
     for (const db of dbMatches) {
       const m = epochMinute(db.match_date);
