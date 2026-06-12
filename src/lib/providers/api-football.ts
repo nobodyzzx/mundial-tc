@@ -119,6 +119,22 @@ function dedupe(matches: ApiMatch[]): ApiMatch[] {
   return [...map.values()];
 }
 
+/**
+ * Fixtures del Mundial en un rango de offsets de día (UTC), tolerante a fechas
+ * fuera de la ventana free (las salta). Para el reconcile de calendario.
+ */
+export async function getFixturesRange(fromOffset: number, toOffset: number): Promise<ApiMatch[]> {
+  const out: ApiMatch[] = [];
+  for (let o = fromOffset; o <= toOffset; o++) {
+    try {
+      out.push(...(await wcByDate(utcDate(o))));
+    } catch {
+      // fecha fuera de la ventana de 3 días o rate-limit → se omite
+    }
+  }
+  return dedupe(out);
+}
+
 /** Partidos del Mundial en vivo ahora (1 request). */
 export async function getLiveMatches(): Promise<ApiMatch[]> {
   const r = await afFetch('/fixtures?live=all');

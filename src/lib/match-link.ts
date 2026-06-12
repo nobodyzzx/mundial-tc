@@ -32,7 +32,7 @@ const ALIAS: Record<string, string> = {
   bosniaandherzegovina: 'bosniaherzegovina',
 };
 
-function normTeam(name: string): string {
+export function normTeam(name: string): string {
   const base = name
     .toLowerCase()
     .normalize('NFD')
@@ -41,7 +41,7 @@ function normTeam(name: string): string {
   return ALIAS[base] ?? base;
 }
 
-function teamKey(home: string, away: string): string {
+export function teamKey(home: string, away: string): string {
   return [normTeam(home), normTeam(away)].sort().join('|');
 }
 
