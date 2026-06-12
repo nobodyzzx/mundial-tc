@@ -15,7 +15,7 @@ if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cooki
 
 const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
 
-// La revelación abre 1h58m antes del primer partido del día (2 min después del
+// La revelación abre 1h55m antes del primer partido del día (5 min después del
 // cierre de apuestas, que es 2h antes). Para entonces nadie puede ya enviar.
 // REVEAL_BEFORE_MS vive en lib/jornada.ts (fuente única, junto al cierre).
 
