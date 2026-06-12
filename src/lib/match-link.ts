@@ -72,13 +72,14 @@ export function linkMatches(
     }
     for (const am of apiMatches) {
       const cands = byMinute.get(epochMinute(am.utcDate)) ?? [];
-      if (cands.length === 1) {
-        out.set(am, cands[0].id);
-      } else if (cands.length > 1) {
-        const target = teamKey(am.homeTeam.name, am.awayTeam.name);
-        const hit = cands.find((c) => teamKey(c.home_team, c.away_team) === target);
-        if (hit) out.set(am, hit.id);
-      }
+      // 1) Coincidencia exacta de equipos (preferida; evita marcadores cruzados si
+      //    los calendarios de los dos proveedores difieren a la misma hora).
+      const target = teamKey(am.homeTeam.name, am.awayTeam.name);
+      let hit = cands.find((c) => teamKey(c.home_team, c.away_team) === target);
+      // 2) Si no, y el partido de la BD es placeholder de bracket (eliminatoria sin
+      //    definir), se enlaza por hora — ahí no se pueden comparar equipos.
+      if (!hit) hit = cands.find((c) => isPlaceholderName(c.home_team) || isPlaceholderName(c.away_team));
+      if (hit) out.set(am, hit.id);
     }
   } else {
     const byExt = new Map<number, string>();
