@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
 import { boliviaDayStart, isCutoffPassed } from '@/lib/jornada';
 
@@ -15,9 +15,29 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   ]);
   if (!user) return redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('pago_70, pago_50, expulsado').eq('id', user.id).single();
-  if (import.meta.env.PUBLIC_BETA !== "true" && !(profile?.pago_70 && profile?.pago_50)) return redirect('/predictions');
-  if (profile?.expulsado) return redirect(`/predictions?error=${encodeURIComponent('Estás expulsado: no puedes pronosticar')}`);
+  const { data: profile } = await supabase.from('profiles').select('username, pago_70, pago_50, expulsado').eq('id', user.id).single();
+
+  // ── Registro de intentos RECHAZADOS ─────────────────────────────────────────
+  // Deja huella en BD de cada envío rechazado (motivo + lo que intentó enviar),
+  // para resolver disputas "yo sí pronostiqué y no me lo tomó". Nunca interrumpe
+  // el flujo (best-effort). El detalle se rellena cuando ya se parseó el form.
+  let attemptDetail = '';
+  const reject = async (reason: string, url: string) => {
+    try {
+      await supabaseAdmin.from('submit_attempts').insert({
+        user_id: user.id,
+        username: profile?.username ?? null,
+        reason,
+        detail: attemptDetail || null,
+      });
+    } catch { /* el registro nunca debe romper el envío */ }
+    return redirect(url);
+  };
+
+  if (import.meta.env.PUBLIC_BETA !== "true" && !(profile?.pago_70 && profile?.pago_50))
+    return reject('no-pagado', '/predictions');
+  if (profile?.expulsado)
+    return reject('expulsado', `/predictions?error=${encodeURIComponent('Estás expulsado: no puedes pronosticar')}`);
 
   // Leer entradas del form
   const entries: {
@@ -40,16 +60,16 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     const userAwayPen = penAwayStr !== '' ? parseInt(penAwayStr) : null;
 
     if (!matchId || !isValidUUID(matchId) || isNaN(userHome) || isNaN(userAway)) {
-      return redirect('/predictions?error=incompleto');
+      return reject('form-invalido', '/predictions?error=incompleto');
     }
     if (userHome < 0 || userHome > 20 || userAway < 0 || userAway > 20) {
-      return redirect('/predictions?error=incompleto');
+      return reject('form-invalido', '/predictions?error=incompleto');
     }
     if (userHomePen !== null && (userHomePen < 0 || userHomePen > 20)) {
-      return redirect('/predictions?error=incompleto');
+      return reject('form-invalido', '/predictions?error=incompleto');
     }
     if (userAwayPen !== null && (userAwayPen < 0 || userAwayPen > 20)) {
-      return redirect('/predictions?error=incompleto');
+      return reject('form-invalido', '/predictions?error=incompleto');
     }
 
     let userWinnerPenalties: string | null = null;
@@ -62,7 +82,15 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     i++;
   }
 
-  if (entries.length === 0) return redirect('/predictions?error=incompleto');
+  if (entries.length === 0) return reject('sin-entradas', '/predictions?error=incompleto');
+
+  // Resumen de lo que intentó enviar (para el registro de rechazos).
+  attemptDetail = entries
+    .map(e => {
+      const pen = (e.userHomePen !== null && e.userAwayPen !== null) ? ` (pen ${e.userHomePen}-${e.userAwayPen})` : '';
+      return `${e.matchId}:${e.userHome}-${e.userAway}${pen}`;
+    })
+    .join(' | ');
 
   // Una sola query trae todos los datos necesarios para validar
   const matchIds = entries.map(e => e.matchId);
@@ -71,15 +99,15 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .select('id, match_date, is_finished, stage, status')
     .in('id', matchIds);
 
-  if (!matchRows || matchRows.length === 0) return redirect('/predictions');
+  if (!matchRows || matchRows.length === 0) return reject('partidos-no-encontrados', '/predictions');
 
   const matchIndex = new Map(matchRows.map(m => [m.id, m]));
 
   // Validar finished / en juego
   for (const m of matchRows) {
-    if (m.is_finished) return redirect(`/predictions?error=${encodeURIComponent('El partido ya terminó')}`);
+    if (m.is_finished) return reject('partido-terminado', `/predictions?error=${encodeURIComponent('El partido ya terminó')}`);
     if (m.status && ['IN_PLAY', 'PAUSED', 'FINISHED'].includes(m.status))
-      return redirect(`/predictions?error=${encodeURIComponent('Las apuestas para este partido ya están cerradas')}`);
+      return reject('partido-en-juego', `/predictions?error=${encodeURIComponent('Las apuestas para este partido ya están cerradas')}`);
   }
 
   // Validar cierre de jornada: 2h antes del primer partido del día Bolivia (UTC-4)
@@ -95,7 +123,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   const firstMatchTime = Math.min(...(dayMatches ?? []).map(m => new Date(m.match_date).getTime()));
   if (isCutoffPassed(firstMatchTime, Date.now()))
-    return redirect(`/predictions?error=${encodeURIComponent('La jornada ya está cerrada')}`);
+    return reject('jornada-cerrada', `/predictions?error=${encodeURIComponent('La jornada ya está cerrada')}`);
 
   // Sanción roja del día Bolivia (frontera 03:00 BOT): jornada anulada, no se pronostica.
   const { data: redCards } = await supabase
@@ -107,14 +135,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .gte('created_at', dayStart.toISOString())
     .lt('created_at', dayEnd.toISOString());
   if (redCards && redCards.length > 0)
-    return redirect(`/predictions?error=${encodeURIComponent('Jornada anulada por tarjeta roja')}`);
+    return reject('roja-jornada-anulada', `/predictions?error=${encodeURIComponent('Jornada anulada por tarjeta roja')}`);
 
   // Validar knockout con empate sin score de penales (usa matchIndex en vez de queries)
   for (const e of entries) {
     const m = matchIndex.get(e.matchId);
     if (m?.stage === 'knockout' && e.userHome === e.userAway &&
         (e.userHomePen === null || e.userAwayPen === null || e.userHomePen === e.userAwayPen)) {
-      return redirect('/predictions?error=Debes+completar+el+score+de+penales+%28sin+empate%29+para+el+partido+eliminatorio');
+      return reject('knockout-sin-penales', '/predictions?error=Debes+completar+el+score+de+penales+%28sin+empate%29+para+el+partido+eliminatorio');
     }
   }
 
@@ -132,8 +160,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   );
 
   if (error) {
-    if (error.code === '23505') return redirect('/predictions?info=ya_pronosticado');
-    return redirect('/predictions?error=' + encodeURIComponent('Error al guardar los pronósticos'));
+    if (error.code === '23505') return reject('ya-pronosticado', '/predictions?info=ya_pronosticado');
+    attemptDetail = `${attemptDetail} || db:${error.code ?? ''} ${error.message ?? ''}`.slice(0, 500);
+    return reject('error-db', '/predictions?error=' + encodeURIComponent('Error al guardar los pronósticos'));
   }
 
   return redirect('/predictions?ok=1');
