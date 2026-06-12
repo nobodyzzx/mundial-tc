@@ -1,7 +1,10 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { getFixtures, getFinishedMatches, deriveWinnerPenalties } from '@/lib/football-api';
+import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 import { getAdminUser } from '@/lib/auth-helpers';
+
+const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
@@ -25,29 +28,28 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect(`/admin?err=${encodeURIComponent('Error API: ' + e.message)}`);
   }
 
-  // ── 1. Actualizar nombres de equipos para partidos próximos que ya tienen equipo asignado ──
-  const pendingIds = allFixtures
-    .filter(f => f.status !== 'FINISHED' && f.homeTeam?.name && f.awayTeam?.name
-                 && f.homeTeam.name !== 'TBD' && f.awayTeam.name !== 'TBD')
-    .map(f => f.id);
+  // DB: partidos no terminados (candidatos para nombres y resultados).
+  const { data: dbMatchesRaw } = await supabaseAdmin
+    .from('matches')
+    .select('id, external_id, match_date, home_team, away_team')
+    .eq('is_finished', false);
+  const dbRows = dbMatchesRaw ?? [];
+  const dbById = new Map(dbRows.map(d => [d.id, d]));
 
-  if (pendingIds.length) {
-    const { data: pendingDb } = await supabaseAdmin
-      .from('matches')
-      .select('id, external_id, home_team, away_team')
-      .in('external_id', pendingIds)
-      .eq('is_finished', false);
+  // ── 1. Rellenar nombres de placeholders de bracket ya definidos ──
+  const pending = allFixtures.filter(f =>
+    f.status !== 'FINISHED' && f.homeTeam?.name && f.awayTeam?.name
+    && f.homeTeam.name !== 'TBD' && f.awayTeam.name !== 'TBD');
+  const pendingLink = linkMatches(pending, dbRows, PROVIDER);
 
-    const fixtureMap = new Map(allFixtures.map(f => [f.id, f]));
-    for (const dbMatch of pendingDb ?? []) {
-      const api = fixtureMap.get(dbMatch.external_id);
-      if (!api) continue;
-      const newHome = api.homeTeam?.name;
-      const newAway = api.awayTeam?.name;
-      if (!newHome || !newAway) continue;
-      if (newHome === dbMatch.home_team && newAway === dbMatch.away_team) continue;
-      await supabaseAdmin.from('matches').update({ home_team: newHome, away_team: newAway }).eq('id', dbMatch.id);
-    }
+  for (const f of pending) {
+    const id = pendingLink.get(f);
+    if (!id) continue;
+    const db = dbById.get(id)!;
+    const newHome = isPlaceholderName(db.home_team) ? f.homeTeam.name : db.home_team;
+    const newAway = isPlaceholderName(db.away_team) ? f.awayTeam.name : db.away_team;
+    if (newHome === db.home_team && newAway === db.away_team) continue;
+    await supabaseAdmin.from('matches').update({ home_team: newHome, away_team: newAway }).eq('id', id);
   }
 
   // ── 2. Sincronizar resultados de partidos terminados ──
@@ -55,38 +57,31 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect(`/admin?msg=${encodeURIComponent('Equipos sincronizados. No hay partidos terminados aún.')}`);
   }
 
-  const externalIds = finished.map(f => f.id);
-  const { data: dbMatches } = await supabaseAdmin
-    .from('matches')
-    .select('id, external_id')
-    .in('external_id', externalIds)
-    .eq('is_finished', false);
-
-  const dbMap = new Map((dbMatches ?? []).map(m => [m.external_id, m.id]));
+  const finishedLink = linkMatches(finished, dbRows, PROVIDER);
 
   let updated = 0;
   const toCalculate: string[] = [];
 
   for (const f of finished) {
-    const matchId = dbMap.get(f.id);
+    const matchId = finishedLink.get(f);
     if (!matchId) continue;
 
     // La API a veces marca FINISHED sin marcador cargado aún: no escribir null.
     if (f.score.fullTime.home === null || f.score.fullTime.away === null) continue;
 
-    const { error } = await supabaseAdmin
-      .from('matches')
-      .update({
-        home_team:        f.homeTeam?.name || undefined,
-        away_team:        f.awayTeam?.name || undefined,
-        home_score:       f.score.fullTime.home,
-        away_score:       f.score.fullTime.away,
-        home_pen:         f.score.penalties?.home ?? null,
-        away_pen:         f.score.penalties?.away ?? null,
-        winner_penalties: deriveWinnerPenalties(f.score),
-        is_finished:      true,
-      })
-      .eq('id', matchId);
+    const db = dbById.get(matchId);
+    const update: Record<string, any> = {
+      home_score:       f.score.fullTime.home,
+      away_score:       f.score.fullTime.away,
+      home_pen:         f.score.penalties?.home ?? null,
+      away_pen:         f.score.penalties?.away ?? null,
+      winner_penalties: deriveWinnerPenalties(f.score),
+      is_finished:      true,
+    };
+    if (db && isPlaceholderName(db.home_team) && f.homeTeam?.name) update.home_team = f.homeTeam.name;
+    if (db && isPlaceholderName(db.away_team) && f.awayTeam?.name) update.away_team = f.awayTeam.name;
+
+    const { error } = await supabaseAdmin.from('matches').update(update).eq('id', matchId);
 
     if (!error) {
       updated++;
