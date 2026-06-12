@@ -67,7 +67,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       .lte('match_date', nowIso)
       .limit(1);
     if (!active?.length) {
-      return json({ ok: true, skipped: true, reason: 'Sin partido en ventana de juego', namesUpdated: 0, scoresUpdated: 0 });
+      return json({ ok: true, provider: PROVIDER, skipped: true, reason: 'Sin partido en ventana de juego', namesUpdated: 0, scoresUpdated: 0 });
     }
   }
 
@@ -111,7 +111,7 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   // ── 2. Sincronizar resultados terminados ────────────────────────
   if (!finished.length) {
-    return json({ ok: true, namesUpdated, scoresUpdated: 0, message: 'Sin partidos terminados nuevos' });
+    return json({ ok: true, provider: PROVIDER, namesUpdated, scoresUpdated: 0, message: 'Sin partidos terminados nuevos' });
   }
 
   const finishedLink = linkMatches(finished, dbRows, PROVIDER);
@@ -151,7 +151,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     await supabaseAdmin.rpc('calculate_match_points_safe', { p_match_id: matchId });
   }
 
-  return json({ ok: true, namesUpdated, scoresUpdated, message: `${scoresUpdated} partido(s) sincronizado(s)` });
+  return json({ ok: true, provider: PROVIDER, namesUpdated, scoresUpdated, message: `${scoresUpdated} partido(s) sincronizado(s)` });
 };
 
 function json(data: unknown, status = 200) {
