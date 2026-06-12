@@ -83,6 +83,7 @@ const shareData = jornadaOrder.map((jornada) => ({
       return {
         name: pl.username,
         sanctioned: isSanctioned(pl.id, m.match_date),
+        ref: pred?.ingresado_por_referi ?? false,
         uh: pred?.user_home   ?? null,
         ua: pred?.user_away   ?? null,
         uhp: pred?.user_home_pen ?? null,
@@ -312,6 +313,10 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   }
 
   async function waShare(text: string) {
+    // Si el mensaje incluye el distintivo del réferi, añade su leyenda al pie.
+    if (text.includes('⚖️') && !text.includes('= ingresado por el réferi')) {
+      text += '\n\n_⚖️ = ingresado por el réferi_';
+    }
     // Mobile: compartir nativo (app WhatsApp) o wa.me directo
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
       if (navigator.share) {
@@ -335,7 +340,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     return String.fromCodePoint(code.charCodeAt(0) + base, code.charCodeAt(1) + base);
   }
 
-  type Player = { name: string; sanctioned?: boolean; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; uwp: string|null; pts: number|null };
+  type Player = { name: string; sanctioned?: boolean; ref?: boolean; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; uwp: string|null; pts: number|null };
   type MatchData = { id: string; dayKey: string; dayLabel: string; home: string; away: string; homeISO: string; awayISO: string; hs: number|null; as_: number|null; homePen: number|null; awayPen: number|null; winnerPen: string|null; finished: boolean; players: Player[] };
   type JornadaData = { jornada: string; matches: MatchData[] };
 
@@ -362,6 +367,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   function playerLine(pl: Player, m: MatchData): string {
     if (pl.sanctioned) return `\ud83d\udfe5 ${pl.name} _(jornada anulada)_`;
     if (pl.uh === null || pl.ua === null) return `\u2796 ${pl.name}`;
+    const mark = pl.ref ? ' \u2696\ufe0f' : ''; // \u2696\ufe0f = ingresado por el r\u00e9feri
     let predStr = `${pl.uh}\u2013${pl.ua}`;
     // Pen solo si pronosticó empate
     if (pl.uh === pl.ua && pl.uwp) {
@@ -375,9 +381,9 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
       const pR = pl.uh > pl.ua ? 'H' : pl.uh < pl.ua ? 'A' : 'E';
       const rR = (m.hs ?? 0) > (m.as_ ?? 0) ? 'H' : (m.hs ?? 0) < (m.as_ ?? 0) ? 'A' : 'E';
       const icon = isExact ? '\u2B50' : pR === rR ? '\u2705' : '\u274C';
-      return `${icon} ${pl.name} \u2192 ${predStr} (${pl.pts ?? 0}pts)`;
+      return `${icon} ${pl.name}${mark} \u2192 ${predStr} (${pl.pts ?? 0}pts)`;
     }
-    return `\uD83C\uDFAF ${pl.name} \u2192 ${predStr}`;
+    return `\uD83C\uDFAF ${pl.name}${mark} \u2192 ${predStr}`;
   }
 
   function shareMatch(ji: number, mi: number) {

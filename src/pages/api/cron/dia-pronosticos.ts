@@ -89,7 +89,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const dayIds = dayMatches.map(m => m.id);
   const { data: preds } = await supabaseAdmin
     .from('predictions')
-    .select('user_id, match_id, user_home, user_away, user_winner_penalties')
+    .select('user_id, match_id, user_home, user_away, user_winner_penalties, ingresado_por_referi')
     .in('match_id', dayIds);
 
   const predMap = new Map<string, any>();
@@ -123,6 +123,7 @@ export const GET: APIRoute = async ({ url, request }) => {
           const w = pr.user_winner_penalties === 'home' ? spanishName(m.home_team) : spanishName(m.away_team);
           s += ` (pen ${w})`;
         }
+        if (pr.ingresado_por_referi) s += ' ⚖️'; // ingresado por el réferi
         return s;
       })
       .filter(Boolean) as string[];
@@ -140,6 +141,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     lines.push(`🟥 *Jornada anulada (roja):* ${sanctionedNames.join(', ')}`);
     lines.push('');
   }
+  if (lines.some(l => l.includes('⚖️'))) lines.push('_⚖️ = ingresado por el réferi_');
   lines.push('👉 mundial.tecnocondor.dev/pronosticos');
   lines.push('_Polla Mundial 2026_ 🏆');
   const text = lines.join('\n');
