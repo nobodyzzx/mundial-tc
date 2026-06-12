@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '@/lib/supabase';
 import { ensureProfile } from '@/lib/auth-helpers';
+import { logAccess } from '@/lib/access-log';
 
 function traducirError(msg: string): string {
   const m = msg.toLowerCase();
@@ -52,6 +53,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     response.headers.append('Set-Cookie', `sb-refresh-token=${data.session.refresh_token}; ${cookieOpts}`);
 
     await ensureProfile(data.user, supabase, import.meta.env.ADMIN_EMAIL);
+    await logAccess(data.user?.id, 'login', 'password');
     return response;
   }
 
