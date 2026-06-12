@@ -100,6 +100,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     ...resultLines,
     '',
     '📊 *TABLA ACTUALIZADA*',
+    '_este partido + acumulado = total_',
     ...tableLines,
     '',
     '👉 mundial.tecnocondor.dev/resultados',
