@@ -60,13 +60,23 @@ export const GET: APIRoute = async ({ url, request }) => {
     }
   }
 
-  // 4. Tabla de posiciones actualizada.
+  // 4. Tabla de posiciones actualizada + puntos ganados en el/los partido(s) anunciados.
   const { data: standings } = await supabaseAdmin
     .from('profiles')
-    .select('username, puntos_totales')
+    .select('id, username, puntos_totales')
     .eq('participa', true)
     .eq('expulsado', false)
     .order('puntos_totales', { ascending: false });
+
+  const { data: matchPreds } = await supabaseAdmin
+    .from('predictions')
+    .select('user_id, points_earned')
+    .in('match_id', newly.map(m => m.id));
+
+  const matchPts = new Map<string, number>();
+  for (const pr of matchPreds ?? []) {
+    matchPts.set(pr.user_id, (matchPts.get(pr.user_id) ?? 0) + (pr.points_earned ?? 0));
+  }
 
   // 5. Construir mensaje.
   const resultLines = newly.map(m => {
@@ -81,7 +91,8 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   const tableLines = (standings ?? []).map((p, i) => {
     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-    return `${medal} ${p.username} — ${p.puntos_totales} pts`;
+    const gained = matchPts.get(p.id) ?? 0;
+    return `${medal} ${p.username} — ${p.puntos_totales} pts _(+${gained})_`;
   });
 
   const text = [
