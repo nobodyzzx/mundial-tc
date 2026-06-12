@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { getAdminUser } from '@/lib/auth-helpers';
+import { logEvent } from '@/lib/system-log';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
@@ -38,7 +39,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
   const { data: match } = await supabaseAdmin
     .from('matches')
-    .select('is_finished, stage')
+    .select('is_finished, stage, home_team, away_team')
     .eq('id', match_id)
     .single();
 
@@ -73,6 +74,15 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
+
+  const { data: target } = await supabaseAdmin.from('profiles').select('username').eq('id', user_id).single();
+  const penTxt = winnerPen ? ` (pen ${homePen}-${awayPen})` : '';
+  await logEvent({
+    category: 'pronostico',
+    event: 'ingreso-referi',
+    actor: admin.username,
+    summary: `${admin.username} cargó pronóstico de ${target?.username ?? '?'}: ${match.home_team} ${user_home}-${user_away} ${match.away_team}${penTxt}`,
+  });
 
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 };

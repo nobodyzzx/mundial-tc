@@ -166,7 +166,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   }
 
   // 7. Enviar.
-  const res = await sendWhatsApp(text);
+  const res = await sendWhatsApp(text, 'resumen-dia');
   if (!res.configured) return json({ error: res.detail }, 500);
 
   await supabaseAdmin.from('sync_logs').insert({

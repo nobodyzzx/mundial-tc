@@ -1,0 +1,94 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { fmtFecha } from '@/lib/fechas';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+if (!accessToken || !refreshToken) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
+if (!navProfile?.es_referi) return Astro.redirect('/dashboard');
+
+// Filtro opcional por categoría (?cat=whatsapp|marcador|pronostico|acceso).
+const cat = Astro.url.searchParams.get('cat') ?? '';
+
+let q = supabaseAdmin
+  .from('system_log')
+  .select('category, event, actor, summary, detail, created_at')
+  .order('created_at', { ascending: false })
+  .limit(400);
+if (cat) q = q.eq('category', cat);
+const { data: rawLog } = await q;
+const log = rawLog ?? [];
+
+const CATS: Record<string, { label: string; icon: string; cls: string }> = {
+  whatsapp:   { label: 'WhatsApp',  icon: '💬', cls: 'text-[#25D366] bg-[#25D366]/10 border-[#25D366]/30' },
+  marcador:   { label: 'Marcador',  icon: '⚽', cls: 'text-gol bg-gol/10 border-gol/30' },
+  pronostico: { label: 'Pronóstico', icon: '🎯', cls: 'text-gold bg-gold/10 border-gold/30' },
+  acceso:     { label: 'Acceso',    icon: '🚪', cls: 'text-slate-300 bg-slate-400/10 border-slate-500/30' },
+  sistema:    { label: 'Sistema',   icon: '⚙️', cls: 'text-purple-300 bg-purple-400/10 border-purple-400/30' },
+};
+const catInfo = (c: string) => CATS[c] ?? { label: c, icon: '•', cls: 'text-slate-400 bg-slate-400/10 border-slate-500/30' };
+const filters = ['whatsapp', 'marcador', 'pronostico', 'acceso'];
+const fmt = (iso: string) => fmtFecha(iso, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+---
+
+<Layout title="Registro" navProfile={navProfile} isAuthed={true}>
+  <div class="space-y-5">
+
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <div>
+        <h1 class="font-display text-4xl text-white tracking-wide">REGISTRO</h1>
+        <p class="text-slate-500 text-sm mt-1">Bitácora central · qué pasó, a qué hora y quién · {log.length} evento{log.length !== 1 ? 's' : ''}</p>
+      </div>
+      <a href="/admin" class="text-xs text-slate-500 hover:text-white transition px-3 py-1.5 border border-brand-700 rounded-lg">
+        ← Panel VAR
+      </a>
+    </div>
+
+    <div class="flex flex-wrap gap-2">
+      <a href="/admin/registro" class={`text-xs px-3 py-1.5 rounded-full border transition ${!cat ? 'bg-white/10 text-white border-white/30' : 'text-slate-400 border-brand-700 hover:text-white'}`}>Todo</a>
+      {filters.map((c) => (
+        <a href={`/admin/registro?cat=${c}`} class={`text-xs px-3 py-1.5 rounded-full border transition ${cat === c ? catInfo(c).cls : 'text-slate-400 border-brand-700 hover:text-white'}`}>
+          {catInfo(c).icon} {catInfo(c).label}
+        </a>
+      ))}
+    </div>
+
+    {log.length === 0 && (
+      <div class="text-center py-20 text-slate-600">
+        <div class="text-5xl mb-4">📋</div>
+        <p>Sin eventos registrados {cat ? 'en esta categoría' : 'todavía'}.</p>
+      </div>
+    )}
+
+    <div class="space-y-1.5">
+      {log.map((r: any) => {
+        const info = catInfo(r.category);
+        return (
+          <div class="bg-brand-900 border border-brand-700/60 rounded-lg px-4 py-2.5">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class={`text-[11px] px-2 py-0.5 rounded-full border flex-shrink-0 ${info.cls}`}>{info.icon} {info.label}</span>
+                <span class="text-sm text-slate-200 truncate">{r.summary}</span>
+              </div>
+              <span class="text-xs text-slate-500 font-mono flex-shrink-0">{fmt(r.created_at)}</span>
+            </div>
+            <div class="mt-1 flex items-center gap-2 text-[11px] text-slate-600">
+              {r.actor && <span>por <span class="text-slate-400">{r.actor}</span></span>}
+              {r.event && <span>· {r.event}</span>}
+              {r.detail && <span class="truncate">· {r.detail}</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+
+    <p class="text-xs text-slate-600 pt-2">Hora en zona Bolivia.</p>
+
+  </div>
+</Layout>

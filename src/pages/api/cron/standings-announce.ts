@@ -112,7 +112,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   }
 
   // 6. Enviar.
-  const res = await sendWhatsApp(text);
+  const res = await sendWhatsApp(text, 'standings-announce');
   if (!res.configured) return json({ error: res.detail }, 500);
 
   // 7. Registrar cada partido (éxito sella la idempotencia; error → reintenta).

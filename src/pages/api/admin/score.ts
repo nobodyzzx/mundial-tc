@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { sanitizeError, getAdminUser } from '@/lib/auth-helpers';
+import { logEvent } from '@/lib/system-log';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
@@ -45,7 +46,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   // Verificar que el partido no esté ya finalizado
   const { data: existing } = await supabaseAdmin
     .from('matches')
-    .select('is_finished')
+    .select('is_finished, home_team, away_team')
     .eq('id', matchId)
     .single();
 
@@ -82,6 +83,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   if (calcError) {
     return redirect('/admin?err=' + encodeURIComponent('Resultado guardado pero error al calcular puntos'));
   }
+
+  const penTxt = winnerPenalties ? ` (pen ${homePen}-${awayPen})` : '';
+  await logEvent({
+    category: 'marcador',
+    event: 'manual',
+    actor: admin.username,
+    summary: `${existing?.home_team ?? '?'} ${homeScore}-${awayScore} ${existing?.away_team ?? '?'}${penTxt} · carga manual`,
+  });
 
   return redirect('/admin?msg=Resultado+cargado+y+puntos+calculados+correctamente');
 };

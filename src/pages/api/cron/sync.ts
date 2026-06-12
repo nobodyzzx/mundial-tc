@@ -9,6 +9,7 @@ import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
 import { linkMatches, isPlaceholderName } from '@/lib/match-link';
+import { logEvent } from '@/lib/system-log';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 
@@ -144,6 +145,12 @@ export const GET: APIRoute = async ({ url, request }) => {
     if (!error) {
       scoresUpdated++;
       toCalculate.push(matchId);
+      await logEvent({
+        category: 'marcador',
+        event: 'sync',
+        actor: PROVIDER,
+        summary: `${db?.home_team ?? '?'} ${update.home_score}-${update.away_score} ${db?.away_team ?? '?'}`,
+      });
     }
   }
 

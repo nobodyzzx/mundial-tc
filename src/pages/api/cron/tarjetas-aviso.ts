@@ -128,7 +128,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   if (preview) return json({ preview: true, dayKey, tarjetas: items.length, text });
 
   // 8. Enviar por Green API y sellar idempotencia.
-  const r = await sendWhatsApp(text);
+  const r = await sendWhatsApp(text, 'tarjetas-aviso');
   await supabaseAdmin.from('sync_logs').insert({
     source: 'tarjetas-aviso',
     endpoint: dayKey,
