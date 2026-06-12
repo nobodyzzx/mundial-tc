@@ -7,7 +7,7 @@
  */
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getFixtures, getFinishedMatches, deriveWinnerPenalties } from '@/lib/football-api';
+import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
 import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
@@ -53,15 +53,33 @@ export const GET: APIRoute = async ({ url, request }) => {
     return json({ error: 'TOURNAMENT_CODE o TOURNAMENT_SEASON no configurados' }, 500);
   }
 
-  let allFixtures, finished;
+  // Gate (api-football): la cuota free es 100/día. Solo se llama a la API si hay un
+  // partido en ventana de juego (chequeo gratis en la BD). Evita gastar requests las
+  // ~20h sin partidos. football-data no tiene cuota diaria → no se gatea.
+  if (PROVIDER === 'api-football') {
+    const nowIso = new Date().toISOString();
+    const sinceIso = new Date(Date.now() - 5 * 3600 * 1000).toISOString();
+    const { data: active } = await supabaseAdmin
+      .from('matches')
+      .select('id')
+      .eq('is_finished', false)
+      .gte('match_date', sinceIso)
+      .lte('match_date', nowIso)
+      .limit(1);
+    if (!active?.length) {
+      return json({ ok: true, skipped: true, reason: 'Sin partido en ventana de juego', namesUpdated: 0, scoresUpdated: 0 });
+    }
+  }
+
+  // Una sola llamada: trae todos los partidos (en vivo/terminados/programados).
+  // Los terminados se derivan filtrando status (evita una segunda request).
+  let allFixtures;
   try {
-    [allFixtures, finished] = await Promise.all([
-      getFixtures(code, season),
-      getFinishedMatches(code, season),
-    ]);
+    allFixtures = await getFixtures(code, season);
   } catch (e: any) {
     return json({ error: 'Error API fútbol: ' + e.message }, 502);
   }
+  const finished = allFixtures.filter(f => f.status === 'FINISHED');
 
   // DB: partidos no terminados (candidatos para nombres y resultados).
   const { data: dbMatchesRaw } = await supabaseAdmin

@@ -132,15 +132,14 @@ export async function getFinishedMatches(): Promise<ApiMatch[]> {
 }
 
 /**
- * Fixtures cercanos (hoy + ayer + en vivo). El plan free no permite traer toda la
- * temporada de una; para actualizar nombres TBD del sync esto basta. El mapeo
- * completo del bracket se hace en el remap de external_id (Fase 2).
+ * Fixtures del día (todos los estados: en vivo, terminados, programados) en 1 sola
+ * request — la cuota free es 100/día, así que se minimizan las llamadas. Solo añade
+ * "ayer" en la madrugada UTC (<05:00), por partidos que cruzan la medianoche.
+ * El sync deriva los terminados filtrando status === 'FINISHED' de este resultado.
  */
 export async function getFixtures(): Promise<ApiMatch[]> {
-  const [today, yesterday, live] = await Promise.all([
-    wcByDate(utcDate(0)),
-    wcByDate(utcDate(-1)),
-    getLiveMatches(),
-  ]);
-  return dedupe([...yesterday, ...today, ...live]);
+  const dates = [utcDate(0)];
+  if (new Date().getUTCHours() < 5) dates.push(utcDate(-1));
+  const batches = await Promise.all(dates.map(wcByDate));
+  return dedupe(batches.flat());
 }

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
-import { getFixtures, getFinishedMatches, deriveWinnerPenalties } from '@/lib/football-api';
+import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
 import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 import { getAdminUser } from '@/lib/auth-helpers';
 
@@ -18,15 +18,13 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect(`/admin?err=${encodeURIComponent('Código de torneo y temporada son obligatorios')}`);
   }
 
-  let allFixtures, finished;
+  let allFixtures;
   try {
-    [allFixtures, finished] = await Promise.all([
-      getFixtures(code, season),
-      getFinishedMatches(code, season),
-    ]);
+    allFixtures = await getFixtures(code, season);
   } catch (e: any) {
     return redirect(`/admin?err=${encodeURIComponent('Error API: ' + e.message)}`);
   }
+  const finished = allFixtures.filter(f => f.status === 'FINISHED');
 
   // DB: partidos no terminados (candidatos para nombres y resultados).
   const { data: dbMatchesRaw } = await supabaseAdmin
