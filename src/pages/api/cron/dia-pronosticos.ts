@@ -2,7 +2,7 @@
  * GET /api/cron/dia-pronosticos
  *
  * Postea al grupo de WhatsApp los pronósticos de TODOS para el día de juego,
- * una vez que las apuestas ya cerraron (1h55m antes del primer partido = 5 min
+ * una vez que las apuestas ya cerraron (1h58m antes del primer partido = 2 min
  * después del cierre). Es el "botón Día" automatizado.
  *
  * Llamar desde cron-job.org cada ~15–30 min con ?secret=CRON_SECRET o
@@ -14,14 +14,14 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
 import { spanishName, teamFlag } from '@/lib/isoFlags';
-import { boliviaDayStart } from '@/lib/jornada';
+import { boliviaDayStart, REVEAL_BEFORE_MS } from '@/lib/jornada';
 import { betaNowMs } from '@/lib/betaTime';
 import { fmtFecha, fmtDiaKey } from '@/lib/fechas';
 import { checkCronSecret, json } from '@/lib/cron';
 import { sendWhatsApp } from '@/lib/whatsapp';
 
-// Revelación: 1h55m antes del primer partido (igual que la página /pronosticos).
-const REVEAL_BEFORE_MS = 115 * 60 * 1000;
+// Revelación (REVEAL_BEFORE_MS) centralizada en lib/jornada.ts: 1h58m antes del
+// primer partido = 2 min después del cierre. Igual que la página /pronosticos.
 
 const fmtTime = (iso: string) => fmtFecha(iso, { hour: '2-digit', minute: '2-digit' });
 

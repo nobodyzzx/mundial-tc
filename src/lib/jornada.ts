@@ -8,6 +8,14 @@
 export const JORNADA_CLOSE_MS = 2 * 3600 * 1000; // 2 horas
 
 /**
+ * Anticipación con la que se REVELAN los pronósticos del día antes del primer
+ * partido. Debe ser MENOR que JORNADA_CLOSE_MS para que nunca se vean antes de
+ * cerrar: 1h58m = 2 minutos DESPUÉS del cierre (que es a 2h). Usado por la
+ * página /pronosticos y por el cron dia-pronosticos.
+ */
+export const REVEAL_BEFORE_MS = 118 * 60 * 1000; // 1h 58m
+
+/**
  * Retorna el timestamp UTC del inicio de la "jornada del día" Bolivia.
  * El día se considera que empieza a las 03:00 AM BOT (no en medianoche) para
  * que partidos a las 00:00-02:59 queden agrupados con la noche anterior.

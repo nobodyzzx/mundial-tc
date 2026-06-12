@@ -2,7 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
-import { boliviaDayStart } from '@/lib/jornada';
+import { boliviaDayStart, REVEAL_BEFORE_MS } from '@/lib/jornada';
 import { spanishName } from '@/lib/isoFlags';
 import { fmtFecha } from '@/lib/fechas';
 
@@ -15,9 +15,9 @@ if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cooki
 
 const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
 
-// La revelación abre 1h55m antes del primer partido del día (5 min después del
+// La revelación abre 1h58m antes del primer partido del día (2 min después del
 // cierre de apuestas, que es 2h antes). Para entonces nadie puede ya enviar.
-const REVEAL_BEFORE_MS = 115 * 60 * 1000; // 1h 55m
+// REVEAL_BEFORE_MS vive en lib/jornada.ts (fuente única, junto al cierre).
 
 const nowMs = betaNowMs();
 
