@@ -22,7 +22,10 @@ import { checkCronSecret, json } from '@/lib/cron';
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 // ESPN ve el calendario completo (sin ventana) → se alinea más días de una.
 // api-football solo da ~3 días → ventana corta.
-const [RANGE_FROM, RANGE_TO] = PROVIDER === 'espn' ? [0, 8] : [0, 2];
+// ESPN agrupa fechas por horario EDT (no UTC): un partido de 01:00 UTC cae en el
+// "día" EDT anterior. Por eso se trae una ventana ANCHA y luego se reconcilia solo
+// un interior UTC que queda 100% cubierto (sin falsos fantasmas en los bordes).
+const [RANGE_FROM, RANGE_TO] = PROVIDER === 'espn' ? [-2, 9] : [0, 2];
 const utcDay = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
 export const GET: APIRoute = async ({ url, request }) => {
@@ -38,9 +41,22 @@ export const GET: APIRoute = async ({ url, request }) => {
   } catch (e: any) {
     return json({ error: 'Proveedor: ' + e.message }, 502);
   }
-  const apiGroup = apiAll.filter((f) => mapStage(f.stage) === 'group');
+  const apiGroupAll = apiAll.filter((f) => mapStage(f.stage) === 'group');
+  if (!apiGroupAll.length) return json({ skipped: true, reason: 'Sin fixtures de grupo en la ventana' });
+
+  // Días UTC a reconciliar. Con ESPN se trae ancho (-2..9) pero solo se reconcilia
+  // el interior [hoy..hoy+6], 100% cubierto. Con api-football (consulta por UTC) se
+  // usan los días devueltos.
+  let apiDates: Set<string>;
+  if (PROVIDER === 'espn') {
+    apiDates = new Set<string>();
+    for (let k = 0; k <= 6; k++) apiDates.add(utcDay(new Date(Date.now() + k * 86400000).toISOString()));
+  } else {
+    apiDates = new Set(apiGroupAll.map((f) => utcDay(f.utcDate)));
+  }
+  // Solo se consideran fixtures dentro de la ventana de reconciliación.
+  const apiGroup = apiGroupAll.filter((f) => apiDates.has(utcDay(f.utcDate)));
   if (!apiGroup.length) return json({ skipped: true, reason: 'Sin fixtures de grupo en la ventana' });
-  const apiDates = new Set(apiGroup.map((f) => utcDay(f.utcDate)));
 
   // 2. Partidos de grupo de la BD.
   const { data: dbGroupAll } = await supabaseAdmin
