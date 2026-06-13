@@ -299,11 +299,14 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                     </div>
 
                     {missing.length > 0 && (
-                      <p class="sinpron mt-2 text-[11px] text-fifared/70 leading-relaxed">
-                        ⛔ Sin pronóstico: {missing.map((pl: any, k: number) => (
-                          <Fragment>{k > 0 ? ', ' : ''}{isSanctioned(pl.id, m.match_date) ? '🟥 ' : ''}{pl.username}</Fragment>
+                      <div class="sinpron mt-2.5 flex flex-wrap items-center gap-1.5">
+                        <span class="text-[11px] font-semibold text-red-300">⛔ Sin pronóstico</span>
+                        {missing.map((pl: any) => (
+                          <span class="text-[11px] text-red-200 bg-fifared/15 border border-fifared/40 px-1.5 py-0.5 rounded-md whitespace-nowrap">
+                            {isSanctioned(pl.id, m.match_date) ? '🟥 ' : ''}{pl.username}
+                          </span>
                         ))}
-                      </p>
+                      </div>
                     )}
                   </div>
                 </div>
