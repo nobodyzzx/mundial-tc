@@ -113,6 +113,11 @@ export const GET: APIRoute = async ({ url, request }) => {
     const away = canonName.get(normTeam(f.awayTeam.name)) ?? f.awayTeam.name;
     const gh = teamGroup.get(normTeam(f.homeTeam.name));
     const ga = teamGroup.get(normTeam(f.awayTeam.name));
+    // Placeholder de eliminatoria sin definir ("Group A Winner", "Round of 32 N
+    // Winner"…): ningún lado es un equipo real conocido. ESPN los etiqueta con la
+    // fase actual del torneo, por eso se cuelan. No son de grupo → se ignoran en
+    // silencio (los rellena el sync cuando se definan), no se marcan como discrepancia.
+    if (!gh && !ga) continue;
     if (!gh || !ga || gh !== ga) {
       flags.push({ tipo: 'grupo-discrepante', partido: `${home} vs ${away}`, fecha: f.utcDate, grupo_home: gh ?? '?', grupo_away: ga ?? '?' });
       continue; // no insertar a ciegas
