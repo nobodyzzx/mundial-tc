@@ -3,7 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart } from '@/lib/jornada';
-import { isoForTeam, spanishName } from '@/lib/isoFlags';
+import { isoForTeam, spanishName, teamFlag } from '@/lib/isoFlags';
 import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -60,6 +60,11 @@ for (const m of allMatches) {
 // Día de juego Bolivia (frontera 03:00 BOT) — para agrupar y compartir por día
 const dayKeyOf   = (d: string) => boliviaDayStart(new Date(d).getTime()).toISOString();
 const dayLabelOf = (d: string) => fmtFecha(boliviaDayStart(new Date(d).getTime()), { weekday: 'short', day: 'numeric', month: 'short' });
+
+// Día Bolivia de "hoy" (para el toggle Hoy) y jornada a abrir por defecto (la
+// primera sin terminar → corta el scroll inicial; el resto se abre con los chips).
+const todayKey  = dayKeyOf(new Date(betaNowMs()).toISOString());
+const firstOpenJi = jornadaOrder.findIndex((j) => !jornadaMatches[j].every((m: any) => m.is_finished));
 
 // Datos para compartir via WhatsApp
 const shareData = jornadaOrder.map((jornada) => ({
@@ -123,7 +128,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 ---
 
 <Layout title="Pronósticos" navProfile={navProfile} isAuthed={true}>
-  <div class="space-y-6">
+  <div class="space-y-6" id="pron-root">
 
     <div class="flex items-center justify-between gap-2 flex-wrap">
       <div>
@@ -134,6 +139,38 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
         ← Panel VAR
       </a>
     </div>
+
+    {/* ── Barra de herramientas (filtros + navegación) ── */}
+    {jornadaOrder.length > 0 && (
+      <div id="pron-toolbar" class="sticky top-0 z-20 -mx-1 px-1 py-2 bg-brand-950/90 backdrop-blur border-b border-brand-800 space-y-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          {/* Filtro por jugador */}
+          <select id="filter-player" class="text-xs bg-brand-900 border border-brand-700 text-slate-200 rounded-lg px-2 py-1.5 max-w-[150px]">
+            <option value="">👥 Todos los jugadores</option>
+            {players.map((pl: any) => <option value={pl.id}>{pl.username}</option>)}
+          </select>
+          {/* Toggles de estado */}
+          <div class="inline-flex rounded-lg border border-brand-700 overflow-hidden text-xs">
+            <button data-status-filter="all"      class="status-btn px-2.5 py-1.5 text-white bg-brand-700">Todos</button>
+            <button data-status-filter="today"    class="status-btn px-2.5 py-1.5 text-slate-400 border-l border-brand-700">Hoy</button>
+            <button data-status-filter="finished" class="status-btn px-2.5 py-1.5 text-slate-400 border-l border-brand-700">Terminados</button>
+            <button data-status-filter="pending"  class="status-btn px-2.5 py-1.5 text-slate-400 border-l border-brand-700">Pendientes</button>
+          </div>
+          {/* Contraer / expandir todo */}
+          <button id="toggle-all" data-mode="expand" class="text-xs text-slate-400 hover:text-white border border-brand-700 rounded-lg px-2.5 py-1.5 transition">⊕ Expandir todo</button>
+        </div>
+        {/* Salto a jornada */}
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 -mb-0.5">
+          {jornadaOrder.map((jornada, ji) => (
+            <a href={`#j-${ji}`} class="jump-chip text-[11px] whitespace-nowrap px-2 py-1 rounded-full border border-brand-700 text-slate-400 hover:text-white hover:border-brand-500 transition flex-shrink-0">
+              {jornada.replace(/Jornada /i, 'J').toUpperCase()}
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <p id="filter-empty" class="hidden text-center py-12 text-slate-600 text-sm">Nada que mostrar con este filtro.</p>
 
     {jornadaOrder.length === 0 && (
       <div class="text-center py-20 text-slate-600">
@@ -147,7 +184,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
       const allFinished = matches.every((m: any) => m.is_finished);
       const anyFinished = matches.some((m: any) => m.is_finished);
       return (
-        <details open={!allFinished} class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
+        <details id={`j-${ji}`} data-jornada open={ji === firstOpenJi} class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden scroll-mt-28">
           <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none select-none">
             <div class="flex items-center gap-3">
               <span class="font-display text-lg text-white tracking-wide">{jornada.toUpperCase()}</span>
@@ -178,11 +215,13 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
               const missing   = players.filter((pl: any) => !preds[pl.id]);
               const isClosed  = new Date(m.match_date).getTime() - 7200000 < betaNowMs();
               const dk      = dayKeyOf(m.match_date);
+              const status  = m.is_finished ? 'finished' : isClosed ? 'closed' : 'open';
+              const isToday = dk === todayKey;
               const showDay = mi === 0 || dayKeyOf(matches[mi - 1].match_date) !== dk;
               return (
                 <Fragment>
                 {showDay && (
-                  <div class="flex items-center gap-3 px-5 py-2 bg-brand-950/40 border-b border-brand-800/60">
+                  <div data-daysep data-ji={ji} data-day={dk} class="flex items-center gap-3 px-5 py-2 bg-brand-950/40 border-b border-brand-800/60">
                     <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap capitalize">{dayLabelOf(m.match_date)}</span>
                     <div class="flex-1 h-px bg-brand-700/40"></div>
                     <button
@@ -196,17 +235,19 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                     </button>
                   </div>
                 )}
-                <div class="border-b border-brand-800/60 last:border-b-0">
-                  {/* Cabecera del partido */}
-                  <div class="px-5 py-3 bg-brand-800/40 flex items-center gap-3 flex-wrap">
-                    <div class="flex items-center gap-2 flex-1 min-w-0">
-                      <span class="text-sm font-semibold text-white truncate">{spanishName(m.home_team)}</span>
-                      <span class="text-brand-600 font-display text-sm flex-shrink-0">
+                <div data-match data-status={status} data-today={isToday ? '1' : '0'} data-ji={ji} data-day={dk} class="border-b border-brand-800/60 last:border-b-0">
+                  {/* Cabecera del partido — nombres completos, sin cortar */}
+                  <div class="px-5 py-3 bg-brand-800/40 space-y-1.5">
+                    <div class="flex items-center gap-2 text-sm font-semibold text-white">
+                      <span class="flex-shrink-0">{teamFlag(m.home_team)}</span>
+                      <span>{spanishName(m.home_team)}</span>
+                      <span class="text-brand-500 font-display flex-shrink-0">
                         {m.is_finished ? `${m.home_score}–${m.away_score}` : 'vs'}
                       </span>
-                      <span class="text-sm font-semibold text-white truncate">{spanishName(m.away_team)}</span>
+                      <span>{spanishName(m.away_team)}</span>
+                      <span class="flex-shrink-0">{teamFlag(m.away_team)}</span>
                     </div>
-                    <div class="flex items-center gap-2 flex-shrink-0 text-xs flex-wrap justify-end">
+                    <div class="flex items-center gap-2 text-xs flex-wrap">
                       <span class="text-slate-600">
                         {fmtFecha(m.match_date, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
                       </span>
@@ -216,13 +257,12 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                         ? <span class="text-gold bg-gold/10 border border-gold/20 px-2 py-0.5 rounded-full">🔒 Cerrado</span>
                         : <span class="text-slate-500 bg-brand-800 border border-brand-700 px-2 py-0.5 rounded-full">Abierto</span>
                       }
-                      <span class="text-slate-500">{submitted.length}/{players.length}</span>
-                      {/* Botón WA por partido */}
+                      <span class={submitted.length === players.length ? 'text-gol' : 'text-slate-500'}>{submitted.length}/{players.length}</span>
                       <button
                         data-share-match
                         data-ji={ji}
                         data-mi={mi}
-                        class="flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full font-medium"
+                        class="ml-auto flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full font-medium flex-shrink-0"
                         title="Copiar este partido para WhatsApp"
                       >
                         <Fragment set:html={WA_ICON} /> WA
@@ -230,38 +270,34 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                     </div>
                   </div>
 
-                  {/* Pronósticos */}
+                  {/* Pronósticos — grilla alineada de 2 columnas */}
                   <div class="px-5 py-3">
-                    <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
                       {players.map((pl: any) => {
                         const pred = preds[pl.id];
+                        const sanc = isSanctioned(pl.id, m.match_date);
                         return (
-                          <div class="flex items-center gap-1.5 min-w-[120px]">
-                            {isSanctioned(pl.id, m.match_date) && <span title="Tarjeta roja — jornada anulada">🟥</span>}
-                            <span class="text-xs text-slate-500 truncate max-w-[70px]">{pl.username}</span>
-                            <span class={`text-xs font-mono ${predClass(pred, m)}`}>
+                          <div data-pl={pl.id} data-has={pred ? '1' : '0'} class="pred-cell items-center gap-2 py-0.5 border-b border-brand-800/30">
+                            {sanc && <span class="flex-shrink-0" title="Tarjeta roja — jornada anulada">🟥</span>}
+                            <span class="text-xs text-slate-400 truncate flex-1 min-w-0">{pl.username}</span>
+                            {pred?.ingresado_por_referi && <span class="text-[10px] flex-shrink-0" title="Ingresado por el réferi">⚖️</span>}
+                            <span class={`text-xs font-mono tabular-nums flex-shrink-0 ${predClass(pred, m)}`}>
                               {predLabel(pred)}
                             </span>
-                            {pred?.ingresado_por_referi && <span class="text-[10px]" title="Ingresado por el réferi">⚖️</span>}
-                            {m.is_finished && pred && (
-                              <span class={`text-[10px] font-bold ${pred.points_earned > 0 ? 'text-gol' : 'text-slate-600'}`}>
-                                {ptsLabel(pred, m)}
-                              </span>
-                            )}
+                            <span class={`text-[10px] font-bold w-6 text-right flex-shrink-0 ${pred && pred.points_earned > 0 ? 'text-gol' : 'text-slate-600'}`}>
+                              {ptsLabel(pred, m)}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
 
-                    {missing.length > 0 && !m.is_finished && (
-                      <div class="mt-2 flex flex-wrap gap-1.5 items-start">
-                        <span class="text-[11px] text-fifared/70 mt-0.5">No pronosticaron <span class="text-fifared/40">(pago incompleto o no ingresaron a tiempo)</span>:</span>
-                        <div class="flex flex-wrap gap-1">
-                          {missing.map((pl: any) => (
-                            <span class="text-[11px] text-fifared/60 bg-fifared/5 border border-fifared/20 px-1.5 py-0.5 rounded">{isSanctioned(pl.id, m.match_date) ? '🟥 ' : ''}{pl.username}</span>
-                          ))}
-                        </div>
-                      </div>
+                    {missing.length > 0 && (
+                      <p class="sinpron mt-2 text-[11px] text-fifared/70 leading-relaxed">
+                        ⛔ Sin pronóstico: {missing.map((pl: any, k: number) => (
+                          <Fragment>{k > 0 ? ', ' : ''}{isSanctioned(pl.id, m.match_date) ? '🟥 ' : ''}{pl.username}</Fragment>
+                        ))}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -285,6 +321,17 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 
   </div>
 </Layout>
+
+<style is:global>
+  /* La grilla muestra solo a quienes pronosticaron; los que no, van en la línea ⛔. */
+  .pred-cell { display: flex; }
+  .pred-cell[data-has="0"] { display: none; }
+  /* Modo aislar un jugador: oculta el resto; la regla del seleccionado se inyecta por JS. */
+  #pron-root[data-iso] .pred-cell { display: none !important; }
+  #pron-root[data-iso] .sinpron   { display: none !important; }
+  /* Oculto por filtro de estado (partido / separador de día / jornada). */
+  .hidden-f { display: none !important; }
+</style>
 
 <script is:inline type="application/json" id="pronosticos-data" set:html={JSON.stringify(shareData)} />
 
@@ -511,4 +558,92 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 
   initShareButtons();
   document.addEventListener('astro:page-load', initShareButtons);
+
+  // ── Controles: filtro por jugador, toggles de estado, salto y contraer/expandir ──
+  function initFilters() {
+    const root = document.getElementById('pron-root');
+    if (!root || root.dataset.filtersInit) return;
+    root.dataset.filtersInit = '1';
+
+    const matches  = Array.from(document.querySelectorAll<HTMLElement>('[data-match]'));
+    const dayseps  = Array.from(document.querySelectorAll<HTMLElement>('[data-daysep]'));
+    const jornadas = Array.from(document.querySelectorAll<HTMLDetailsElement>('details[data-jornada]'));
+    const emptyMsg = document.getElementById('filter-empty');
+    let statusFilter = 'all';
+
+    // La barra debe pegarse JUSTO debajo del nav sticky del Layout (no detrás).
+    const toolbar = document.getElementById('pron-toolbar');
+    const nav = document.querySelector('nav');
+    const placeToolbar = () => { if (toolbar && nav) toolbar.style.top = nav.getBoundingClientRect().height + 'px'; };
+    placeToolbar();
+    window.addEventListener('resize', placeToolbar);
+
+    function applyStatus() {
+      let anyVisible = false;
+      for (const el of matches) {
+        const st = el.dataset.status;            // finished | closed | open
+        const today = el.dataset.today === '1';
+        let show = true;
+        if (statusFilter === 'today')         show = today;
+        else if (statusFilter === 'finished') show = st === 'finished';
+        else if (statusFilter === 'pending')  show = st !== 'finished';
+        el.classList.toggle('hidden-f', !show);
+        if (show) anyVisible = true;
+      }
+      for (const sep of dayseps) {
+        const vis = matches.some(m => m.dataset.ji === sep.dataset.ji && m.dataset.day === sep.dataset.day && !m.classList.contains('hidden-f'));
+        sep.classList.toggle('hidden-f', !vis);
+      }
+      for (const det of jornadas) {
+        const vis = !!det.querySelector('[data-match]:not(.hidden-f)');
+        det.classList.toggle('hidden-f', !vis);
+        if (statusFilter !== 'all' && vis) det.open = true;
+      }
+      if (emptyMsg) emptyMsg.classList.toggle('hidden', anyVisible);
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('.status-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        statusFilter = btn.dataset.statusFilter || 'all';
+        document.querySelectorAll<HTMLButtonElement>('.status-btn').forEach(b => {
+          const on = b === btn;
+          b.classList.toggle('bg-brand-700', on);
+          b.classList.toggle('text-white', on);
+          b.classList.toggle('text-slate-400', !on);
+        });
+        applyStatus();
+      });
+    });
+
+    // Filtro por jugador → aislar (inyecta la regla CSS del seleccionado)
+    const sel = document.getElementById('filter-player') as HTMLSelectElement | null;
+    let isoStyle = document.getElementById('iso-style') as HTMLStyleElement | null;
+    sel?.addEventListener('change', () => {
+      const id = sel.value;
+      if (!isoStyle) {
+        isoStyle = document.createElement('style');
+        isoStyle.id = 'iso-style';
+        document.head.appendChild(isoStyle);
+      }
+      if (id) {
+        root.setAttribute('data-iso', '');
+        isoStyle.textContent = `#pron-root[data-iso] .pred-cell[data-pl="${id}"]{display:flex!important}`;
+      } else {
+        root.removeAttribute('data-iso');
+        isoStyle.textContent = '';
+      }
+    });
+
+    // Contraer / expandir todo
+    const toggleAll = document.getElementById('toggle-all') as HTMLButtonElement | null;
+    toggleAll?.addEventListener('click', () => {
+      const expand = toggleAll.dataset.mode === 'expand';
+      jornadas.forEach(d => { if (!d.classList.contains('hidden-f')) d.open = expand; });
+      toggleAll.dataset.mode = expand ? 'collapse' : 'expand';
+      toggleAll.textContent = expand ? '⊖ Contraer todo' : '⊕ Expandir todo';
+    });
+  }
+
+  initFilters();
+  document.addEventListener('astro:page-load', initFilters);
 </script>
