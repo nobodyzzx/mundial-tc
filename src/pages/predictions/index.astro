@@ -221,7 +221,7 @@ let globalFormIdx = 0;
       const shareData = buildShareData(jornadaMatches, navProfile?.username ?? 'yo');
 
       return (
-        <div class="space-y-3">
+        <div class="space-y-3" data-jornada>
 
           {/* ── Encabezado de jornada ── */}
           <div class={`flex items-center justify-between px-4 py-3 rounded-xl border ${
@@ -243,7 +243,7 @@ let globalFormIdx = 0;
                   ? '⏳ Esperá que termine el partido de hoy'
                   : closed
                   ? '🔒 Cerrada'
-                  : `⏰ Cierre: ${cutoffStr}`
+                  : <span class="cutoff-cd font-semibold" data-cutoff={firstTime - 2 * 3600 * 1000}>⏰ Cierre: {cutoffStr}</span>
                 }
               </p>
             </div>
@@ -312,6 +312,7 @@ let globalFormIdx = 0;
                     {/* Equipos + inputs */}
                     {existing ? (
                       /* Ya pronosticado: layout horizontal clásico */
+                      <Fragment>
                       <div class="flex items-center gap-2">
                         <div class="flex-1 text-right">
                           <span class="text-white font-semibold text-base leading-tight">
@@ -329,6 +330,10 @@ let globalFormIdx = 0;
                           </span>
                         </div>
                       </div>
+                      <p class="text-center mt-2.5">
+                        <span class="text-[11px] font-semibold text-gol bg-gol/10 border border-gol/30 rounded-full px-2.5 py-1">✓ Guardado {existing.user_home}–{existing.user_away}</span>
+                      </p>
+                      </Fragment>
                     ) : (
                       /* Sin pronóstico: nombres arriba, steppers abajo */
                       <div class="space-y-3">
@@ -354,6 +359,7 @@ let globalFormIdx = 0;
                               type="number" inputmode="numeric" pattern="[0-9]*"
                               name={`home_${idx}`}
                               min="0" max="20" required value="0"
+                              data-team={spanishName(m.home_team)}
                               class="w-14 bg-brand-800 border-2 border-brand-700 rounded-xl py-2 text-white text-2xl font-display text-center focus:outline-none focus:border-gold transition"
                             />
                             <button type="button"
@@ -370,6 +376,7 @@ let globalFormIdx = 0;
                               type="number" inputmode="numeric" pattern="[0-9]*"
                               name={`away_${idx}`}
                               min="0" max="20" required value="0"
+                              data-team={spanishName(m.away_team)}
                               class="w-14 bg-brand-800 border-2 border-brand-700 rounded-xl py-2 text-white text-2xl font-display text-center focus:outline-none focus:border-gold transition"
                             />
                             <button type="button"
@@ -511,6 +518,22 @@ let globalFormIdx = 0;
       );
     })}
   </div>
+
+  {/* ── Modal de confirmación antes de enviar ── */}
+  <div id="confirm-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-confirm-cancel></div>
+    <div class="relative bg-brand-900 border border-brand-700 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
+      <div class="text-center space-y-1">
+        <h3 class="font-display text-xl text-white">¿Confirmar envío?</h3>
+        <p class="text-xs text-slate-500">Revisa tus marcadores. Una vez enviado no se puede cambiar.</p>
+      </div>
+      <div id="confirm-list" class="space-y-1.5 max-h-[45vh] overflow-y-auto"></div>
+      <div class="flex gap-2 pt-1">
+        <button type="button" data-confirm-cancel class="flex-1 bg-brand-800 border border-brand-700 text-slate-300 font-semibold py-3 rounded-xl active:bg-brand-700 transition min-h-[48px]">Volver</button>
+        <button type="button" id="confirm-ok" class="flex-1 bg-gold text-brand-950 font-bold py-3 rounded-xl active:bg-gold-dark transition min-h-[48px]">Confirmar ✅</button>
+      </div>
+    </div>
+  </div>
 </Layout>
 
 <script>
@@ -625,24 +648,96 @@ let globalFormIdx = 0;
     });
   }
 
-  function initSubmitButtons() {
-    document.querySelectorAll<HTMLFormElement>('form[action="/api/predictions/submit-jornada"]').forEach(form => {
-      form.addEventListener('submit', () => {
-        // Botón: feedback inmediato
-        const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]');
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = '✅ Enviando…';
-          btn.classList.remove('bg-gold', 'active:bg-gold-dark');
-          btn.classList.add('bg-gol', 'opacity-80', 'cursor-not-allowed');
+  // ── Contador en vivo del cierre (verde > 1h, ámbar < 1h, rojo al cerrar) ──
+  function fmtRemaining(ms: number): string {
+    const t = Math.floor(ms / 1000);
+    const h = Math.floor(t / 3600);
+    const m = Math.floor((t % 3600) / 60);
+    const s = t % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  function initCountdown() {
+    if ((window as any).__cdInterval) clearInterval((window as any).__cdInterval);
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.cutoff-cd'));
+    if (!els.length) return;
+    const tick = () => {
+      els.forEach(cd => {
+        const cutoff = parseInt(cd.dataset.cutoff || '0', 10);
+        const rem = cutoff - Date.now();
+        if (rem <= 0) {
+          cd.textContent = '🔒 CERRADA';
+          cd.style.color = '#f87171';
+          const wrap = cd.closest('[data-jornada]');
+          const btn = wrap?.querySelector<HTMLButtonElement>('button[type="submit"]');
+          if (btn && !btn.disabled) {
+            btn.disabled = true;
+            btn.textContent = '🔒 Jornada cerrada';
+            btn.classList.add('opacity-60', 'cursor-not-allowed');
+          }
+          return;
         }
-        // Cards de partidos: borde + fondo verde
-        form.querySelectorAll<HTMLElement>('div.bg-brand-900').forEach(card => {
-          card.classList.remove('border-brand-700\\/60');
-          card.classList.add('border-gol/40', 'bg-gol/5');
-        });
+        cd.textContent = '⏰ Cierra en ' + fmtRemaining(rem);
+        cd.style.color = rem > 3600000 ? '#4ade80' : rem > 600000 ? '#fbbf24' : '#f87171';
+      });
+    };
+    tick();
+    (window as any).__cdInterval = setInterval(tick, 1000);
+  }
+
+  // ── Confirmación antes de enviar ──
+  function summaryRows(form: HTMLFormElement) {
+    const rows: { home: string; away: string; hs: string; as: string; pen: string }[] = [];
+    form.querySelectorAll<HTMLInputElement>('input[name^="home_"]').forEach(hi => {
+      const idx = hi.name.slice(5);
+      const ai = form.querySelector<HTMLInputElement>(`input[name="away_${idx}"]`);
+      if (!ai) return;
+      const ph = form.querySelector<HTMLInputElement>(`input[name="pen_home_${idx}"]`);
+      const pa = form.querySelector<HTMLInputElement>(`input[name="pen_away_${idx}"]`);
+      let pen = '';
+      if (ph && pa && ph.value !== '' && pa.value !== '') pen = ` · pen ${ph.value}–${pa.value}`;
+      rows.push({ home: hi.dataset.team || '', away: ai.dataset.team || '', hs: hi.value, as: ai.value, pen });
+    });
+    return rows;
+  }
+
+  function initConfirmSubmit() {
+    const modal = document.getElementById('confirm-modal');
+    const list = document.getElementById('confirm-list');
+    const okBtn = document.getElementById('confirm-ok');
+    if (!modal || !list || !okBtn) return;
+
+    document.querySelectorAll<HTMLFormElement>('form[action="/api/predictions/submit-jornada"]').forEach(form => {
+      if (form.dataset.confirmBound) return;
+      form.dataset.confirmBound = '1';
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const rows = summaryRows(form);
+        list.innerHTML = rows.map(r =>
+          `<div class="flex items-center justify-between gap-2 bg-brand-800/50 rounded-lg px-3 py-2">
+             <span class="text-sm text-slate-300 truncate">${r.home} <span class="text-slate-600">vs</span> ${r.away}</span>
+             <span class="font-display text-lg text-gold flex-shrink-0">${r.hs}–${r.as}<span class="text-[10px] text-slate-400">${r.pen}</span></span>
+           </div>`).join('');
+        (window as any).__pendingForm = form;
+        modal.classList.remove('hidden');
       });
     });
+
+    if (!okBtn.dataset.bound) {
+      okBtn.dataset.bound = '1';
+      const close = () => { modal.classList.add('hidden'); (window as any).__pendingForm = null; };
+      modal.querySelectorAll<HTMLElement>('[data-confirm-cancel]').forEach(b => b.addEventListener('click', close));
+      okBtn.addEventListener('click', () => {
+        const form = (window as any).__pendingForm as HTMLFormElement | null;
+        if (!form) return;
+        const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+        if (btn) { btn.disabled = true; btn.textContent = '✅ Enviando…'; }
+        modal.classList.add('hidden');
+        form.submit(); // envío nativo (no dispara el listener de confirmación)
+      });
+    }
   }
 
   function initSteppers() {
@@ -665,7 +760,8 @@ let globalFormIdx = 0;
     initSteppers();
     initPenaltySections();
     initShareButtons();
-    initSubmitButtons();
+    initConfirmSubmit();
+    initCountdown();
   }
 
   init();
