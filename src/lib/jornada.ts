@@ -40,3 +40,41 @@ export function boliviaDayStart(dateMs: number): Date {
 export function isCutoffPassed(firstMatchTimeMs: number, nowMs: number): boolean {
   return firstMatchTimeMs - nowMs < JORNADA_CLOSE_MS;
 }
+
+/**
+ * Clave canónica de "día jornada" Bolivia (frontera 03:00 BOT). Dos partidos de
+ * la misma jornada comparten clave; uno de medianoche (00:00-02:59) cae con la
+ * noche anterior. Úsala SIEMPRE para agrupar/comparar días — nunca el día
+ * calendario (medianoche), que parte la jornada de medianoche en dos.
+ */
+export function boliviaDayKey(dateMs: number): number {
+  return boliviaDayStart(dateMs).getTime();
+}
+
+export type JornadaLockState = 'open' | 'closed' | 'prevPending' | 'ongoingLock';
+
+/**
+ * Estado de bloqueo de una jornada para pronosticar. Fuente ÚNICA de la máquina
+ * de estados que antes se repetía (y divergía) entre /predictions y el dashboard.
+ * Cada página calcula sus booleanos con sus propios datos y delega aquí la
+ * decisión y su precedencia:
+ *   1. cutoff (2h antes del primer partido) → 'closed'
+ *   2. jornada anterior sin terminar (y el día propio aún no empezó) → 'prevPending'
+ *   3. el día ya empezó o hay un partido en curso → 'ongoingLock'
+ *   4. → 'open'
+ */
+export function jornadaLockState(opts: {
+  firstMatchMs: number;
+  nowMs: number;
+  /** Algún partido del mismo día jornada (clave 03:00 BOT) ya inició. */
+  sameDayStarted: boolean;
+  /** Hay algún partido en curso ahora mismo (iniciado y sin terminar). */
+  hasMatchInProgress: boolean;
+  /** Existe un partido sin terminar anterior al primero de esta jornada. */
+  hasEarlierUnfinished: boolean;
+}): JornadaLockState {
+  if (isCutoffPassed(opts.firstMatchMs, opts.nowMs)) return 'closed';
+  if (!opts.sameDayStarted && opts.hasEarlierUnfinished) return 'prevPending';
+  if (opts.sameDayStarted || opts.hasMatchInProgress) return 'ongoingLock';
+  return 'open';
+}

@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
+import { boliviaDayStart } from '@/lib/jornada';
 
 const accessToken  = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -27,12 +28,13 @@ const [{ data: profile }, { data: predHistory }] = await Promise.all([
     .order('matches.match_date', { ascending: true }),
 ]);
 
-// Agrupar por día Bolivia
+// Agrupar por día jornada Bolivia (frontera 03:00 BOT, vía boliviaDayStart) para
+// que un partido de medianoche cuente en su jornada real, no en el día siguiente.
 const jornadaMap = new Map<string, { pts: number; partidos: number; label: string }>();
 for (const p of (predHistory ?? []) as any[]) {
   const m = p.match;
   if (!m?.is_finished) continue;
-  const dayKey = fmtFecha(m.match_date, {
+  const dayKey = fmtFecha(boliviaDayStart(new Date(m.match_date).getTime()), {
     weekday: 'long', day: 'numeric', month: 'long',
   });
   const label = m.stage === 'group'

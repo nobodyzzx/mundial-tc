@@ -2,7 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
-import { isCutoffPassed, boliviaDayStart } from '@/lib/jornada';
+import { boliviaDayStart, boliviaDayKey, jornadaLockState } from '@/lib/jornada';
 import { fmtFecha } from '@/lib/fechas';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
 
@@ -83,41 +83,23 @@ for (const m of (matches ?? []) as MatchRow[]) {
 
 const now = nowMs;
 
-function toBoliviaDay(dateStr: string): string {
-  const dayStart = boliviaDayStart(new Date(dateStr).getTime());
-  return fmtFecha(dayStart, {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
-}
-
-// Días que ya tuvieron al menos un partido iniciado (terminado o en curso)
+// Días jornada (clave 03:00 BOT) que ya tuvieron al menos un partido iniciado
 const daysWithStartedMatch = new Set(
-  (startedMatchData ?? []).map(m => toBoliviaDay(m.match_date))
+  (startedMatchData ?? []).map(m => boliviaDayKey(new Date(m.match_date).getTime()))
 );
 // Hay algún partido en curso ahora mismo (started + unfinished)
 const hasMatchInProgress = (startedMatchData ?? []).some(m => !m.is_finished);
 
-function isJornadaClosed(jornadaMatches: MatchRow[]): boolean {
-  const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  if (isCutoffPassed(firstTime, now)) return true;
-  // Mismo día: ya hubo un partido de este día (aunque terminó)
-  if (daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date))) return true;
-  // Día anterior sin terminar: si existe algún partido abierto con fecha anterior a este día → bloqueado
-  if ((matches ?? []).some(m => new Date(m.match_date).getTime() < firstTime)) return true;
-  return false;
-}
-
-function isPrevDayPending(jornadaMatches: MatchRow[]): boolean {
-  const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  if (isCutoffPassed(firstTime, now)) return false;
-  if (daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date))) return false;
-  return (matches ?? []).some(m => new Date(m.match_date).getTime() < firstTime);
-}
-
-function isLockedByOngoing(jornadaMatches: MatchRow[]): boolean {
-  const firstTime = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
-  if (isCutoffPassed(firstTime, now)) return false;
-  return daysWithStartedMatch.has(toBoliviaDay(jornadaMatches[0].match_date)) || hasMatchInProgress;
+// Estado de bloqueo de la jornada (lógica única en lib/jornada.ts).
+function lockStateFor(jornadaMatches: MatchRow[]) {
+  const firstMatchMs = Math.min(...jornadaMatches.map(m => new Date(m.match_date).getTime()));
+  return jornadaLockState({
+    firstMatchMs,
+    nowMs: now,
+    sameDayStarted: daysWithStartedMatch.has(boliviaDayKey(firstMatchMs)),
+    hasMatchInProgress,
+    hasEarlierUnfinished: (matches ?? []).some(m => new Date(m.match_date).getTime() < firstMatchMs),
+  });
 }
 
 function buildShareData(dayMatches: MatchRow[], username: string) {
@@ -233,9 +215,10 @@ let globalFormIdx = 0;
 
     {(import.meta.env.PUBLIC_BETA === 'true' || (navProfile?.pago_70 && navProfile?.pago_50)) && [...grouped.entries()].map(([jornadaKey, jornadaMatches]) => {
       const sanctioned = isSanctioned(jornadaMatches);
-      const closed = isJornadaClosed(jornadaMatches);
-      const prevPending = isPrevDayPending(jornadaMatches);
-      const ongoingLock = isLockedByOngoing(jornadaMatches);
+      const lockState = lockStateFor(jornadaMatches);
+      const closed = lockState === 'closed';
+      const prevPending = lockState === 'prevPending';
+      const ongoingLock = lockState === 'ongoingLock';
       const predCount = jornadaMatches.filter(m => predMap.has(m.id)).length;
       const allDone = predCount === jornadaMatches.length;
       const hasSome = predCount > 0;

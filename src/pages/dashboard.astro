@@ -5,7 +5,7 @@ import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { resumenPozo } from '@/lib/payments';
 import { fmtFecha } from '@/lib/fechas';
-import { boliviaDayStart } from '@/lib/jornada';
+import { boliviaDayStart, boliviaDayKey, jornadaLockState } from '@/lib/jornada';
 
 // Auth guard
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -65,51 +65,37 @@ for (const s of sanctions ?? []) {
   sanctionMap.set(s.user_id, cur);
 }
 
-// Datos para calcular estados de bloqueo (igual que predictions/index.astro)
-function toBoliviaDay(dateStr: string): string {
-  return fmtFecha(dateStr, {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
-}
-
+// Estados de bloqueo: misma frontera 03:00 BOT y misma máquina de estados que
+// /predictions (lógica única en lib/jornada.ts) — así un partido de medianoche
+// queda en su jornada correcta y se muestra activo, sin duplicar reglas.
 const daysWithStartedMatch = new Set(
-  (startedMatchData ?? []).map((m: any) => toBoliviaDay(m.match_date))
+  (startedMatchData ?? []).map((m: any) => boliviaDayKey(new Date(m.match_date).getTime()))
 );
 const hasMatchInProgress = (startedMatchData ?? []).some((m: any) => !m.is_finished);
 
-// Agrupa próximos partidos por día Bolivia para calcular primer partido del día
-const upcomingByDay = new Map<string, any[]>();
+// Agrupa próximos partidos por día jornada (clave 03:00 BOT) para el primer partido
+const upcomingByDay = new Map<number, any[]>();
 for (const m of (proximosPartidos ?? [])) {
-  const key = toBoliviaDay(m.match_date);
+  const key = boliviaDayKey(new Date(m.match_date).getTime());
   if (!upcomingByDay.has(key)) upcomingByDay.set(key, []);
   upcomingByDay.get(key)!.push(m);
 }
 
-function getMatchLockState(m: any): 'prevPending' | 'ongoingLock' | 'closed' | 'open' {
-  const dayKey = toBoliviaDay(m.match_date);
+function getMatchLockState(m: any) {
+  const dayKey = boliviaDayKey(new Date(m.match_date).getTime());
   const dayMatches = upcomingByDay.get(dayKey) ?? [m];
-  const firstTime = Math.min(...dayMatches.map((dm: any) => new Date(dm.match_date).getTime()));
-  const nowMs = betaNowMs();
-
-  // Regla 2h → cerrado simple
-  if (firstTime - nowMs < 2 * 3600 * 1000) return 'closed';
-
-  // Mismo día ya empezó → ongoingLock
-  const sameDayStarted = daysWithStartedMatch.has(dayKey);
-
-  // Jornada anterior pendiente: partidos ya iniciados sin terminar O partidos
-  // futuros de una jornada anterior (no alcanzados por startedMatchData)
-  const hasPrevUnfinished = (startedMatchData ?? []).some(
-    (sm: any) => !sm.is_finished && new Date(sm.match_date).getTime() < firstTime
-  );
-  const hasEarlierUpcoming = (proximosPartidos ?? []).some(
-    (pm: any) => new Date(pm.match_date).getTime() < firstTime
-  );
-  if (!sameDayStarted && (hasPrevUnfinished || hasEarlierUpcoming)) return 'prevPending';
-
-  if (sameDayStarted || hasMatchInProgress) return 'ongoingLock';
-
-  return 'open';
+  const firstMatchMs = Math.min(...dayMatches.map((dm: any) => new Date(dm.match_date).getTime()));
+  return jornadaLockState({
+    firstMatchMs,
+    nowMs: betaNowMs(),
+    sameDayStarted: daysWithStartedMatch.has(dayKey),
+    hasMatchInProgress,
+    // Anterior sin terminar: partido iniciado y no terminado, o un próximo de
+    // una jornada anterior (no alcanzado por startedMatchData).
+    hasEarlierUnfinished:
+      (startedMatchData ?? []).some((sm: any) => !sm.is_finished && new Date(sm.match_date).getTime() < firstMatchMs) ||
+      (proximosPartidos ?? []).some((pm: any) => new Date(pm.match_date).getTime() < firstMatchMs),
+  });
 }
 
 // Prediction status for upcoming matches
@@ -165,7 +151,7 @@ const partidosJugados = (startedMatchData ?? []).filter((m: any) => m.is_finishe
 const jornadaActual = nextMatch?.jornada ?? lastJornadaName ?? '—';
 const proximoCierreMs = (() => {
   if (!nextMatch) return null;
-  const dayKey = toBoliviaDay(nextMatch.match_date);
+  const dayKey = boliviaDayKey(new Date(nextMatch.match_date).getTime());
   const dayMatches = upcomingByDay.get(dayKey) ?? [nextMatch];
   return Math.min(...dayMatches.map((m: any) => new Date(m.match_date).getTime())) - 2 * 3600 * 1000;
 })();
