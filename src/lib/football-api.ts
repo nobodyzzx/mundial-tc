@@ -59,6 +59,17 @@ export async function getFinishedMatches(code: string, season: number): Promise<
   return fdGetFinishedMatches(code, season);
 }
 
+/**
+ * Fixtures en un rango de offsets de día (UTC). Usado por reconcile-fixtures.
+ * Solo lo soportan los proveedores por fecha (espn / api-football); football-data
+ * consulta por temporada, así que devuelve vacío.
+ */
+export async function getFixturesRange(fromOffset: number, toOffset: number): Promise<ApiMatch[]> {
+  if (PROVIDER === 'espn') return espn.getFixturesRange(fromOffset, toOffset);
+  if (PROVIDER === 'api-football') return apiFootball.getFixturesRange(fromOffset, toOffset);
+  return [];
+}
+
 // ── Mapeo al esquema de la app (común a ambos proveedores) ────────
 // Stages que se tratan como "fase de grupos" (antes del cuadro eliminatorio)
 const GROUP_STAGES = new Set(['GROUP_STAGE', 'LEAGUE_STAGE', 'LEAGUE_PHASE']);

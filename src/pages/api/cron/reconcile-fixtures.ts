@@ -15,25 +15,28 @@
  */
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getFixturesRange } from '@/lib/providers/api-football';
-import { mapStage } from '@/lib/football-api';
+import { getFixturesRange, mapStage } from '@/lib/football-api';
 import { teamKey, normTeam } from '@/lib/match-link';
 import { checkCronSecret, json } from '@/lib/cron';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
+// ESPN ve el calendario completo (sin ventana) → se alinea más días de una.
+// api-football solo da ~3 días → ventana corta.
+const [RANGE_FROM, RANGE_TO] = PROVIDER === 'espn' ? [0, 8] : [0, 2];
 const utcDay = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
 export const GET: APIRoute = async ({ url, request }) => {
   if (!(await checkCronSecret(url, request))) return json({ error: 'Unauthorized' }, 401);
-  if (PROVIDER !== 'api-football') return json({ skipped: true, reason: 'Solo con MATCH_PROVIDER=api-football' });
+  if (PROVIDER !== 'api-football' && PROVIDER !== 'espn')
+    return json({ skipped: true, reason: 'Solo con MATCH_PROVIDER=api-football o espn' });
   const preview = url.searchParams.get('preview') === '1';
 
   // 1. Fixtures de grupo de api-football en la ventana hacia adelante (hoy..+2).
   let apiAll;
   try {
-    apiAll = await getFixturesRange(0, 2);
+    apiAll = await getFixturesRange(RANGE_FROM, RANGE_TO);
   } catch (e: any) {
-    return json({ error: 'API-Football: ' + e.message }, 502);
+    return json({ error: 'Proveedor: ' + e.message }, 502);
   }
   const apiGroup = apiAll.filter((f) => mapStage(f.stage) === 'group');
   if (!apiGroup.length) return json({ skipped: true, reason: 'Sin fixtures de grupo en la ventana' });
