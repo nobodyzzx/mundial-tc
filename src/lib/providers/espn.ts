@@ -144,3 +144,11 @@ export async function getFinishedMatches(): Promise<ApiMatch[]> {
 export async function getLiveMatches(): Promise<ApiMatch[]> {
   return (await getFixturesRange(-1, 0)).filter(m => m.status === 'IN_PLAY' || m.status === 'PAUSED');
 }
+
+// Ventana del Mundial 2026 (ESPN acepta rango `?dates=INICIO-FIN` en una request).
+const WC_RANGE = '20260611-20260719';
+
+/** TODO el calendario del Mundial en una sola request (rango de fechas de ESPN). */
+export async function getAllFixtures(): Promise<ApiMatch[]> {
+  return dedupe(await fetchDate(WC_RANGE));
+}

@@ -70,6 +70,17 @@ export async function getFixturesRange(fromOffset: number, toOffset: number): Pr
   return [];
 }
 
+/**
+ * TODO el calendario del torneo. ESPN lo trae completo (rango de fechas);
+ * football-data por temporada; api-football free no puede (season bloqueado) →
+ * cae a su ventana móvil.
+ */
+export async function getAllFixtures(code: string, season: number): Promise<ApiMatch[]> {
+  if (PROVIDER === 'espn') return espn.getAllFixtures();
+  if (PROVIDER === 'api-football') return apiFootball.getFixtures();
+  return fdGetFixtures(code, season);
+}
+
 // ── Mapeo al esquema de la app (común a ambos proveedores) ────────
 // Stages que se tratan como "fase de grupos" (antes del cuadro eliminatorio)
 const GROUP_STAGES = new Set(['GROUP_STAGE', 'LEAGUE_STAGE', 'LEAGUE_PHASE']);

@@ -15,7 +15,7 @@
  */
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
-import { getFixturesRange, mapStage } from '@/lib/football-api';
+import { getFixturesRange, getAllFixtures, mapStage } from '@/lib/football-api';
 import { teamKey, normTeam } from '@/lib/match-link';
 import { checkCronSecret, json } from '@/lib/cron';
 
@@ -33,26 +33,31 @@ export const GET: APIRoute = async ({ url, request }) => {
   if (PROVIDER !== 'api-football' && PROVIDER !== 'espn')
     return json({ skipped: true, reason: 'Solo con MATCH_PROVIDER=api-football o espn' });
   const preview = url.searchParams.get('preview') === '1';
+  // ?full=1 → reconcilia TODA la fase de grupos del torneo (solo ESPN, que tiene el
+  // calendario completo). Sin él, ventana corta (uso diario del cron).
+  const full = url.searchParams.get('full') === '1' && PROVIDER === 'espn';
 
-  // 1. Fixtures de grupo de api-football en la ventana hacia adelante (hoy..+2).
+  // 1. Fixtures de grupo del proveedor.
   let apiAll;
   try {
-    apiAll = await getFixturesRange(RANGE_FROM, RANGE_TO);
+    apiAll = full ? await getAllFixtures('', 0) : await getFixturesRange(RANGE_FROM, RANGE_TO);
   } catch (e: any) {
     return json({ error: 'Proveedor: ' + e.message }, 502);
   }
   const apiGroupAll = apiAll.filter((f) => mapStage(f.stage) === 'group');
-  if (!apiGroupAll.length) return json({ skipped: true, reason: 'Sin fixtures de grupo en la ventana' });
+  if (!apiGroupAll.length) return json({ skipped: true, reason: 'Sin fixtures de grupo' });
 
-  // Días UTC a reconciliar. Con ESPN se trae ancho (-2..9) pero solo se reconcilia
-  // el interior [hoy..hoy+6], 100% cubierto. Con api-football (consulta por UTC) se
-  // usan los días devueltos.
+  // Días UTC a reconciliar.
+  //  - full: TODAS las fechas de grupo del torneo (ESPN trae todo).
+  //  - ESPN ventana: se trae ancho (-2..9) pero solo se reconcilia el interior
+  //    [hoy..hoy+6], 100% cubierto (evita falsos fantasmas por el agrupado EDT).
+  //  - api-football: los días que devolvió (consulta por UTC).
   let apiDates: Set<string>;
-  if (PROVIDER === 'espn') {
+  if (full || PROVIDER !== 'espn') {
+    apiDates = new Set(apiGroupAll.map((f) => utcDay(f.utcDate)));
+  } else {
     apiDates = new Set<string>();
     for (let k = 0; k <= 6; k++) apiDates.add(utcDay(new Date(Date.now() + k * 86400000).toISOString()));
-  } else {
-    apiDates = new Set(apiGroupAll.map((f) => utcDay(f.utcDate)));
   }
   // Solo se consideran fixtures dentro de la ventana de reconciliación.
   const apiGroup = apiGroupAll.filter((f) => apiDates.has(utcDay(f.utcDate)));
