@@ -22,7 +22,7 @@ const [
   { data: rawSanctions },
 ] = await Promise.all([
   supabaseAdmin.from('matches').select('id, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, stage, group_name, round, jornada, match_date, is_finished').order('match_date', { ascending: true }),
-  supabaseAdmin.from('profiles').select('id, username').eq('participa', true).eq('expulsado', false).order('puntos_totales', { ascending: false }),
+  supabaseAdmin.from('profiles').select('id, username, puntos_totales').eq('participa', true).eq('expulsado', false).order('puntos_totales', { ascending: false }),
   supabaseAdmin.from('sanctions').select('user_id, created_at').in('type', ['red', 'double_red']).eq('active', true),
 ]);
 
@@ -147,7 +147,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
           {/* Filtro por jugador */}
           <select id="filter-player" class="text-xs bg-brand-900 border border-brand-700 text-slate-200 rounded-lg px-2 py-1.5 max-w-[150px]">
             <option value="">👥 Todos los jugadores</option>
-            {players.map((pl: any) => <option value={pl.id}>{pl.username}</option>)}
+            {players.map((pl: any) => <option value={pl.id} data-pts={pl.puntos_totales ?? 0}>{pl.username}</option>)}
           </select>
           {/* Toggles de estado */}
           <div class="inline-flex rounded-lg border border-brand-700 overflow-hidden text-xs">
@@ -158,6 +158,12 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
           </div>
           {/* Contraer / expandir todo */}
           <button id="toggle-all" data-mode="expand" class="text-xs text-slate-400 hover:text-white border border-brand-700 rounded-lg px-2.5 py-1.5 transition">⊕ Expandir todo</button>
+        </div>
+        {/* Resumen del jugador filtrado (visible solo al aislar) */}
+        <div id="player-summary" class="hidden items-center gap-2 flex-wrap text-xs bg-gold/10 border border-gold/30 rounded-lg px-3 py-2">
+          <span class="font-semibold text-white" id="ps-name"></span>
+          <span class="font-display text-base text-gold leading-none" id="ps-pts"></span>
+          <span class="text-slate-400" id="ps-break"></span>
         </div>
         {/* Salto a jornada */}
         <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 -mb-0.5">
@@ -615,9 +621,30 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
       });
     });
 
-    // Filtro por jugador → aislar (inyecta la regla CSS del seleccionado)
+    // Filtro por jugador → aislar (inyecta la regla CSS del seleccionado) + resumen
     const sel = document.getElementById('filter-player') as HTMLSelectElement | null;
     let isoStyle = document.getElementById('iso-style') as HTMLStyleElement | null;
+    const summary = document.getElementById('player-summary');
+
+    function showSummary(name: string, totalPts: number) {
+      // Desglose calculado desde los datos embebidos (por nombre de jugador).
+      let pred = 0, exact = 0, hit = 0;
+      for (const j of getData()) for (const m of j.matches) {
+        const pl = m.players.find(p => p.name === name);
+        if (!pl || pl.uh === null || pl.ua === null) continue;
+        pred++;
+        if (m.finished) {
+          if (m.hs === pl.uh && m.as_ === pl.ua) exact++;
+          if ((pl.pts ?? 0) > 0) hit++;
+        }
+      }
+      (document.getElementById('ps-name') as HTMLElement).textContent = name;
+      (document.getElementById('ps-pts') as HTMLElement).textContent = `${totalPts} pts`;
+      (document.getElementById('ps-break') as HTMLElement).textContent = `· 🎯 ${exact} exactos · ✓ ${hit} aciertos · ${pred} pronósticos`;
+      summary?.classList.remove('hidden');
+      summary?.classList.add('flex');
+    }
+
     sel?.addEventListener('change', () => {
       const id = sel.value;
       if (!isoStyle) {
@@ -628,9 +655,13 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
       if (id) {
         root.setAttribute('data-iso', '');
         isoStyle.textContent = `#pron-root[data-iso] .pred-cell[data-pl="${id}"]{display:flex!important}`;
+        const opt = sel.options[sel.selectedIndex];
+        showSummary(opt.textContent?.trim() ?? '', Number(opt.dataset.pts ?? 0));
       } else {
         root.removeAttribute('data-iso');
         isoStyle.textContent = '';
+        summary?.classList.add('hidden');
+        summary?.classList.remove('flex');
       }
     });
 
