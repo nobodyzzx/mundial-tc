@@ -144,6 +144,15 @@ const errorParam = Astro.url.searchParams.get('error');
 const infoParam  = Astro.url.searchParams.get('info');
 const okParam    = Astro.url.searchParams.get('ok');
 
+// ── Verificación ACTIVA contra la BD ──────────────────────────────────────────
+// submit-jornada devuelve los match_id que insertó. Aquí se confirma que esos id
+// REALMENTE están en `predictions` (predMap viene de leer la BD recién). Si la
+// cuenta no cuadra, algo no se guardó → se avisa en rojo (esto es lo que faltó
+// en el caso Niels). El '1' es compatibilidad con envíos viejos.
+const okIds = (okParam && okParam !== '1') ? okParam.split(',').filter(Boolean) : [];
+const okVerified = okIds.filter((id) => predMap.has(id));
+const okAllSaved = okIds.length > 0 && okVerified.length === okIds.length;
+
 // Contador global de inputs — evita colisiones de nombre entre jornadas distintas
 let globalFormIdx = 0;
 ---
@@ -168,14 +177,19 @@ let globalFormIdx = 0;
       </div>
     )}
 
-    {errorParam === 'cerrado' && (
-      <div class="bg-fifared/15 border border-fifared/40 rounded-xl px-4 py-3 text-sm text-red-300 text-center">
-        🔒 La jornada ya está cerrada.
-      </div>
-    )}
-    {errorParam === 'en_curso' && (
-      <div class="bg-amber-900/20 border border-amber-500/40 rounded-xl px-4 py-3 text-sm text-amber-300 text-center">
-        ⏳ Espera que termine el partido antes de pronosticar... ¿o es que ya sabes cómo va a terminar?
+    {/* ── Rechazos: NO SE GUARDÓ (prominente, imposible de ignorar) ── */}
+    {errorParam && errorParam !== 'incompleto' && (
+      <div class="bg-fifared/20 border-2 border-fifared/60 rounded-2xl px-4 py-4 text-center space-y-1">
+        <div class="text-3xl">⚠️</div>
+        <p class="text-red-200 font-bold text-base">Tus pronósticos NO se guardaron</p>
+        <p class="text-red-300/90 text-sm">
+          {errorParam === 'cerrado'
+            ? '🔒 La jornada ya está cerrada.'
+            : errorParam === 'en_curso'
+            ? '⏳ El partido ya empezó. Las apuestas para esta jornada están cerradas.'
+            : decodeURIComponent(errorParam)}
+        </p>
+        <p class="text-xs text-red-300/70">Verifica abajo: si no ves "✓ Guardado", no quedó registrado.</p>
       </div>
     )}
     {errorParam === 'incompleto' && (
@@ -183,17 +197,28 @@ let globalFormIdx = 0;
         ⚠️ Completa el marcador de todos los partidos antes de enviar.
       </div>
     )}
-    {errorParam && errorParam !== 'cerrado' && errorParam !== 'incompleto' && (
-      <div class="bg-fifared/15 border border-fifared/40 rounded-xl px-4 py-3 text-sm text-red-300 text-center">
-        {decodeURIComponent(errorParam)}
-      </div>
-    )}
     {infoParam === 'ya_pronosticado' && (
       <div class="bg-brand-700/40 border border-brand-600 rounded-xl px-4 py-3 text-sm text-slate-300 text-center">
         Ya registraste pronósticos para esa jornada.
       </div>
     )}
-    {okParam && (
+
+    {/* ── Verificación activa contra la BD ── */}
+    {okIds.length > 0 && okAllSaved && (
+      <div class="bg-gol/15 border-2 border-gol/50 rounded-2xl px-4 py-4 text-center space-y-1">
+        <div class="text-3xl">✅</div>
+        <p class="text-green-200 font-bold text-base">Verificado en la base de datos</p>
+        <p class="text-green-300/90 text-sm">{okVerified.length} de {okIds.length} pronóstico{okIds.length !== 1 ? 's' : ''} guardado{okIds.length !== 1 ? 's' : ''} ✓</p>
+      </div>
+    )}
+    {okIds.length > 0 && !okAllSaved && (
+      <div class="bg-fifared/20 border-2 border-fifared/60 rounded-2xl px-4 py-4 text-center space-y-1">
+        <div class="text-3xl">⚠️</div>
+        <p class="text-red-200 font-bold text-base">¡Atención! No se guardó todo</p>
+        <p class="text-red-300/90 text-sm">Solo {okVerified.length} de {okIds.length} quedaron en la base. <strong>Reintenta los que falten.</strong></p>
+      </div>
+    )}
+    {okParam === '1' && (
       <div class="bg-gol/10 border border-gol/30 rounded-xl px-4 py-3 text-sm text-green-300 text-center">
         ✅ Pronósticos enviados correctamente.
       </div>

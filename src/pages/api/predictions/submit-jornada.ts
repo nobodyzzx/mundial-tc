@@ -166,5 +166,6 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return reject('error-db', '/predictions?error=' + encodeURIComponent('Error al guardar los pronósticos'));
   }
 
-  return redirect('/predictions?ok=1');
+  // Devuelve los match_id insertados; la página los RE-VERIFICA contra la BD.
+  return redirect('/predictions?ok=' + matchIds.join(','));
 };
