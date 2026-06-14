@@ -51,6 +51,27 @@ export function boliviaDayKey(dateMs: number): number {
   return boliviaDayStart(dateMs).getTime();
 }
 
+/**
+ * Margen máximo de duración de un partido. Un partido ya iniciado que sigue sin
+ * marcarse `is_finished` pasado este margen se asume TERMINADO para efectos de
+ * candado (lag del sync / proveedor caído). Evita que un partido de medianoche
+ * (00:00-02:59, agrupado con la noche anterior por la frontera 03:00 BOT) deje
+ * la jornada SIGUIENTE congelada toda la noche si el resultado tarda en llegar.
+ * 4h cubre 90' + prórroga + penales + descuentos + buffer; ningún partido dura
+ * más, así que nunca desbloquea uno realmente en juego.
+ */
+export const MATCH_MAX_MS = 4 * 3600 * 1000;
+
+/**
+ * ¿El partido sigue "sin resolver" para efectos de bloqueo de jornada?
+ * Cuenta mientras no haya pasado MATCH_MAX_MS desde su inicio. Pasado ese margen,
+ * aunque `is_finished` siga en false (sync atrasado), se considera resuelto para
+ * no congelar los candados. El llamador ya filtró por `is_finished = false`.
+ */
+export function countsUnresolved(kickoffMs: number, nowMs: number): boolean {
+  return nowMs < kickoffMs + MATCH_MAX_MS;
+}
+
 export type JornadaLockState = 'open' | 'closed' | 'prevPending' | 'ongoingLock';
 
 /**

@@ -3,7 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import TeamName from '@/components/TeamName.astro';
 import { supabase } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
-import { boliviaDayStart, boliviaDayKey, jornadaLockState } from '@/lib/jornada';
+import { boliviaDayStart, boliviaDayKey, jornadaLockState, countsUnresolved } from '@/lib/jornada';
 import { fmtFecha } from '@/lib/fechas';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
 
@@ -88,8 +88,10 @@ const now = nowMs;
 const daysWithStartedMatch = new Set(
   (startedMatchData ?? []).map(m => boliviaDayKey(new Date(m.match_date).getTime()))
 );
-// Hay algún partido en curso ahora mismo (started + unfinished)
-const hasMatchInProgress = (startedMatchData ?? []).some(m => !m.is_finished);
+// Hay algún partido en curso ahora mismo (started + unfinished, dentro de su
+// ventana realista de duración: un sync atrasado no lo deja "en curso" eterno).
+const hasMatchInProgress = (startedMatchData ?? []).some(m =>
+  !m.is_finished && countsUnresolved(new Date(m.match_date).getTime(), now));
 
 // Estado de bloqueo de la jornada (lógica única en lib/jornada.ts).
 function lockStateFor(jornadaMatches: MatchRow[]) {
@@ -99,7 +101,10 @@ function lockStateFor(jornadaMatches: MatchRow[]) {
     nowMs: now,
     sameDayStarted: daysWithStartedMatch.has(boliviaDayKey(firstMatchMs)),
     hasMatchInProgress,
-    hasEarlierUnfinished: (matches ?? []).some(m => new Date(m.match_date).getTime() < firstMatchMs),
+    hasEarlierUnfinished: (matches ?? []).some(m => {
+      const k = new Date(m.match_date).getTime();
+      return k < firstMatchMs && countsUnresolved(k, now);
+    }),
   });
 }
 

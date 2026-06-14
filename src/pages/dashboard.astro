@@ -5,7 +5,7 @@ import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { resumenPozo } from '@/lib/payments';
 import { fmtFecha } from '@/lib/fechas';
-import { boliviaDayStart, boliviaDayKey, jornadaLockState } from '@/lib/jornada';
+import { boliviaDayStart, boliviaDayKey, jornadaLockState, countsUnresolved } from '@/lib/jornada';
 
 // Auth guard
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -71,7 +71,11 @@ for (const s of sanctions ?? []) {
 const daysWithStartedMatch = new Set(
   (startedMatchData ?? []).map((m: any) => boliviaDayKey(new Date(m.match_date).getTime()))
 );
-const hasMatchInProgress = (startedMatchData ?? []).some((m: any) => !m.is_finished);
+const nowMs = betaNowMs();
+// En curso = iniciado, sin terminar y dentro de su ventana realista de duración:
+// un sync atrasado no deja un partido "en curso" para siempre (ver MATCH_MAX_MS).
+const hasMatchInProgress = (startedMatchData ?? []).some((m: any) =>
+  !m.is_finished && countsUnresolved(new Date(m.match_date).getTime(), nowMs));
 
 // Agrupa próximos partidos por día jornada (clave 03:00 BOT) para el primer partido
 const upcomingByDay = new Map<number, any[]>();
@@ -90,10 +94,14 @@ function getMatchLockState(m: any) {
     nowMs: betaNowMs(),
     sameDayStarted: daysWithStartedMatch.has(dayKey),
     hasMatchInProgress,
-    // Anterior sin terminar: partido iniciado y no terminado, o un próximo de
-    // una jornada anterior (no alcanzado por startedMatchData).
+    // Anterior sin terminar: partido iniciado y no terminado (acotado por su
+    // ventana realista de duración, igual que arriba), o un próximo de una
+    // jornada anterior (no alcanzado por startedMatchData).
     hasEarlierUnfinished:
-      (startedMatchData ?? []).some((sm: any) => !sm.is_finished && new Date(sm.match_date).getTime() < firstMatchMs) ||
+      (startedMatchData ?? []).some((sm: any) => {
+        const k = new Date(sm.match_date).getTime();
+        return !sm.is_finished && k < firstMatchMs && countsUnresolved(k, nowMs);
+      }) ||
       (proximosPartidos ?? []).some((pm: any) => new Date(pm.match_date).getTime() < firstMatchMs),
   });
 }

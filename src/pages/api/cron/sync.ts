@@ -13,6 +13,24 @@ import { logEvent } from '@/lib/system-log';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 
+// Heartbeat: cada corrida (éxito, skip o error) deja una fila en sync_logs para
+// que un cron muerto/colgado deje de ser invisible. Best-effort, nunca rompe.
+async function logSync(
+  status: string,
+  opts: { scores?: number; httpStatus?: number; error?: string | null; t0: number },
+): Promise<void> {
+  try {
+    await supabaseAdmin.from('sync_logs').insert({
+      source: 'sync',
+      endpoint: status,
+      response_status: opts.httpStatus ?? 200,
+      matches_updated: opts.scores ?? 0,
+      duration_ms: Date.now() - opts.t0,
+      error: opts.error ? opts.error.slice(0, 500) : null,
+    });
+  } catch { /* el heartbeat nunca debe romper el sync */ }
+}
+
 async function timingSafeEqual(a: string, b: string): Promise<boolean> {
   try {
     const enc = new TextEncoder();
@@ -47,10 +65,12 @@ export const GET: APIRoute = async ({ url, request }) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
+  const t0 = Date.now();
   const code   = import.meta.env.TOURNAMENT_CODE;
   const season = parseInt(import.meta.env.TOURNAMENT_SEASON ?? '');
 
   if (!code || isNaN(season)) {
+    await logSync('error:config', { httpStatus: 500, error: 'TOURNAMENT_CODE/SEASON no configurados', t0 });
     return json({ error: 'TOURNAMENT_CODE o TOURNAMENT_SEASON no configurados' }, 500);
   }
 
@@ -68,6 +88,7 @@ export const GET: APIRoute = async ({ url, request }) => {
       .lte('match_date', nowIso)
       .limit(1);
     if (!active?.length) {
+      await logSync('skipped:no-window', { t0 });
       return json({ ok: true, provider: PROVIDER, skipped: true, reason: 'Sin partido en ventana de juego', namesUpdated: 0, scoresUpdated: 0 });
     }
   }
@@ -78,6 +99,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   try {
     allFixtures = await getFixtures(code, season);
   } catch (e: any) {
+    await logSync('error:provider', { httpStatus: 502, error: e.message, t0 });
     return json({ error: 'Error API fútbol: ' + e.message }, 502);
   }
   const finished = allFixtures.filter(f => f.status === 'FINISHED');
@@ -112,6 +134,7 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   // ── 2. Sincronizar resultados terminados ────────────────────────
   if (!finished.length) {
+    await logSync('ok:no-finished', { t0 });
     return json({ ok: true, provider: PROVIDER, namesUpdated, scoresUpdated: 0, message: 'Sin partidos terminados nuevos' });
   }
 
@@ -158,6 +181,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     await supabaseAdmin.rpc('calculate_match_points_safe', { p_match_id: matchId });
   }
 
+  await logSync('ok', { scores: scoresUpdated, t0 });
   return json({ ok: true, provider: PROVIDER, namesUpdated, scoresUpdated, message: `${scoresUpdated} partido(s) sincronizado(s)` });
 };
 

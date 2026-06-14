@@ -21,8 +21,10 @@ import { checkCronSecret, json } from '@/lib/cron';
 import { sendWhatsApp } from '@/lib/whatsapp';
 
 // Solo días cuyo último partido empezó dentro de esta ventana (evita anunciar
-// historial en el primer despliegue).
-const RECENT_WINDOW_MS = 12 * 3600 * 1000;
+// historial en el primer despliegue). Holgada (30h) a propósito: el resumen es
+// el mensaje "must-have" y es idempotente por día, así que sobrevive a un retraso
+// largo de sync o a un tick de cron perdido sin perder el resumen del día.
+const RECENT_WINDOW_MS = 30 * 3600 * 1000;
 
 export const GET: APIRoute = async ({ url, request }) => {
   if (!(await checkCronSecret(url, request))) return json({ error: 'Unauthorized' }, 401);
