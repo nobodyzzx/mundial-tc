@@ -71,7 +71,10 @@ const ES_NAMES: Record<string, string> = {
   'South Africa':'Sudáfrica','Morocco':'Marruecos','Algeria':'Argelia',
   'Egypt':'Egipto','Tunisia':'Túnez','Cameroon':'Camerún',
   'Ivory Coast':'Costa de Marfil',"Cote d'Ivoire":'Costa de Marfil',
-  'Cape Verde':'Cabo Verde','DR Congo':'Congo DR',
+  'Cape Verde':'Cabo Verde','Cape Verde Islands':'Cabo Verde',
+  'DR Congo':'RD Congo','Congo DR':'RD Congo',
+  // Caribe / Oceanía
+  'Curaçao':'Curazao','Curacao':'Curazao',
   // Asia
   'Japan':'Japón','South Korea':'Corea del Sur','Iran':'Irán',
   'Saudi Arabia':'Arabia Saudita','Qatar':'Catar','Jordan':'Jordania',
@@ -84,12 +87,18 @@ const ES_NAMES: Record<string, string> = {
 };
 
 /** Devuelve el nombre en español (o el original si no hay traducción) */
-export function spanishName(name: string): string {
-  return ES_NAMES[name] ?? name;
-}
-
 function norm(s: string): string {
   return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// \u00cdndice normalizado (sin acentos) para que la traducci\u00f3n no dependa del
+// codepoint exacto que env\u00ede el proveedor (p. ej. 'Cura\u00e7ao' precompuesto vs descompuesto).
+const ES_NAMES_NORM: Record<string, string> = Object.fromEntries(
+  Object.entries(ES_NAMES).map(([k, v]) => [norm(k), v]),
+);
+
+export function spanishName(name: string): string {
+  return ES_NAMES[name] ?? ES_NAMES_NORM[norm(name)] ?? name;
 }
 
 /** Devuelve el código ISO para un nombre de selección (o '' si no se encuentra) */
