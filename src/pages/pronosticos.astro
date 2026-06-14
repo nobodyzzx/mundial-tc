@@ -1,9 +1,10 @@
 ---
 import Layout from '@/layouts/Layout.astro';
+import TeamName from '@/components/TeamName.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart, REVEAL_BEFORE_MS } from '@/lib/jornada';
-import { spanishName } from '@/lib/isoFlags';
+import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -16,9 +17,7 @@ if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cooki
 const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
 
 // La revelación abre 1h55m antes del primer partido del día (5 min después del
-// cierre de apuestas, que es 2h antes). Para entonces nadie puede ya enviar.
-// REVEAL_BEFORE_MS vive en lib/jornada.ts (fuente única, junto al cierre).
-
+// cierre de apuestas, que es 2h antes). REVEAL_BEFORE_MS vive en lib/jornada.ts.
 const nowMs = betaNowMs();
 
 // Datos vía service-role (SSR): los pronósticos NO se mandan al navegador hasta
@@ -32,7 +31,7 @@ const [
     .not('home_team', 'ilike', 'TBD%').not('away_team', 'ilike', 'TBD%')
     .not('home_team', 'ilike', 'Winner%').not('away_team', 'ilike', 'Winner%')
     .order('match_date', { ascending: true }),
-  supabaseAdmin.from('profiles').select('id, username').eq('participa', true).eq('expulsado', false).order('username', { ascending: true }),
+  supabaseAdmin.from('profiles').select('id, username, puntos_totales, expulsado').eq('participa', true).order('puntos_totales', { ascending: false }),
 ]);
 
 const allMatches = rawMatches ?? [];
@@ -40,8 +39,8 @@ const players    = rawPlayers ?? [];
 
 // Agrupar por día de juego Bolivia (frontera 03:00 BOT)
 type DayGroup = {
-  key: string;            // dayStart ISO
-  label: string;          // "jueves, 11 de junio"
+  key: string;
+  label: string;
   matches: any[];
   firstMatchMs: number;
   revealAtMs: number;
@@ -91,23 +90,48 @@ for (const p of rawPreds) {
   predMap[p.match_id][p.user_id] = p;
 }
 
-function predLabel(pred: any): string {
-  if (!pred) return '—';
-  const s = `${pred.user_home}–${pred.user_away}`;
-  if (pred.user_home_pen !== null && pred.user_away_pen !== null)
-    return `${s} (${pred.user_home_pen}–${pred.user_away_pen})`;
-  return s;
+// Puntos por día por jugador (para el mini-ranking "📊 Puntos del día")
+const dayPoints: Record<string, Record<string, number>> = {};
+for (const day of revealedDays) {
+  dayPoints[day.key] = {};
+  for (const m of day.matches) {
+    const preds = predMap[m.id] ?? {};
+    for (const [userId, pred] of Object.entries(preds) as [string, any][]) {
+      if (pred.points_earned !== null) {
+        dayPoints[day.key][userId] = (dayPoints[day.key][userId] ?? 0) + pred.points_earned;
+      }
+    }
+  }
 }
 
-function predClass(pred: any, m: any): string {
+// El que clasifica en knockout: por penales si los hubo, si no por marcador.
+function knockoutWinner(m: any): 'home' | 'away' | null {
+  return m.winner_penalties
+    ?? (m.stage === 'knockout' && m.is_finished && m.home_score !== m.away_score
+          ? (m.home_score > m.away_score ? 'home' : 'away')
+          : null);
+}
+
+function matchLabel(m: any): string {
+  if (m.stage === 'group') return m.group_name ? `Grupo ${m.group_name}` : '';
+  return m.round ?? '';
+}
+
+function predStyle(pred: any, m: any): string {
   if (!pred) return 'text-slate-700';
   if (!m.is_finished) return 'text-slate-300';
-  if (pred.points_earned === null) return 'text-slate-500';
   if (pred.user_home === m.home_score && pred.user_away === m.away_score) return 'text-gold font-bold';
   const pr = pred.user_home > pred.user_away ? 'H' : pred.user_home < pred.user_away ? 'A' : 'E';
   const mr = m.home_score  > m.away_score   ? 'H' : m.home_score  < m.away_score   ? 'A' : 'E';
-  if (pr === mr) return 'text-gol';
-  return 'text-slate-500';
+  return pr === mr ? 'text-gol' : 'text-slate-500';
+}
+
+function ptsColor(pts: number | null): string {
+  if (pts === null || pts === undefined) return 'text-slate-600';
+  if (pts >= 6) return 'text-gold';
+  if (pts >= 3) return 'text-gol';
+  if (pts >= 1) return 'text-slate-300';
+  return 'text-slate-600';
 }
 
 function timeLabel(ms: number): string {
@@ -116,16 +140,56 @@ function timeLabel(ms: number): string {
 function dayTimeLabel(ms: number): string {
   return fmtFecha(ms, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
+
+// Datos para compartir por WhatsApp (se serializan al cliente; índice = día revelado).
+const shareData = revealedDays.map((day) => ({
+  label: day.label,
+  matches: day.matches.map((m: any) => ({
+    home: spanishName(m.home_team),
+    away: spanishName(m.away_team),
+    homeISO: isoForTeam(m.home_team),
+    awayISO: isoForTeam(m.away_team),
+    finished: m.is_finished,
+    hs: m.home_score,
+    as_: m.away_score,
+    homePen: m.home_pen ?? null,
+    awayPen: m.away_pen ?? null,
+    winnerPen: m.winner_penalties ?? null,
+    players: players.map((pl: any) => {
+      const pred = predMap[m.id]?.[pl.id];
+      return {
+        name: pl.username,
+        uh: pred?.user_home ?? null,
+        ua: pred?.user_away ?? null,
+        pts: pred?.points_earned ?? null,
+        uhp: pred?.user_home_pen ?? null,
+        uap: pred?.user_away_pen ?? null,
+        uwp: pred?.user_winner_penalties ?? null,
+      };
+    }),
+  })),
+}));
+
+// SVG de WhatsApp reutilizado
 ---
 
-<Layout title="Pronósticos de todos" navProfile={navProfile} isAuthed={true}>
+<Layout title="La Polla" navProfile={navProfile} isAuthed={true}>
   <div class="space-y-6">
 
     <div>
-      <h1 class="font-display text-4xl text-white tracking-wide">PRONÓSTICOS DE TODOS</h1>
+      <h1 class="font-display text-4xl text-white tracking-wide">LA POLLA</h1>
       <p class="text-slate-500 text-sm mt-1">
-        Se revelan <strong class="text-slate-400">1h 55m antes</strong> del primer partido de cada día — cuando las apuestas ya están cerradas.
+        Los pronósticos de todos se revelan <strong class="text-slate-400">1h 55m antes</strong> del primer partido de cada día — cuando las apuestas ya están cerradas.
       </p>
+    </div>
+
+    <!-- Leyenda de colores -->
+    <div class="flex flex-wrap gap-x-5 gap-y-1.5 text-xs bg-brand-900 border border-brand-800 rounded-xl px-4 py-3">
+      <div class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-sm bg-gold flex-shrink-0"></span><span class="text-slate-400">Marcador exacto</span></div>
+      <div class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-sm bg-gol flex-shrink-0"></span><span class="text-slate-400">Ganador/empate correcto</span></div>
+      <div class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-sm bg-slate-700 flex-shrink-0"></span><span class="text-slate-400">Incorrecto</span></div>
+      <div class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-sm bg-slate-400 flex-shrink-0"></span><span class="text-slate-400">Pendiente</span></div>
+      <div class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-sm border border-slate-700 flex-shrink-0"></span><span class="text-slate-400">Sin pronóstico</span></div>
     </div>
 
     {/* ── Próximo día por revelar (teaser bloqueado) ── */}
@@ -155,12 +219,15 @@ function dayTimeLabel(ms: number): string {
     )}
 
     {/* ── Días revelados (más reciente primero) ── */}
-    {revealedDays.map((day) => {
+    {revealedDays.map((day, di) => {
       const allFinished = day.matches.every((m: any) => m.is_finished);
       const anyFinished = day.matches.some((m: any) => m.is_finished);
+      const ptsMap = dayPoints[day.key] ?? {};
+      const ranking = Object.entries(ptsMap).sort(([, a], [, b]) => (b as number) - (a as number));
+      const playerMap = Object.fromEntries(players.map((p: any) => [p.id, p.username]));
       return (
         <details open={!allFinished} class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
-          <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none select-none">
+          <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden">
             <div class="flex items-center gap-3 min-w-0">
               <span class="font-display text-lg text-white tracking-wide capitalize truncate">{day.label}</span>
               <span class={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${allFinished ? 'border-brand-600 text-slate-500' : anyFinished ? 'border-gold/40 text-gold' : 'border-gol/40 text-gol'}`}>
@@ -175,77 +242,298 @@ function dayTimeLabel(ms: number): string {
             </div>
           </summary>
 
-          <div class="border-t border-brand-800">
-            {day.matches.map((m: any) => {
-              const preds     = predMap[m.id] ?? {};
-              const submitted = players.filter((pl: any) => preds[pl.id]);
-              const missing   = players.filter((pl: any) => !preds[pl.id]);
+          <div class="border-t border-brand-800 p-4 space-y-4">
+
+            {/* Compartir el día completo */}
+            <div class="flex justify-end">
+              <button
+                onclick={`shareDay(${di})`}
+                class="flex items-center gap-1.5 text-xs bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-3 py-2 rounded-full font-medium">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.118 1.525 5.847L0 24l6.335-1.502A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.794 9.794 0 01-5.001-1.371l-.359-.214-3.723.883.939-3.63-.234-.374A9.775 9.775 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/></svg>
+                Compartir jornada
+              </button>
+            </div>
+
+            {day.matches.map((m: any, mi: number) => {
+              const preds  = predMap[m.id] ?? {};
+              const winner = knockoutWinner(m);
+              const submitted = players.filter((pl: any) => preds[pl.id]).length;
               return (
-                <div class="border-b border-brand-800/60 last:border-b-0">
-                  <div class="px-5 py-3 bg-brand-800/40 flex items-center gap-3 flex-wrap">
-                    <div class="flex items-center gap-2 flex-1 min-w-0">
-                      <span class="text-sm font-semibold text-white truncate">{spanishName(m.home_team)}</span>
-                      <span class="text-brand-600 font-display text-sm flex-shrink-0">
-                        {m.is_finished ? `${m.home_score}–${m.away_score}` : 'vs'}
-                      </span>
-                      <span class="text-sm font-semibold text-white truncate">{spanishName(m.away_team)}</span>
+                <div class="bg-brand-950/40 border border-brand-700/60 rounded-2xl overflow-hidden">
+
+                  <div class="px-4 py-3 bg-brand-800/50 border-b border-brand-700/60">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-xs text-slate-500 uppercase tracking-wide">{matchLabel(m)}</span>
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-600">{timeLabel(new Date(m.match_date).getTime())}</span>
+                        <span class="text-xs text-slate-500">{submitted}/{players.length}</span>
+                        <button
+                          onclick={`shareMatch(${di}, ${mi})`}
+                          aria-label="Compartir partido en WhatsApp"
+                          title="Compartir este partido en WhatsApp"
+                          class="flex items-center justify-center text-[#25D366] bg-[#25D366]/10 border border-[#25D366]/30 hover:bg-[#25D366]/20 transition w-8 h-8 rounded-lg flex-shrink-0">
+                          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.118 1.525 5.847L0 24l6.335-1.502A11.94 11.94 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.794 9.794 0 01-5.001-1.371l-.359-.214-3.723.883.939-3.63-.234-.374A9.775 9.775 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/></svg>
+                        </button>
+                      </div>
                     </div>
-                    <div class="flex items-center gap-2 flex-shrink-0 text-xs flex-wrap justify-end">
-                      <span class="text-slate-600">{timeLabel(new Date(m.match_date).getTime())}</span>
-                      {m.is_finished
-                        ? <span class="text-gol bg-gol/10 border border-gol/20 px-2 py-0.5 rounded-full">✓ Terminado</span>
-                        : <span class="text-gold bg-gold/10 border border-gold/20 px-2 py-0.5 rounded-full">🔒 Cerrado</span>
-                      }
-                      <span class="text-slate-500">{submitted.length}/{players.length}</span>
+                    <div class="flex items-center justify-center gap-3 mt-2">
+                      <div class="flex-1 min-w-0">
+                        <TeamName team={m.home_team} side="home" class={`text-sm font-semibold ${winner === 'home' ? 'text-gold' : winner === 'away' ? 'text-slate-500 line-through' : 'text-white'}`} />
+                      </div>
+                      <div class="text-center min-w-[56px] flex-shrink-0">
+                        {m.is_finished ? (
+                          <div class="font-display text-3xl text-white leading-none">{m.home_score} – {m.away_score}</div>
+                        ) : (
+                          <div class="font-display text-xl text-slate-500 leading-none">vs</div>
+                        )}
+                        {m.winner_penalties && (
+                          <div class="font-display text-base text-gold/70 leading-none mt-1">
+                            {m.home_pen !== null ? `(${m.home_pen}–${m.away_pen} pen)` : '(pen)'}
+                          </div>
+                        )}
+                        {winner && m.is_finished && (
+                          <div class="text-[11px] text-slate-400 leading-none mt-0.5">
+                            clasifica {winner === 'home' ? spanishName(m.home_team) : spanishName(m.away_team)}
+                          </div>
+                        )}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <TeamName team={m.away_team} side="away" class={`text-sm font-semibold ${winner === 'away' ? 'text-gold' : winner === 'home' ? 'text-slate-500 line-through' : 'text-white'}`} />
+                      </div>
                     </div>
                   </div>
 
-                  <div class="px-5 py-3">
-                    <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-                      {players.map((pl: any) => {
-                        const pred = preds[pl.id];
-                        return (
-                          <div class="flex items-center gap-1.5 min-w-[120px]">
-                            <span class="text-xs text-slate-500 truncate max-w-[80px]">{pl.username}</span>
-                            <span class={`text-xs font-mono ${predClass(pred, m)}`}>{predLabel(pred)}</span>
-                            {m.is_finished && pred && pred.points_earned !== null && (
-                              <span class={`text-[10px] font-bold ${pred.points_earned > 0 ? 'text-gol' : 'text-slate-600'}`}>
-                                {pred.points_earned}p
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {missing.length > 0 && (
-                      <div class="mt-2 flex flex-wrap gap-1.5 items-start">
-                        <span class="text-[11px] text-fifared/60 mt-0.5">Sin pronóstico:</span>
-                        <div class="flex flex-wrap gap-1">
-                          {missing.map((pl: any) => (
-                            <span class="text-[11px] text-fifared/60 bg-fifared/5 border border-fifared/20 px-1.5 py-0.5 rounded">{pl.username}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                      <thead>
+                        <tr class="border-b border-brand-800">
+                          <th class="px-3 py-2 text-left text-slate-500 font-medium text-xs">Jugador</th>
+                          <th class="px-3 py-2 text-center text-slate-500 font-medium text-xs">Pronóstico</th>
+                          {m.is_finished && <th class="px-3 py-2 text-center text-slate-500 font-medium text-xs">Pts</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {players.map((pl: any) => {
+                          const pred = preds[pl.id];
+                          return (
+                            <tr class={`border-b border-brand-800/40 last:border-0 ${pl.id === user.id ? 'bg-gold/5' : ''}`}>
+                              <td class="px-3 py-2">
+                                <div class="flex items-center gap-1.5">
+                                  {pl.id === user.id && <span class="text-gold text-[10px] font-bold">TÚ</span>}
+                                  <span class={`font-medium ${pl.expulsado ? 'text-slate-600 line-through' : 'text-slate-300'}`}>{pl.username}</span>
+                                  {pl.expulsado && <span class="ml-0.5">🟥🟥</span>}
+                                </div>
+                              </td>
+                              <td class="px-3 py-2 text-center">
+                                {pred ? (
+                                  <div>
+                                    <span class={predStyle(pred, m)}>{pred.user_home} – {pred.user_away}</span>
+                                    {pred.user_home === pred.user_away && pred.user_winner_penalties && (
+                                      <div class="text-slate-500 text-xs mt-0.5">
+                                        {pred.user_home_pen !== null
+                                          ? `pen ${pred.user_home_pen}–${pred.user_away_pen}`
+                                          : `pen: ${pred.user_winner_penalties === 'home' ? spanishName(m.home_team) : spanishName(m.away_team)}`}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span class="text-slate-700" title="No pronosticó este partido">—</span>
+                                )}
+                              </td>
+                              {m.is_finished && (
+                                <td class="px-3 py-2 text-center">
+                                  <span class={`font-display text-lg font-bold ${ptsColor(pred?.points_earned ?? null)}`}>
+                                    {pred ? (pred.points_earned ?? 0) : '—'}
+                                  </span>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               );
             })}
+
+            {/* Mini-ranking de puntos del día (medallas) */}
+            {ranking.length > 0 && (
+              <div class="bg-brand-900 border border-gold/20 rounded-2xl p-4">
+                <h3 class="text-xs font-semibold text-gold uppercase tracking-widest mb-3 capitalize">📊 Puntos {day.label}</h3>
+                <div class="flex flex-col gap-1.5">
+                  {ranking.map(([userId, total], i) => {
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                    const isMe = userId === user.id;
+                    return (
+                      <div class={`flex items-center justify-between rounded-xl px-3 py-1.5 ${isMe ? 'bg-gold/8 border border-gold/20' : 'bg-brand-800/40'}`}>
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm w-6 text-center">{medal}</span>
+                          <span class={`text-sm ${isMe ? 'text-gold font-semibold' : 'text-slate-300'}`}>
+                            {playerMap[userId] ?? '?'}
+                            {isMe && <span class="text-[10px] text-gold/70 ml-1">← tú</span>}
+                          </span>
+                        </div>
+                        <span class={`font-display text-xl ${(total as number) >= 6 ? 'text-gold' : (total as number) >= 3 ? 'text-gol' : 'text-slate-400'}`}>
+                          {total as number}<span class="text-xs text-slate-500 font-sans ml-0.5">pts</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
           </div>
         </details>
       );
     })}
 
-    {revealedDays.length > 0 && (
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600 pb-4">
-        <div class="flex items-center gap-1.5"><span class="text-gold font-bold font-mono">2–1</span><span>Exacto</span></div>
-        <div class="flex items-center gap-1.5"><span class="text-gol font-mono">1–0</span><span>Resultado correcto</span></div>
-        <div class="flex items-center gap-1.5"><span class="text-slate-500 font-mono">0–2</span><span>Incorrecto</span></div>
-        <div class="flex items-center gap-1.5"><span class="text-slate-300 font-mono">1–1</span><span>Pendiente</span></div>
-        <div class="flex items-center gap-1.5"><span class="text-slate-700 font-mono">—</span><span>Sin pronóstico</span></div>
-      </div>
-    )}
-
   </div>
+
+  <script is:inline type="application/json" id="pronosticos-share-data" set:html={JSON.stringify(shareData)} />
 </Layout>
+
+<script>
+  async function copyText(text: string): Promise<boolean> {
+    try { await navigator.clipboard.writeText(text); return true; } catch { /* fallback */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = (document as any).execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch { return false; }
+  }
+
+  function showToast(msg: string) {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';
+    document.body.appendChild(el);
+    setTimeout(() => { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
+  }
+
+  async function waShare(text: string) {
+    // 1. Web Share API nativo (móvil y algunos desktop) — feature detection, no UA.
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    // 2. Móvil sin Web Share API: abrir wa.me (app).
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) { window.open(waUrl, '_blank'); return; }
+    // 3. Desktop: copiar (WhatsApp web mangla emojis); si falla, wa.me web.
+    const copied = await copyText(text);
+    if (!copied) { window.open(waUrl, '_blank'); return; }
+    showToast('📋 Copiado — pégalo en WhatsApp con Ctrl+V');
+  }
+
+  function flagFromISO(iso: string): string {
+    if (!iso) return '';
+    const code = iso.includes('-') ? iso.split('-')[0] : iso;
+    const base = 0x1F1E6 - 65;
+    return String.fromCodePoint(code.charCodeAt(0) + base, code.charCodeAt(1) + base);
+  }
+
+  type MatchShare = {
+    home: string; away: string; homeISO: string; awayISO: string;
+    finished: boolean; hs: number; as_: number;
+    homePen: number|null; awayPen: number|null; winnerPen: string|null;
+    players: Array<{ name: string; uh: number|null; ua: number|null; pts: number|null; uhp: number|null; uap: number|null; uwp: string|null }>;
+  };
+  type DayShare = { label: string; matches: MatchShare[] };
+
+  function getData(): DayShare[] {
+    return JSON.parse(document.getElementById('pronosticos-share-data')?.textContent ?? '[]');
+  }
+
+  function matchIcon(pl: { uh: number; ua: number }, m: MatchShare): string {
+    if (pl.uh === m.hs && pl.ua === m.as_) return '⭐';
+    const pr = pl.uh > pl.ua ? 'H' : pl.uh < pl.ua ? 'A' : 'E';
+    const mr = m.hs  > m.as_  ? 'H' : m.hs  < m.as_  ? 'A' : 'E';
+    return pr === mr ? '✅' : '❌';
+  }
+
+  function matchHeader(m: MatchShare, hf: string, af: string): string {
+    if (!m.finished) return `⚽ *${m.home} ${hf} vs ${af} ${m.away}*`;
+    let line = `⚽ *${m.home} ${hf} ${m.hs}–${m.as_} ${af} ${m.away}*`;
+    if (m.winnerPen) {
+      const winner = m.winnerPen === 'home' ? m.home : m.away;
+      const penScore = m.homePen !== null ? `${m.homePen}–${m.awayPen} pen` : 'pen';
+      line += `\n_(${penScore} · clasifica ${winner})_`;
+    }
+    return line;
+  }
+
+  function penSuffix(pl: MatchShare['players'][0], m: MatchShare): string {
+    if (pl.uh === pl.ua && pl.uwp) {
+      if (pl.uhp !== null) return ` (pen ${pl.uhp}–${pl.uap})`;
+      return ` (pen ${pl.uwp === 'home' ? m.home : m.away})`;
+    }
+    return '';
+  }
+
+  function playerLine(pl: MatchShare['players'][0], m: MatchShare): string {
+    if (pl.uh === null || pl.ua === null) return `➖ ${pl.name}`;
+    const score = `${pl.uh}–${pl.ua}${penSuffix(pl, m)}`;
+    if (!m.finished) return `• ${pl.name} → ${score}`;
+    return `${matchIcon(pl as any, m)} ${pl.name} → ${score} (${pl.pts ?? 0}pts)`;
+  }
+
+  function shareDay(di: number) {
+    const data = getData();
+    const d = data[di];
+    if (!d) return;
+    const hf = (m: MatchShare) => flagFromISO(m.homeISO);
+    const af = (m: MatchShare) => flagFromISO(m.awayISO);
+
+    let text = `⚽ *POLLA 2026 · ${d.label.toUpperCase()}*\n\n`;
+    const totals: Record<string, number> = {};
+
+    for (const m of d.matches) {
+      text += matchHeader(m, hf(m), af(m)) + '\n';
+      for (const pl of m.players) {
+        text += playerLine(pl, m) + '\n';
+        if (m.finished && pl.uh !== null) totals[pl.name] = (totals[pl.name] ?? 0) + (pl.pts ?? 0);
+      }
+      text += '\n';
+    }
+
+    const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a);
+    if (sorted.length) {
+      text += `📊 *Puntos ${d.label}:*\n`;
+      sorted.forEach(([name, pts], i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+        text += `${medal} ${name} → ${pts}pts\n`;
+      });
+    }
+    waShare(text);
+  }
+
+  function shareMatch(di: number, mi: number) {
+    const data = getData();
+    const m = data[di]?.matches[mi];
+    if (!m) return;
+    const hf = flagFromISO(m.homeISO);
+    const af = flagFromISO(m.awayISO);
+
+    let text = matchHeader(m, hf, af) + '\n';
+    text += `_${data[di].label} · Polla 2026_\n\n`;
+
+    const sorted = [...m.players].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0));
+    for (const pl of sorted) text += playerLine(pl, m) + '\n';
+
+    if (m.finished) {
+      const total = sorted.reduce((s, p) => s + (p.pts ?? 0), 0);
+      if (total > 0) text += `\n_Total: ${total}pts_`;
+    }
+    waShare(text);
+  }
+
+  (window as any).shareDay   = shareDay;
+  (window as any).shareMatch = shareMatch;
+</script>

@@ -296,7 +296,6 @@ if (!isAuthed) {
                 📅 Mis Pronósticos
                 <span id="pending-badge-desktop" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-fifared text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"></span>
               </a>
-              <a href="/resultados"  class={navLink('/resultados')}>📋 Resultados</a>
               <a href="/pronosticos" class={navLink('/pronosticos')}>👥 La Polla</a>
               <a href="/reglas"      class={navLink('/reglas')}>📖 Reglas</a>
               {profile?.es_referi && (
@@ -404,8 +403,7 @@ if (!isAuthed) {
               { href: '/dashboard',   icon: '🏆', label: 'Tabla de posiciones' },
               { href: '/grupos',      icon: '📊', label: 'Grupos y Eliminatorias' },
               { href: '/predictions', icon: '📅', label: 'Mis Pronósticos', startsWith: true },
-              { href: '/resultados',  icon: '📋', label: 'Resultados' },
-              { href: '/pronosticos', icon: '👥', label: 'Pronósticos de todos' },
+              { href: '/pronosticos', icon: '👥', label: 'La Polla · Resultados' },
               { href: '/reglas',      icon: '📖', label: 'Reglamento' },
               { href: '/pago',        icon: '💰', label: 'Cómo pagar' },
             ].map(({ href, icon, label, startsWith }) => {

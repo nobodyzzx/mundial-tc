@@ -157,7 +157,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     ...tableLines,
     ...(cardLines.length ? ['', '🟨🟥 *Tarjetas de hoy*', ...cardLines] : []),
     '',
-    '👉 mundial.tecnocondor.dev/resultados',
+    '👉 mundial.tecnocondor.dev/pronosticos',
     '_Polla Mundial 2026_ 🏆',
   ].join('\n');
 

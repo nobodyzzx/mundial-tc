@@ -103,7 +103,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     '_este partido + acumulado = total_',
     ...tableLines,
     '',
-    '👉 mundial.tecnocondor.dev/resultados',
+    '👉 mundial.tecnocondor.dev/pronosticos',
     '_Polla Mundial 2026_ 🏆',
   ].join('\n');
 
