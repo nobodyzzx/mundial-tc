@@ -1,5 +1,6 @@
 ---
 import Layout from '@/layouts/Layout.astro';
+import TeamName from '@/components/TeamName.astro';
 import { supabase } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart, boliviaDayKey, jornadaLockState } from '@/lib/jornada';
@@ -298,8 +299,6 @@ let globalFormIdx = 0;
 
               {jornadaMatches.map((m) => {
                 const existing = predMap.get(m.id);
-                const homeISO = isoForTeam(m.home_team);
-                const awayISO = isoForTeam(m.away_team);
                 const idx = existing ? -1 : globalFormIdx++;
                 const isKnockout = m.stage === 'knockout';
 
@@ -322,20 +321,14 @@ let globalFormIdx = 0;
                       /* Ya pronosticado: layout horizontal clásico */
                       <Fragment>
                       <div class="flex items-center gap-2">
-                        <div class="flex-1 text-right">
-                          <span class="text-white font-semibold text-base leading-tight">
-                            {spanishName(m.home_team)}
-                            {homeISO && <span class="flag-emoji ml-1" data-iso={homeISO}></span>}
-                          </span>
+                        <div class="flex-1 min-w-0">
+                          <TeamName team={m.home_team} side="home" class="text-white font-semibold text-base" />
                         </div>
                         <span class="text-gol font-display text-3xl flex-shrink-0 px-2">
                           {existing.user_home}–{existing.user_away}
                         </span>
-                        <div class="flex-1">
-                          <span class="text-white font-semibold text-base leading-tight">
-                            {awayISO && <span class="flag-emoji mr-1" data-iso={awayISO}></span>}
-                            {spanishName(m.away_team)}
-                          </span>
+                        <div class="flex-1 min-w-0">
+                          <TeamName team={m.away_team} side="away" class="text-white font-semibold text-base" />
                         </div>
                       </div>
                       <p class="text-center mt-2.5">
@@ -347,15 +340,13 @@ let globalFormIdx = 0;
                       <div class="space-y-3">
                         <input type="hidden" name={`matchId_${idx}`} value={m.id} />
                         <div class="flex items-center justify-between gap-2">
-                          <span class="flex-1 text-right text-white font-semibold text-base leading-tight">
-                            {spanishName(m.home_team)}
-                            {homeISO && <span class="flag-emoji ml-1" data-iso={homeISO}></span>}
-                          </span>
+                          <div class="flex-1 min-w-0">
+                            <TeamName team={m.home_team} side="home" class="text-white font-semibold text-base" />
+                          </div>
                           <span class="text-slate-600 text-sm flex-shrink-0">vs</span>
-                          <span class="flex-1 text-left text-white font-semibold text-base leading-tight">
-                            {awayISO && <span class="flag-emoji mr-1" data-iso={awayISO}></span>}
-                            {spanishName(m.away_team)}
-                          </span>
+                          <div class="flex-1 min-w-0">
+                            <TeamName team={m.away_team} side="away" class="text-white font-semibold text-base" />
+                          </div>
                         </div>
                         <div class="flex items-center justify-center gap-2">
                           {/* Stepper local */}
@@ -462,8 +453,6 @@ let globalFormIdx = 0;
             <div class="space-y-2">
               {jornadaMatches.map((m) => {
                 const existing = predMap.get(m.id);
-                const homeISO = isoForTeam(m.home_team);
-                const awayISO = isoForTeam(m.away_team);
                 return (
                   <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : prevPending ? 'border-brand-700/40 bg-brand-800/30' : 'border-fifared/30 bg-fifared/5'}`}>
                     <div class="flex items-center justify-between mb-2">
@@ -476,11 +465,8 @@ let globalFormIdx = 0;
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
-                      <div class="flex-1 text-right">
-                        <span class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`}>
-                          {spanishName(m.home_team)}
-                          {homeISO && <span class="flag-emoji ml-1" data-iso={homeISO}></span>}
-                        </span>
+                      <div class="flex-1 min-w-0">
+                        <TeamName team={m.home_team} side="home" class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`} />
                       </div>
                       <div class="flex-shrink-0 px-2 text-center min-w-[60px]">
                         {existing
@@ -488,11 +474,8 @@ let globalFormIdx = 0;
                           : <span class="text-slate-700 font-bold text-xl">–</span>
                         }
                       </div>
-                      <div class="flex-1">
-                        <span class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`}>
-                          {awayISO && <span class="flag-emoji mr-1" data-iso={awayISO}></span>}
-                          {spanishName(m.away_team)}
-                        </span>
+                      <div class="flex-1 min-w-0">
+                        <TeamName team={m.away_team} side="away" class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`} />
                       </div>
                     </div>
                     {existing && (existing.user_home_pen !== null || existing.user_winner_penalties) && (

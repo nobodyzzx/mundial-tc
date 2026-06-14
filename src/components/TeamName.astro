@@ -1,0 +1,29 @@
+---
+// Nombre de selección + bandera, SIEMPRE alineados.
+// La bandera queda pegada al nombre y centrada verticalmente aunque el nombre
+// haga wrap a dos líneas (nombres largos como "Bosnia y Herzegovina" o
+// "Países Bajos"): el flag es un hermano flex (no texto inline), así nunca se
+// "cae" a otra línea. El emoji se rellena en cliente vía .flag-emoji.
+import { spanishName, isoForTeam } from '@/lib/isoFlags';
+
+interface Props {
+  team: string;
+  side: 'home' | 'away';
+  /** Clases de color/tamaño del texto (p. ej. 'text-white font-semibold text-base'). */
+  class?: string;
+}
+
+const { team, side, class: cls = '' } = Astro.props;
+const iso = isoForTeam(team);
+const isHome = side === 'home';
+---
+<span
+  class:list={[
+    'flex items-center gap-1.5 min-w-0 w-full',
+    isHome ? 'justify-end' : 'justify-start',
+    cls,
+  ]}>
+  {!isHome && iso && <span class="flag-emoji flex-shrink-0" data-iso={iso}></span>}
+  <span class:list={['leading-tight', isHome ? 'text-right' : 'text-left']}>{spanishName(team)}</span>
+  {isHome && iso && <span class="flag-emoji flex-shrink-0" data-iso={iso}></span>}
+</span>
