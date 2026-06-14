@@ -103,14 +103,20 @@ function lockStateFor(jornadaMatches: MatchRow[]) {
   });
 }
 
-// Jornada expandida por defecto en el acordeón: la primera accionable (abierta,
-// sin sanción y con partidos por pronosticar); si no hay, la próxima no cerrada;
-// si todas están cerradas, la primera. Las demás quedan colapsadas.
+// Jornadas expandidas por defecto en el acordeón:
+//  (a) la VIGENTE: la que está en juego ahora (ya empezó → closed/ongoingLock);
+//  (b) la SIGUIENTE: la primera accionable (abierta y con partidos por pronosticar);
+//      si no hay, la próxima no cerrada.
+// Las demás quedan colapsadas.
 const jornadaList = [...grouped.entries()];
-const defaultOpenKey =
+const openKeys = new Set<string>();
+const vigente = jornadaList.find(([, ms]) => ['closed', 'ongoingLock'].includes(lockStateFor(ms)));
+if (vigente) openKeys.add(vigente[0]);
+const siguiente =
   jornadaList.find(([, ms]) => !isSanctioned(ms) && lockStateFor(ms) === 'open' && !ms.every(m => predMap.has(m.id)))?.[0]
-  ?? jornadaList.find(([, ms]) => ['open', 'ongoingLock', 'prevPending'].includes(lockStateFor(ms)))?.[0]
-  ?? jornadaList[0]?.[0];
+  ?? jornadaList.find(([, ms]) => ['open', 'prevPending', 'ongoingLock'].includes(lockStateFor(ms)))?.[0];
+if (siguiente) openKeys.add(siguiente);
+if (openKeys.size === 0 && jornadaList[0]) openKeys.add(jornadaList[0][0]);
 
 function buildShareData(dayMatches: MatchRow[], username: string) {
   const firstMatch = dayMatches[0];
@@ -237,9 +243,13 @@ let globalFormIdx = 0;
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
       });
       const shareData = buildShareData(jornadaMatches, navProfile?.username ?? 'yo');
+      // Progreso de pronóstico (va como texto bajo el título, no como botón).
+      const showProgress = !sanctioned && (allDone || hasSome || lockState === 'open');
+      const progressLabel = allDone ? '✅ Completa' : `${predCount}/${jornadaMatches.length}`;
+      const progressColor = allDone ? 'text-gol' : hasSome ? 'text-amarilla' : 'text-slate-400';
 
       return (
-        <details class="group" open={jornadaKey === defaultOpenKey} data-jornada>
+        <details class="group" open={openKeys.has(jornadaKey)} data-jornada>
 
           {/* ── Encabezado de jornada (resumen tap-able del acordeón) ── */}
           <summary class={`flex items-center justify-between gap-2 px-4 py-3 rounded-xl border cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden ${
@@ -250,47 +260,29 @@ let globalFormIdx = 0;
             allDone      ? 'bg-gol/8 border-gol/30' :
                            'bg-brand-800/60 border-brand-700/60'
           }`}>
-            <div class="flex items-center gap-2 min-w-0">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
               <svg class="w-4 h-4 flex-shrink-0 text-slate-500 transition-transform group-open:rotate-90" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7 5l6 5-6 5V5z"/></svg>
               <div class="min-w-0">
-                <h2 class={`font-display text-xl tracking-wide capitalize truncate ${prevPending ? 'text-slate-500' : 'text-white'}`}>{jornadaKey}</h2>
-                <p class={`text-xs mt-0.5 ${sanctioned ? 'text-fifared' : prevPending ? 'text-slate-600' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
-                  {sanctioned
-                    ? (isExpulsado ? '🟥🟥 Expulsado — no puedes pronosticar' : '🟥 Jornada anulada por tarjeta roja')
-                    : prevPending
-                    ? '🔒 Disponible cuando terminen los partidos anteriores'
-                    : ongoingLock
-                    ? '⏳ Esperá que termine el partido de hoy'
-                    : closed
-                    ? '🔒 Cerrada'
-                    : <span class="cutoff-cd font-semibold" data-cutoff={firstTime - 2 * 3600 * 1000}>⏰ Cierre: {cutoffStr}</span>
-                  }
+                <h2 class={`font-display text-xl tracking-wide capitalize leading-tight ${prevPending ? 'text-slate-400' : 'text-white'}`}>{jornadaKey}</h2>
+                <p class="text-xs mt-0.5 flex items-center gap-1.5 flex-wrap leading-tight">
+                  {showProgress && <span class={`font-semibold ${progressColor}`}>{progressLabel}</span>}
+                  {showProgress && <span class="text-slate-700">·</span>}
+                  <span class={sanctioned ? 'text-fifared' : prevPending ? 'text-slate-500' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared/90' : 'text-slate-500'}>
+                    {sanctioned
+                      ? (isExpulsado ? '🟥🟥 Expulsado — no puedes pronosticar' : '🟥 Anulada por tarjeta roja')
+                      : prevPending
+                      ? '🔒 Disponible al terminar los anteriores'
+                      : ongoingLock
+                      ? '⏳ Partido en curso'
+                      : closed
+                      ? '🔒 Cerrada'
+                      : <span class="cutoff-cd font-semibold" data-cutoff={firstTime - 2 * 3600 * 1000}>⏰ Cierre: {cutoffStr}</span>
+                    }
+                  </span>
                 </p>
               </div>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              <span class={`text-xs px-2 py-1 rounded-full border whitespace-nowrap flex-shrink-0 ${
-                sanctioned ? 'text-fifared border-fifared/40 bg-fifared/15' :
-                allDone    ? 'text-gol border-gol/30 bg-gol/10' :
-                hasSome    ? 'text-amarilla border-amarilla/30 bg-amarilla/10' :
-                prevPending ? 'text-slate-600 border-brand-700/40 bg-brand-800/40' :
-                closed     ? 'text-fifared border-fifared/30 bg-fifared/10' :
-                              'text-slate-500 border-brand-600 bg-brand-700/30'
-              }`}>
-                {sanctioned
-                  ? '🟥 Anulada'
-                  : allDone
-                  ? '✅ Completa'
-                  : hasSome
-                  ? `${predCount}/${jornadaMatches.length}`
-                  : prevPending
-                  ? '🔒 Bloqueada'
-                  : ongoingLock
-                  ? '⏳ En curso'
-                  : closed
-                  ? '🔒 Cerrada'
-                  : `0/${jornadaMatches.length}`}
-              </span>
+            <div class="flex items-center flex-shrink-0">
               {hasSome && (
                 <button
                   aria-label="Compartir en WhatsApp"
