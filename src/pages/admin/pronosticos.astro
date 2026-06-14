@@ -373,19 +373,22 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     if (text.includes('⚖️') && !text.includes('= ingresado por el réferi')) {
       text += '\n\n_⚖️ = ingresado por el réferi_';
     }
-    // Mobile: compartir nativo (app WhatsApp) o wa.me directo
-    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      if (navigator.share) {
-        try { await navigator.share({ text }); return; } catch (e) {
-          if ((e as Error).name === 'AbortError') return; // usuario canceló
-        }
+    // 1. Web Share API nativo (móvil y algunos desktop) — detección de característica,
+    //    no sniff de User-Agent (fallaba en Androids/iPad → caía a "copiar" como PC).
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch (e) {
+        if ((e as Error).name === 'AbortError') return; // usuario canceló
       }
-      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+    }
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    // 2. Móvil sin Web Share API: abrir wa.me (app de WhatsApp).
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      window.open(waUrl, '_blank');
       return;
     }
-    // Desktop: SIEMPRE copiar. Nunca abrir WhatsApp web (mangla emojis y salen rombos).
+    // 3. Desktop: copiar (WhatsApp web mangla emojis); si falla, abrir wa.me web.
     const copied = await copyText(text);
-    if (!copied) { showToast('⚠️ No se pudo copiar al portapapeles'); return; }
+    if (!copied) { window.open(waUrl, '_blank'); return; }
     showToast('\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V');
   }
 

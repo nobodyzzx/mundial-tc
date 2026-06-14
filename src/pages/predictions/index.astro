@@ -546,19 +546,22 @@ let globalFormIdx = 0;
   }
 
   async function waShare(text: string) {
-    // Mobile: compartir nativo (app WhatsApp) o wa.me directo
-    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      if (navigator.share) {
-        try { await navigator.share({ text }); return; } catch (e) {
-          if ((e as Error).name === 'AbortError') return; // usuario canceló
-        }
+    // 1. Web Share API nativo (móvil y algunos desktop) — detección de característica,
+    //    NO sniff de User-Agent (que fallaba en Androids y iPad → caía a "copiar" como PC).
+    if (navigator.share) {
+      try { await navigator.share({ text }); return; } catch (e) {
+        if ((e as Error).name === 'AbortError') return; // usuario canceló
       }
-      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+    }
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    // 2. Móvil sin Web Share API: abrir wa.me (app de WhatsApp).
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      window.open(waUrl, '_blank');
       return;
     }
-    // Desktop: SIEMPRE copiar. Nunca abrir WhatsApp web (mangla emojis y salen rombos).
+    // 3. Desktop: copiar (WhatsApp web mangla emojis); si falla, abrir wa.me web.
     const copied = await copyText(text);
-    if (!copied) return;
+    if (!copied) { window.open(waUrl, '_blank'); return; }
     const el = document.createElement('div');
     el.textContent = '\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V';
     el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0d1117;border:1px solid #25d366;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;z-index:9999;pointer-events:none;white-space:nowrap';
