@@ -156,7 +156,7 @@ let globalFormIdx = 0;
 ---
 
 <Layout title="Pronósticos" navProfile={navProfile} isAuthed={true}>
-  <div class="space-y-6">
+  <div class="space-y-6" data-pred-root>
 
     <div class="flex items-center justify-between gap-2">
       <h1 class="font-display text-4xl text-white tracking-wide">MIS PRONÓSTICOS</h1>
@@ -754,6 +754,15 @@ let globalFormIdx = 0;
   }
 
   function init() {
+    // Guard anti doble-binding: init() corre por la llamada directa Y por
+    // astro:page-load (ambos sobre el MISMO DOM en la carga inicial). Marca el
+    // contenedor; en una navegación Astro reemplaza el DOM (root nuevo sin marca)
+    // y se vuelve a inicializar. Sin esto, los listeners se duplicaban y el
+    // botón Compartir llamaba navigator.share dos veces → la 2ª caía a wa.me.
+    const root = document.querySelector<HTMLElement>('[data-pred-root]');
+    if (!root || root.dataset.inited === '1') return;
+    root.dataset.inited = '1';
+
     initFlags();
     initSteppers();
     initPenaltySections();
