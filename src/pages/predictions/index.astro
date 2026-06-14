@@ -293,7 +293,7 @@ let globalFormIdx = 0;
           </div>
 
           {/* ── Si la jornada está abierta y hay partidos sin pronosticar: form inline ── */}
-          {!sanctioned && !closed && !allDone ? (
+          {!sanctioned && !closed && !prevPending && !ongoingLock && !allDone ? (
             <form method="POST" action="/api/predictions/submit-jornada" class="space-y-2">
 
               {jornadaMatches.map((m) => {

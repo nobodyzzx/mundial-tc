@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
-import { boliviaDayStart, isCutoffPassed } from '@/lib/jornada';
+import { boliviaDayStart, jornadaLockState } from '@/lib/jornada';
 import { logEvent } from '@/lib/system-log';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
@@ -123,8 +123,37 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .lt('match_date', dayEnd.toISOString());
 
   const firstMatchTime = Math.min(...(dayMatches ?? []).map(m => new Date(m.match_date).getTime()));
-  if (isCutoffPassed(firstMatchTime, Date.now()))
-    return reject('jornada-cerrada', `/predictions?error=${encodeURIComponent('La jornada ya está cerrada')}`);
+
+  // Estado de bloqueo de la jornada — MISMA lógica que /predictions (lib/jornada.ts):
+  //  - 'closed'      → ya pasó el cutoff de 2h del primer partido del día Bolivia
+  //  - 'prevPending' → el día Bolivia anterior aún tiene partidos sin terminar
+  //  - 'ongoingLock' → un partido del día ya comenzó / hay uno en curso
+  // El servidor también lo valida (no solo la UI) para que un POST directo no
+  // pueda abrir una jornada mientras el día previo sigue en juego (frontera 03:00 BOT).
+  const nowMs = Date.now();
+  const [{ data: earlierUnfinished }, { data: inProgressNow }] = await Promise.all([
+    supabase.from('matches').select('id')
+      .lt('match_date', new Date(firstMatchTime).toISOString())
+      .eq('is_finished', false).limit(1),
+    supabase.from('matches').select('id')
+      .lte('match_date', new Date(nowMs).toISOString())
+      .eq('is_finished', false).limit(1),
+  ]);
+  const lockState = jornadaLockState({
+    firstMatchMs: firstMatchTime,
+    nowMs,
+    sameDayStarted: (dayMatches ?? []).some(m => new Date(m.match_date).getTime() <= nowMs),
+    hasMatchInProgress: (inProgressNow?.length ?? 0) > 0,
+    hasEarlierUnfinished: (earlierUnfinished?.length ?? 0) > 0,
+  });
+  if (lockState !== 'open') {
+    const msg = lockState === 'prevPending'
+      ? 'Espera a que terminen los partidos del día anterior'
+      : lockState === 'ongoingLock'
+      ? 'El partido del día ya comenzó'
+      : 'La jornada ya está cerrada';
+    return reject(`jornada-${lockState}`, `/predictions?error=${encodeURIComponent(msg)}`);
+  }
 
   // Sanción roja del día Bolivia (frontera 03:00 BOT): jornada anulada, no se pronostica.
   const { data: redCards } = await supabase
