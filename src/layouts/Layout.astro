@@ -368,9 +368,11 @@ if (!isAuthed) {
             <a href="/reglas" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/reglas' ? 'bg-gold/15 text-gold border border-gold/25' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
               📖 Reglas
             </a>
+            {/* Oculto: ya no se está cobrando (no borrar — la página /pago sigue existiendo).
             <a href="/pago" class={`text-sm px-3 py-1.5 rounded-lg transition ${pathname === '/pago' ? 'bg-gold/15 text-gold border border-gold/25' : 'text-slate-400 hover:text-white hover:bg-brand-800/50'}`}>
               💰 Cómo pagar
             </a>
+            */}
             <a href="/login" class="bg-gold text-brand-950 font-bold px-4 py-2 flex items-center rounded-lg transition text-sm active:opacity-80">
               Entrar →
             </a>
@@ -405,7 +407,8 @@ if (!isAuthed) {
               { href: '/predictions', icon: '📅', label: 'Mis Pronósticos', startsWith: true },
               { href: '/pronosticos', icon: '👥', label: 'La Polla · Resultados' },
               { href: '/reglas',      icon: '📖', label: 'Reglamento' },
-              { href: '/pago',        icon: '💰', label: 'Cómo pagar' },
+              // Oculto: ya no se está cobrando (no borrar — /pago sigue existiendo).
+              // { href: '/pago',        icon: '💰', label: 'Cómo pagar' },
             ].map(({ href, icon, label, startsWith }) => {
               const active = startsWith ? pathname.startsWith(href) : pathname === href;
               return (
