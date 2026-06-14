@@ -193,6 +193,21 @@ function accentLine(i: number, isMe: boolean) {
   if (i === 2) return 'from-transparent via-amber-600/70 to-transparent';
   return 'from-transparent via-brand-600/40 to-transparent';
 }
+
+// ── Barra de fuerza: ancho proporcional al líder ──────────────
+const maxPts = Math.max(leaderPoints, 1);
+function barPct(pts: number) {
+  if (pts <= 0) return 0;
+  // mínimo 5% para que un punto siga siendo visible
+  return Math.max((pts / maxPts) * 100, 5);
+}
+function barFill(i: number, isMe: boolean) {
+  if (i === 0) return 'from-yellow-500 to-amber-400';
+  if (i === 1) return 'from-slate-400 to-slate-300';
+  if (i === 2) return 'from-amber-700 to-amber-500';
+  if (isMe) return 'from-sky-500 to-blue-400';
+  return 'from-blue-800 to-blue-600';
+}
 ---
 
 <Layout title="Tabla" navProfile={navProfile} isAuthed={true}>
@@ -319,17 +334,21 @@ function accentLine(i: number, isMe: boolean) {
                     </span>
                   ) : null; })()}
                 </div>
-                {gap > 0 && (
-                  <div class="flex items-center gap-2 mt-0.5">
-                    <span class="text-xs text-slate-600">−{gap} pts</span>
+                {/* Barra de fuerza */}
+                <div class="flex items-center gap-2 mt-2">
+                  <div class="relative h-1.5 flex-1 rounded-full bg-brand-950/70 overflow-hidden">
+                    <div class={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${barFill(i, isMe)}`} style={`width:${barPct(p.puntos_totales)}%`} />
                   </div>
-                )}
+                  {gap > 0
+                    ? <span class="text-[11px] font-semibold text-slate-400 tabular-nums flex-shrink-0 w-9 text-right">−{gap}</span>
+                    : <span class="text-[11px] font-bold text-gold flex-shrink-0 w-9 text-right">líder</span>}
+                </div>
               </div>
               <div class="text-right flex-shrink-0">
-                <span class={`font-display text-3xl tabular-nums ${pointColor(i, isMe)}`}>
+                <span class={`font-display text-3xl tabular-nums leading-none ${pointColor(i, isMe)}`}>
                   {p.puntos_totales}
                 </span>
-                <div class="text-xs text-slate-600">pts</div>
+                <div class="text-[10px] text-slate-600 mt-0.5">pts</div>
               </div>
             </div>
           );
@@ -348,8 +367,8 @@ function accentLine(i: number, isMe: boolean) {
             <tr class="border-b border-brand-800 text-slate-500 text-xs uppercase">
               <th class="px-4 py-3 text-left w-10">#</th>
               <th class="px-4 py-3 text-left">Jugador</th>
+              <th class="px-4 py-3 text-left w-1/2">Progreso</th>
               <th class="px-4 py-3 text-right">Puntos</th>
-              <th class="px-4 py-3 text-center hidden md:table-cell">Diferencia</th>
             </tr>
           </thead>
           <tbody>
@@ -379,19 +398,24 @@ function accentLine(i: number, isMe: boolean) {
                       ) : null; })()}
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-right">
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-3">
+                      <div class="relative h-2 flex-1 min-w-[80px] rounded-full bg-brand-950/70 overflow-hidden">
+                        <div class={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${barFill(i, isMe)}`} style={`width:${barPct(p.puntos_totales)}%`} />
+                      </div>
+                      {leaderPoints === 0
+                        ? <span class="text-slate-600 text-xs w-10 flex-shrink-0">—</span>
+                        : gap > 0
+                          ? <span class="text-slate-500 text-xs tabular-nums w-10 flex-shrink-0">−{gap}</span>
+                          : <span class="text-gold text-xs font-semibold w-10 flex-shrink-0">líder</span>
+                      }
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-right whitespace-nowrap">
                     <span class={`font-display text-2xl tabular-nums ${pointColor(i, isMe)}`}>
                       {p.puntos_totales}
                     </span>
                     <span class="text-slate-600 text-xs ml-1">pts</span>
-                  </td>
-                  <td class="px-4 py-3 text-center hidden md:table-cell">
-                    {leaderPoints === 0
-                      ? <span class="text-slate-600 text-xs">—</span>
-                      : gap > 0
-                        ? <span class="text-slate-500 text-xs">−{gap}</span>
-                        : <span class="text-gold text-xs">líder</span>
-                    }
                   </td>
                 </tr>
               );
