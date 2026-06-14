@@ -31,6 +31,9 @@
   --color-brand-800: #101E32;
   --color-brand-700: #192D4A;
   --color-brand-600: #213C62;
+  --color-brand-500: #2C5D9B;
+  --color-brand-400: #4F83CC;
+  --color-brand-300: #7FA8DD;
 
   /* Gold */
   --color-gold:       #F0A500;
@@ -49,4 +52,17 @@
   --color-pozo:      #F0A500;
   --color-surface:   #0B1422;
   --color-border:    #192D4A;
+}
+
+/* Barras de fuerza (tabla de posiciones): crecen al cargar — efecto "carrera" */
+@keyframes barGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.bar-grow {
+  transform-origin: left center;
+  animation: barGrow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-grow { animation: none; }
 }
