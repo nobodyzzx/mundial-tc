@@ -439,6 +439,14 @@ const shareData = revealedDays.map((day) => ({
     return String.fromCodePoint(code.charCodeAt(0) + base, code.charCodeAt(1) + base);
   }
 
+  // Rellena las banderas de los <TeamName/> (.flag-emoji con data-iso). Idempotente.
+  function initFlags() {
+    document.querySelectorAll<HTMLSpanElement>('.flag-emoji').forEach(el => {
+      const iso = el.dataset.iso;
+      if (iso) el.textContent = flagFromISO(iso);
+    });
+  }
+
   type MatchShare = {
     home: string; away: string; homeISO: string; awayISO: string;
     finished: boolean; hs: number; as_: number;
@@ -536,4 +544,7 @@ const shareData = revealedDays.map((day) => ({
 
   (window as any).shareDay   = shareDay;
   (window as any).shareMatch = shareMatch;
+
+  initFlags();
+  document.addEventListener('astro:page-load', initFlags);
 </script>
