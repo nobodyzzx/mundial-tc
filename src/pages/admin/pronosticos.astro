@@ -28,6 +28,7 @@ const [
 
 const allMatches = rawMatches ?? [];
 const players    = rawPlayers ?? [];
+const nowMs      = betaNowMs();
 
 // Roja activa por usuario y día Bolivia (frontera 03:00 BOT) → jornada anulada.
 const dayTimeOf = (d: string) => boliviaDayStart(new Date(d).getTime()).getTime();
@@ -48,31 +49,35 @@ for (const p of rawPreds) {
   predMap[p.match_id][p.user_id] = p;
 }
 
-// Agrupar por jornada
-const jornadaOrder: string[] = [];
-const jornadaMatches: Record<string, any[]> = {};
+// ── Agrupar por DÍA de juego Bolivia (frontera 03:00 BOT) ──────────
+// Un partido de medianoche (00:00-02:59) cae con la noche anterior. allMatches
+// ya viene ordenado por fecha asc → dayOrder queda cronológico.
+const dayKeyOf   = (d: string) => boliviaDayStart(new Date(d).getTime()).toISOString();
+const dayLabelOf = (d: string) => fmtFecha(boliviaDayStart(new Date(d).getTime()), { weekday: 'long', day: 'numeric', month: 'long' });
+const dayChipOf  = (d: string) => fmtFecha(boliviaDayStart(new Date(d).getTime()), { day: 'numeric', month: 'short' });
+const dayShortOf = (d: string) => fmtFecha(boliviaDayStart(new Date(d).getTime()), { weekday: 'short', day: 'numeric', month: 'short' });
+
+const dayOrder: string[] = [];
+const dayMatches: Record<string, any[]> = {};
 for (const m of allMatches) {
-  const k = (m as any).jornada ?? 'Sin jornada';
-  if (!jornadaMatches[k]) { jornadaMatches[k] = []; jornadaOrder.push(k); }
-  jornadaMatches[k].push(m);
+  const k = dayKeyOf(m.match_date);
+  if (!dayMatches[k]) { dayMatches[k] = []; dayOrder.push(k); }
+  dayMatches[k].push(m);
 }
 
-// Día de juego Bolivia (frontera 03:00 BOT) — para agrupar y compartir por día
-const dayKeyOf   = (d: string) => boliviaDayStart(new Date(d).getTime()).toISOString();
-const dayLabelOf = (d: string) => fmtFecha(boliviaDayStart(new Date(d).getTime()), { weekday: 'short', day: 'numeric', month: 'short' });
+// Día de "hoy" (para el chip HOY y el toggle Hoy) y día VIGENTE a abrir por
+// defecto: el primero (cronológico) que aún no está completamente terminado —
+// es el que está en curso o el próximo a jugarse. Si todos terminaron, el último.
+const todayKey   = dayKeyOf(new Date(nowMs).toISOString());
+const openDayKey = dayOrder.find((k) => !dayMatches[k].every((m: any) => m.is_finished))
+                 ?? dayOrder[dayOrder.length - 1] ?? '';
 
-// Día Bolivia de "hoy" (para el toggle Hoy) y jornada a abrir por defecto (la
-// primera sin terminar → corta el scroll inicial; el resto se abre con los chips).
-const todayKey  = dayKeyOf(new Date(betaNowMs()).toISOString());
-const firstOpenJi = jornadaOrder.findIndex((j) => !jornadaMatches[j].every((m: any) => m.is_finished));
-
-// Datos para compartir via WhatsApp
-const shareData = jornadaOrder.map((jornada) => ({
-  jornada,
-  matches: jornadaMatches[jornada].map((m: any) => ({
+// Datos para compartir via WhatsApp (índice = día).
+const shareData = dayOrder.map((dayKey) => ({
+  dayKey,
+  dayLabel: dayShortOf(dayMatches[dayKey][0].match_date),
+  matches: dayMatches[dayKey].map((m: any) => ({
     id: m.id,
-    dayKey: dayKeyOf(m.match_date),
-    dayLabel: dayLabelOf(m.match_date),
     home: spanishName(m.home_team),
     away: spanishName(m.away_team),
     homeISO: isoForTeam(m.home_team),
@@ -133,7 +138,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     <div class="flex items-center justify-between gap-2 flex-wrap">
       <div>
         <h1 class="font-display text-4xl text-white tracking-wide">PRONÓSTICOS</h1>
-        <p class="text-slate-500 text-sm mt-1">Vista consolidada · {players.length} participantes · {allMatches.length} partidos</p>
+        <p class="text-slate-500 text-sm mt-1">Vista consolidada por día · {players.length} participantes · {allMatches.length} partidos</p>
       </div>
       <a href="/admin" class="text-xs text-slate-500 hover:text-white transition px-3 py-1.5 border border-brand-700 rounded-lg flex-shrink-0">
         ← Panel VAR
@@ -141,7 +146,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     </div>
 
     {/* ── Barra de herramientas (filtros + navegación) ── */}
-    {jornadaOrder.length > 0 && (
+    {dayOrder.length > 0 && (
       <div id="pron-toolbar" class="sticky top-0 z-20 -mx-1 px-1 py-2 bg-brand-950/90 backdrop-blur border-b border-brand-800 space-y-2">
         <div class="flex items-center gap-2 flex-wrap">
           {/* Filtro por jugador */}
@@ -165,11 +170,11 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
           <span class="font-display text-base text-gold leading-none" id="ps-pts"></span>
           <span class="text-slate-400" id="ps-break"></span>
         </div>
-        {/* Salto a jornada */}
+        {/* Salto a día */}
         <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 -mb-0.5">
-          {jornadaOrder.map((jornada, ji) => (
-            <a href={`#j-${ji}`} class="jump-chip text-[11px] whitespace-nowrap px-2 py-1 rounded-full border border-brand-700 text-slate-400 hover:text-white hover:border-brand-500 transition flex-shrink-0">
-              {jornada.replace(/Jornada /i, 'J').toUpperCase()}
+          {dayOrder.map((dayKey, di) => (
+            <a href={`#d-${di}`} class={`jump-chip text-[11px] whitespace-nowrap px-2 py-1 rounded-full border transition flex-shrink-0 capitalize ${dayKey === todayKey ? 'border-gol/50 text-gol' : 'border-brand-700 text-slate-400 hover:text-white hover:border-brand-500'}`}>
+              {dayChipOf(dayMatches[dayKey][0].match_date)}
             </a>
           ))}
         </div>
@@ -178,35 +183,38 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 
     <p id="filter-empty" class="hidden text-center py-12 text-slate-600 text-sm">Nada que mostrar con este filtro.</p>
 
-    {jornadaOrder.length === 0 && (
+    {dayOrder.length === 0 && (
       <div class="text-center py-20 text-slate-600">
         <div class="text-5xl mb-4">📋</div>
         <p>No hay partidos cargados aún.</p>
       </div>
     )}
 
-    {jornadaOrder.map((jornada, ji) => {
-      const matches = jornadaMatches[jornada];
+    {dayOrder.map((dayKey, di) => {
+      const matches = dayMatches[dayKey];
       const allFinished = matches.every((m: any) => m.is_finished);
       const anyFinished = matches.some((m: any) => m.is_finished);
+      const dayLabel = dayLabelOf(matches[0].match_date);
+      const isToday  = dayKey === todayKey;
       return (
-        <details id={`j-${ji}`} data-jornada open={ji === firstOpenJi} class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden scroll-mt-28">
+        <details id={`d-${di}`} data-day-acc data-today={isToday ? '1' : '0'} open={dayKey === openDayKey} class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden scroll-mt-28">
           <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer list-none select-none">
-            <div class="flex items-center gap-3">
-              <span class="font-display text-lg text-white tracking-wide">{jornada.toUpperCase()}</span>
-              <span class={`text-xs px-2 py-0.5 rounded-full border ${allFinished ? 'border-brand-600 text-slate-500' : anyFinished ? 'border-gold/40 text-gold' : 'border-gol/40 text-gol'}`}>
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="font-display text-lg text-white tracking-wide capitalize truncate">{dayLabel}</span>
+              <span class={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${allFinished ? 'border-brand-600 text-slate-500' : anyFinished ? 'border-gold/40 text-gold' : 'border-gol/40 text-gol'}`}>
                 {allFinished ? 'Terminada' : anyFinished ? 'En curso' : 'Pendiente'}
               </span>
+              {isToday && <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gol/15 text-gol border border-gol/30 flex-shrink-0">HOY</span>}
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-shrink-0">
               <span class="text-xs text-slate-600">{matches.length} partido{matches.length !== 1 ? 's' : ''}</span>
               <button
-                data-share-jornada
-                data-ji={ji}
+                data-share-day
+                data-di={di}
                 class="flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full text-xs font-medium"
-                title="Copiar la jornada completa para WhatsApp"
+                title="Copiar este día completo para WhatsApp"
               >
-                <Fragment set:html={WA_ICON} /> Jornada
+                <Fragment set:html={WA_ICON} /> Día
               </button>
               <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -219,29 +227,10 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
               const preds    = predMap[m.id] ?? {};
               const submitted = players.filter((pl: any) => preds[pl.id]);
               const missing   = players.filter((pl: any) => !preds[pl.id]);
-              const isClosed  = new Date(m.match_date).getTime() - 7200000 < betaNowMs();
-              const dk      = dayKeyOf(m.match_date);
+              const isClosed  = new Date(m.match_date).getTime() - 7200000 < nowMs;
               const status  = m.is_finished ? 'finished' : isClosed ? 'closed' : 'open';
-              const isToday = dk === todayKey;
-              const showDay = mi === 0 || dayKeyOf(matches[mi - 1].match_date) !== dk;
               return (
-                <Fragment>
-                {showDay && (
-                  <div data-daysep data-ji={ji} data-day={dk} class="flex items-center gap-3 px-5 py-2 bg-brand-950/40 border-b border-brand-800/60">
-                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap capitalize">{dayLabelOf(m.match_date)}</span>
-                    <div class="flex-1 h-px bg-brand-700/40"></div>
-                    <button
-                      data-share-day
-                      data-ji={ji}
-                      data-day={dk}
-                      class="flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full text-xs font-medium flex-shrink-0"
-                      title="Copiar solo este día para WhatsApp"
-                    >
-                      <Fragment set:html={WA_ICON} /> Día
-                    </button>
-                  </div>
-                )}
-                <div data-match data-status={status} data-today={isToday ? '1' : '0'} data-ji={ji} data-day={dk} class="border-b border-brand-800/60 last:border-b-0">
+                <div data-match data-status={status} data-today={isToday ? '1' : '0'} data-di={di} class="border-b border-brand-800/60 last:border-b-0">
                   {/* Cabecera del partido — nombres completos, sin cortar */}
                   <div class="px-5 py-3 bg-brand-800/40 space-y-1.5">
                     <div class="flex items-center gap-2 text-sm font-semibold text-white">
@@ -266,7 +255,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                       <span class={submitted.length === players.length ? 'text-gol' : 'text-slate-500'}>{submitted.length}/{players.length}</span>
                       <button
                         data-share-match
-                        data-ji={ji}
+                        data-di={di}
                         data-mi={mi}
                         class="ml-auto flex items-center gap-1 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] hover:bg-[#25D366]/20 transition px-2 py-1 rounded-full font-medium flex-shrink-0"
                         title="Copiar este partido para WhatsApp"
@@ -310,7 +299,6 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
                     )}
                   </div>
                 </div>
-                </Fragment>
               );
             })}
           </div>
@@ -318,7 +306,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
       );
     })}
 
-    {jornadaOrder.length > 0 && (
+    {dayOrder.length > 0 && (
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-600 pb-4">
         <div class="flex items-center gap-1.5"><span class="text-gold font-bold font-mono">2–1</span><span>Exacto</span></div>
         <div class="flex items-center gap-1.5"><span class="text-gol font-mono">1–0</span><span>Resultado correcto</span></div>
@@ -338,7 +326,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   /* Modo aislar un jugador: oculta el resto; la regla del seleccionado se inyecta por JS. */
   #pron-root[data-iso] .pred-cell { display: none !important; }
   #pron-root[data-iso] .sinpron   { display: none !important; }
-  /* Oculto por filtro de estado (partido / separador de día / jornada). */
+  /* Oculto por filtro de estado (partido / día). */
   .hidden-f { display: none !important; }
 </style>
 
@@ -389,7 +377,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     // 3. Desktop: copiar (WhatsApp web mangla emojis); si falla, abrir wa.me web.
     const copied = await copyText(text);
     if (!copied) { window.open(waUrl, '_blank'); return; }
-    showToast('\uD83D\uDCCB Copiado \u2014 peg\u00e1lo en WhatsApp con Ctrl+V');
+    showToast('📋 Copiado — pegálo en WhatsApp con Ctrl+V');
   }
 
   function flagFromISO(iso: string): string {
@@ -400,60 +388,60 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   }
 
   type Player = { name: string; sanctioned?: boolean; ref?: boolean; uh: number|null; ua: number|null; uhp: number|null; uap: number|null; uwp: string|null; pts: number|null };
-  type MatchData = { id: string; dayKey: string; dayLabel: string; home: string; away: string; homeISO: string; awayISO: string; hs: number|null; as_: number|null; homePen: number|null; awayPen: number|null; winnerPen: string|null; finished: boolean; players: Player[] };
-  type JornadaData = { jornada: string; matches: MatchData[] };
+  type MatchData = { id: string; home: string; away: string; homeISO: string; awayISO: string; hs: number|null; as_: number|null; homePen: number|null; awayPen: number|null; winnerPen: string|null; finished: boolean; players: Player[] };
+  type DayData = { dayKey: string; dayLabel: string; matches: MatchData[] };
 
-  function getData(): JornadaData[] {
+  function getData(): DayData[] {
     return JSON.parse(document.getElementById('pronosticos-data')?.textContent ?? '[]');
   }
 
-  function matchHeader(m: MatchData, hf: string, af: string, jornada: string): string {
+  function matchHeader(m: MatchData, hf: string, af: string, dayLabel: string): string {
     let line: string;
     if (m.finished && m.hs !== null) {
-      line = `\u26BD *${m.home} ${hf} ${m.hs}\u2013${m.as_} ${af} ${m.away}*`;
+      line = `⚽ *${m.home} ${hf} ${m.hs}–${m.as_} ${af} ${m.away}*`;
       if (m.winnerPen) {
         const winner   = m.winnerPen === 'home' ? m.home : m.away;
-        const penScore = m.homePen !== null ? `${m.homePen}\u2013${m.awayPen} pen` : 'pen';
-        line += `\n_(${penScore} \u00B7 clasifica ${winner})_`;
+        const penScore = m.homePen !== null ? `${m.homePen}–${m.awayPen} pen` : 'pen';
+        line += `\n_(${penScore} · clasifica ${winner})_`;
       }
     } else {
-      line = `\u26BD *${m.home} ${hf} vs ${af} ${m.away}*`;
+      line = `⚽ *${m.home} ${hf} vs ${af} ${m.away}*`;
     }
-    line += `\n_${jornada} \u00B7 Polla 2026_`;
+    line += `\n_${dayLabel} · Polla 2026_`;
     return line;
   }
 
   function playerLine(pl: Player, m: MatchData): string {
-    if (pl.sanctioned) return `\ud83d\udfe5 ${pl.name} _(jornada anulada)_`;
-    if (pl.uh === null || pl.ua === null) return `\u2796 ${pl.name}`;
-    const mark = pl.ref ? ' \u2696\ufe0f' : ''; // \u2696\ufe0f = ingresado por el r\u00e9feri
-    let predStr = `${pl.uh}\u2013${pl.ua}`;
+    if (pl.sanctioned) return `🟥 ${pl.name} _(jornada anulada)_`;
+    if (pl.uh === null || pl.ua === null) return `➖ ${pl.name}`;
+    const mark = pl.ref ? ' ⚖️' : ''; // ⚖️ = ingresado por el réferi
+    let predStr = `${pl.uh}–${pl.ua}`;
     // Pen solo si pronosticó empate
     if (pl.uh === pl.ua && pl.uwp) {
       const wName = pl.uwp === 'home' ? m.home : m.away;
       predStr += pl.uhp !== null
-        ? ` (pen ${pl.uhp}\u2013${pl.uap})`
+        ? ` (pen ${pl.uhp}–${pl.uap})`
         : ` (pen ${wName})`;
     }
     if (m.finished && m.hs !== null) {
       const isExact = pl.uh === m.hs && pl.ua === m.as_;
       const pR = pl.uh > pl.ua ? 'H' : pl.uh < pl.ua ? 'A' : 'E';
       const rR = (m.hs ?? 0) > (m.as_ ?? 0) ? 'H' : (m.hs ?? 0) < (m.as_ ?? 0) ? 'A' : 'E';
-      const icon = isExact ? '\u2B50' : pR === rR ? '\u2705' : '\u274C';
-      return `${icon} ${pl.name}${mark} \u2192 ${predStr} (${pl.pts ?? 0}pts)`;
+      const icon = isExact ? '⭐' : pR === rR ? '✅' : '❌';
+      return `${icon} ${pl.name}${mark} → ${predStr} (${pl.pts ?? 0}pts)`;
     }
-    return `\uD83C\uDFAF ${pl.name}${mark} \u2192 ${predStr}`;
+    return `🎯 ${pl.name}${mark} → ${predStr}`;
   }
 
-  function shareMatch(ji: number, mi: number) {
+  function shareMatch(di: number, mi: number) {
     const data = getData();
-    const j = data[ji];
-    const m = j?.matches[mi];
+    const d = data[di];
+    const m = d?.matches[mi];
     if (!m) return;
     const hf = flagFromISO(m.homeISO);
     const af = flagFromISO(m.awayISO);
 
-    let text = matchHeader(m, hf, af, j.jornada) + '\n\n';
+    let text = matchHeader(m, hf, af, d.dayLabel) + '\n\n';
     const sorted = m.finished ? [...m.players].sort((a, b) => (b.pts ?? 0) - (a.pts ?? 0)) : m.players;
     for (const pl of sorted) text += playerLine(pl, m) + '\n';
     if (m.finished) {
@@ -463,60 +451,14 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     waShare(text);
   }
 
-  function shareJornada(ji: number) {
-    const data = getData();
-    const j = data[ji];
-    if (!j) return;
-
-    let text = `\u26BD *POLLA 2026 \u00B7 ${j.jornada.toUpperCase()}*\n\n`;
-    const playerTotals: Record<string, number> = {};
-
-    for (const m of j.matches) {
-      const hf = flagFromISO(m.homeISO);
-      const af = flagFromISO(m.awayISO);
-      if (m.finished && m.hs !== null) {
-        let header = `*${m.home} ${hf} ${m.hs}\u2013${m.as_} ${af} ${m.away}*`;
-        if (m.winnerPen) {
-          const winner   = m.winnerPen === 'home' ? m.home : m.away;
-          const penScore = m.homePen !== null ? `${m.homePen}\u2013${m.awayPen} pen` : 'pen';
-          header += `\n_(${penScore} \u00B7 clasifica ${winner})_`;
-        }
-        text += header + '\n';
-        for (const pl of m.players) {
-          text += playerLine(pl, m) + '\n';
-          if (pl.uh !== null) playerTotals[pl.name] = (playerTotals[pl.name] ?? 0) + (pl.pts ?? 0);
-        }
-      } else {
-        text += `*${m.home} ${hf} vs ${af} ${m.away}*\n`;
-        for (const pl of m.players) {
-          text += playerLine(pl, m) + '\n';
-        }
-      }
-      text += '\n';
-    }
-
-    const sorted = Object.entries(playerTotals).sort(([, a], [, b]) => b - a);
-    if (sorted.length) {
-      text += `\uD83D\uDCCA *Puntos ${j.jornada}:*\n`;
-      sorted.forEach(([name, pts], i) => {
-        const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : `${i+1}.`;
-        text += `${medal} ${name} \u2192 ${pts}pts\n`;
-      });
-    }
-
-    waShare(text);
-  }
-
-  function shareDay(ji: number, dayKey: string) {
-    const j = getData()[ji];
-    if (!j) return;
-    const matches = j.matches.filter(m => m.dayKey === dayKey);
-    if (!matches.length) return;
-    const title = (matches[0].dayLabel || 'Día').toUpperCase();
+  function shareDay(di: number) {
+    const d = getData()[di];
+    if (!d) return;
+    const title = (d.dayLabel || 'Día').toUpperCase();
 
     let text = `⚽ *POLLA 2026 · ${title}*\n\n`;
     const playerTotals: Record<string, number> = {};
-    for (const m of matches) {
+    for (const m of d.matches) {
       const hf = flagFromISO(m.homeISO);
       const af = flagFromISO(m.awayISO);
       if (m.finished && m.hs !== null) {
@@ -549,22 +491,17 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
   }
 
   // Cableado robusto: addEventListener + data-* (no depende del global `event`,
-  // que no existe en Firefox → por eso el botón Jornada fallaba en PC).
+  // que no existe en Firefox → por eso el botón fallaba en PC).
   function initShareButtons() {
-    document.querySelectorAll<HTMLButtonElement>('[data-share-jornada]').forEach(btn => {
-      if (btn.dataset.shareInit) return;
-      btn.dataset.shareInit = '1';
-      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareJornada(Number(btn.dataset.ji)); });
-    });
     document.querySelectorAll<HTMLButtonElement>('[data-share-day]').forEach(btn => {
       if (btn.dataset.shareInit) return;
       btn.dataset.shareInit = '1';
-      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareDay(Number(btn.dataset.ji), btn.dataset.day ?? ''); });
+      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareDay(Number(btn.dataset.di)); });
     });
     document.querySelectorAll<HTMLButtonElement>('[data-share-match]').forEach(btn => {
       if (btn.dataset.shareInit) return;
       btn.dataset.shareInit = '1';
-      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareMatch(Number(btn.dataset.ji), Number(btn.dataset.mi)); });
+      btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); shareMatch(Number(btn.dataset.di), Number(btn.dataset.mi)); });
     });
   }
 
@@ -577,9 +514,8 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     if (!root || root.dataset.filtersInit) return;
     root.dataset.filtersInit = '1';
 
-    const matches  = Array.from(document.querySelectorAll<HTMLElement>('[data-match]'));
-    const dayseps  = Array.from(document.querySelectorAll<HTMLElement>('[data-daysep]'));
-    const jornadas = Array.from(document.querySelectorAll<HTMLDetailsElement>('details[data-jornada]'));
+    const matches = Array.from(document.querySelectorAll<HTMLElement>('[data-match]'));
+    const days    = Array.from(document.querySelectorAll<HTMLDetailsElement>('details[data-day-acc]'));
     const emptyMsg = document.getElementById('filter-empty');
     let statusFilter = 'all';
 
@@ -602,11 +538,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
         el.classList.toggle('hidden-f', !show);
         if (show) anyVisible = true;
       }
-      for (const sep of dayseps) {
-        const vis = matches.some(m => m.dataset.ji === sep.dataset.ji && m.dataset.day === sep.dataset.day && !m.classList.contains('hidden-f'));
-        sep.classList.toggle('hidden-f', !vis);
-      }
-      for (const det of jornadas) {
+      for (const det of days) {
         const vis = !!det.querySelector('[data-match]:not(.hidden-f)');
         det.classList.toggle('hidden-f', !vis);
         if (statusFilter !== 'all' && vis) det.open = true;
@@ -635,7 +567,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     function showSummary(name: string, totalPts: number) {
       // Desglose calculado desde los datos embebidos (por nombre de jugador).
       let pred = 0, exact = 0, hit = 0;
-      for (const j of getData()) for (const m of j.matches) {
+      for (const d of getData()) for (const m of d.matches) {
         const pl = m.players.find(p => p.name === name);
         if (!pl || pl.uh === null || pl.ua === null) continue;
         pred++;
@@ -675,7 +607,7 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
     const toggleAll = document.getElementById('toggle-all') as HTMLButtonElement | null;
     toggleAll?.addEventListener('click', () => {
       const expand = toggleAll.dataset.mode === 'expand';
-      jornadas.forEach(d => { if (!d.classList.contains('hidden-f')) d.open = expand; });
+      days.forEach(d => { if (!d.classList.contains('hidden-f')) d.open = expand; });
       toggleAll.dataset.mode = expand ? 'collapse' : 'expand';
       toggleAll.textContent = expand ? '⊖ Contraer todo' : '⊕ Expandir todo';
     });
