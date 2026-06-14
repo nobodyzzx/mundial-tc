@@ -103,6 +103,15 @@ function lockStateFor(jornadaMatches: MatchRow[]) {
   });
 }
 
+// Jornada expandida por defecto en el acordeón: la primera accionable (abierta,
+// sin sanción y con partidos por pronosticar); si no hay, la próxima no cerrada;
+// si todas están cerradas, la primera. Las demás quedan colapsadas.
+const jornadaList = [...grouped.entries()];
+const defaultOpenKey =
+  jornadaList.find(([, ms]) => !isSanctioned(ms) && lockStateFor(ms) === 'open' && !ms.every(m => predMap.has(m.id)))?.[0]
+  ?? jornadaList.find(([, ms]) => ['open', 'ongoingLock', 'prevPending'].includes(lockStateFor(ms)))?.[0]
+  ?? jornadaList[0]?.[0];
+
 function buildShareData(dayMatches: MatchRow[], username: string) {
   const firstMatch = dayMatches[0];
   const cutoff = new Date(new Date(firstMatch.match_date).getTime() - 2 * 3600 * 1000);
@@ -214,7 +223,7 @@ let globalFormIdx = 0;
       </div>
     )}
 
-    {(import.meta.env.PUBLIC_BETA === 'true' || (navProfile?.pago_70 && navProfile?.pago_50)) && [...grouped.entries()].map(([jornadaKey, jornadaMatches]) => {
+    {(import.meta.env.PUBLIC_BETA === 'true' || (navProfile?.pago_70 && navProfile?.pago_50)) && jornadaList.map(([jornadaKey, jornadaMatches]) => {
       const sanctioned = isSanctioned(jornadaMatches);
       const lockState = lockStateFor(jornadaMatches);
       const closed = lockState === 'closed';
@@ -230,10 +239,10 @@ let globalFormIdx = 0;
       const shareData = buildShareData(jornadaMatches, navProfile?.username ?? 'yo');
 
       return (
-        <div class="space-y-3" data-jornada>
+        <details class="group" open={jornadaKey === defaultOpenKey} data-jornada>
 
-          {/* ── Encabezado de jornada ── */}
-          <div class={`flex items-center justify-between px-4 py-3 rounded-xl border ${
+          {/* ── Encabezado de jornada (resumen tap-able del acordeón) ── */}
+          <summary class={`flex items-center justify-between gap-2 px-4 py-3 rounded-xl border cursor-pointer list-none select-none [&::-webkit-details-marker]:hidden ${
             sanctioned   ? 'bg-fifared/12 border-fifared/40' :
             prevPending  ? 'bg-brand-900 border-brand-700/40' :
             ongoingLock  ? 'bg-amber-900/10 border-amber-500/30' :
@@ -241,20 +250,23 @@ let globalFormIdx = 0;
             allDone      ? 'bg-gol/8 border-gol/30' :
                            'bg-brand-800/60 border-brand-700/60'
           }`}>
-            <div>
-              <h2 class={`font-display text-xl tracking-wide capitalize ${prevPending ? 'text-slate-500' : 'text-white'}`}>{jornadaKey}</h2>
-              <p class={`text-xs mt-0.5 ${sanctioned ? 'text-fifared' : prevPending ? 'text-slate-600' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
-                {sanctioned
-                  ? (isExpulsado ? '🟥🟥 Expulsado — no puedes pronosticar' : '🟥 Jornada anulada por tarjeta roja')
-                  : prevPending
-                  ? '🔒 Disponible cuando terminen los partidos anteriores'
-                  : ongoingLock
-                  ? '⏳ Esperá que termine el partido de hoy'
-                  : closed
-                  ? '🔒 Cerrada'
-                  : <span class="cutoff-cd font-semibold" data-cutoff={firstTime - 2 * 3600 * 1000}>⏰ Cierre: {cutoffStr}</span>
-                }
-              </p>
+            <div class="flex items-center gap-2 min-w-0">
+              <svg class="w-4 h-4 flex-shrink-0 text-slate-500 transition-transform group-open:rotate-90" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M7 5l6 5-6 5V5z"/></svg>
+              <div class="min-w-0">
+                <h2 class={`font-display text-xl tracking-wide capitalize truncate ${prevPending ? 'text-slate-500' : 'text-white'}`}>{jornadaKey}</h2>
+                <p class={`text-xs mt-0.5 ${sanctioned ? 'text-fifared' : prevPending ? 'text-slate-600' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared' : 'text-slate-500'}`}>
+                  {sanctioned
+                    ? (isExpulsado ? '🟥🟥 Expulsado — no puedes pronosticar' : '🟥 Jornada anulada por tarjeta roja')
+                    : prevPending
+                    ? '🔒 Disponible cuando terminen los partidos anteriores'
+                    : ongoingLock
+                    ? '⏳ Esperá que termine el partido de hoy'
+                    : closed
+                    ? '🔒 Cerrada'
+                    : <span class="cutoff-cd font-semibold" data-cutoff={firstTime - 2 * 3600 * 1000}>⏰ Cierre: {cutoffStr}</span>
+                  }
+                </p>
+              </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
               <span class={`text-xs px-2 py-1 rounded-full border ${
@@ -290,8 +302,9 @@ let globalFormIdx = 0;
                 </button>
               )}
             </div>
-          </div>
+          </summary>
 
+          <div class="mt-3">
           {/* ── Si la jornada está abierta y hay partidos sin pronosticar: form inline ── */}
           {!sanctioned && !closed && !prevPending && !ongoingLock && !allDone ? (
             <form method="POST" action="/api/predictions/submit-jornada" class="space-y-2">
@@ -487,14 +500,10 @@ let globalFormIdx = 0;
                         </span>
                       </p>
                     )}
-                    {!existing && (
+                    {!existing && (sanctioned || closed) && (
                       <button disabled class={`w-full mt-2 flex items-center justify-center gap-2 text-sm rounded-xl py-3 cursor-not-allowed opacity-75 ${sanctioned ? 'text-fifared bg-fifared/10 border border-fifared/40' : 'text-slate-300 bg-brand-800/50 border border-brand-700/50'}`}>
                         {sanctioned
                           ? (isExpulsado ? '🟥🟥 Expulsado, sin pronóstico' : '🟥 Jornada anulada por tarjeta roja')
-                          : prevPending
-                          ? '⏳ Espera que terminen los partidos anteriores'
-                          : ongoingLock
-                          ? '⏳ El partido ya comenzó, sin pronóstico'
                           : '🔒 Jornada cerrada, sin pronóstico'}
                       </button>
                     )}
@@ -503,8 +512,9 @@ let globalFormIdx = 0;
               })}
             </div>
           )}
+          </div>
 
-        </div>
+        </details>
       );
     })}
   </div>
@@ -631,7 +641,10 @@ let globalFormIdx = 0;
 
   function initShareButtons() {
     document.querySelectorAll<HTMLButtonElement>('.share-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        // El botón vive dentro del <summary>; evita que el click abra/cierre el acordeón.
+        e.preventDefault();
+        e.stopPropagation();
         const data = JSON.parse(btn.dataset.share ?? '{}');
         waShare(buildText(data));
       });
