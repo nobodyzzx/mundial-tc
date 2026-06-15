@@ -109,7 +109,44 @@ export const GET: APIRoute = async ({ url, request }) => {
     if (state !== 'open') {
       return json({ skipped: true, reason: `Jornada no abierta (${state})`, dayKey });
     }
-    // 5. Idempotencia: un solo anuncio por día.
+
+    // 5. Orden de mensajes: la apertura va DESPUÉS del cierre del día anterior.
+    //    Si el día anterior YA terminó (todos finished) pero su resumen aún no
+    //    salió, esperar un tick para que el orden sea cierre→apertura. Si el día
+    //    anterior NO está completo (lag/pospuesto), no se exige el resumen: el
+    //    candado por tiempo ya decidió 'open' y no hay que bloquear la apertura.
+    const { data: prevRows } = await supabaseAdmin
+      .from('matches')
+      .select('match_date')
+      .lt('match_date', new Date(firstMatchMs).toISOString())
+      .order('match_date', { ascending: false })
+      .limit(1);
+    const prevLast = prevRows?.[0];
+    if (prevLast) {
+      const prevStart = boliviaDayStart(new Date(prevLast.match_date).getTime());
+      const prevEnd = new Date(prevStart.getTime() + 24 * 3600 * 1000);
+      const { data: prevMatches } = await supabaseAdmin
+        .from('matches')
+        .select('match_date, is_finished')
+        .gte('match_date', prevStart.toISOString())
+        .lt('match_date', prevEnd.toISOString());
+      const prevAllFinished = !!prevMatches?.length && prevMatches.every(m => m.is_finished);
+      if (prevAllFinished) {
+        const prevKey = fmtDiaKey(Math.min(...prevMatches.map(m => new Date(m.match_date).getTime())));
+        const { data: prevResumen } = await supabaseAdmin
+          .from('sync_logs')
+          .select('id')
+          .eq('source', 'resumen-dia')
+          .eq('endpoint', prevKey)
+          .is('error', null)
+          .limit(1);
+        if (!prevResumen?.length) {
+          return json({ skipped: true, reason: 'Espera el resumen del día anterior', prevKey });
+        }
+      }
+    }
+
+    // 6. Idempotencia: un solo anuncio por día.
     const { data: alreadySent } = await supabaseAdmin
       .from('sync_logs')
       .select('id')

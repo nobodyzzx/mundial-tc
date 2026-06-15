@@ -67,8 +67,29 @@ export const GET: APIRoute = async ({ url, request }) => {
   const dayKey = fmtDiaKey(firstTime);
   const dayLabel = fmtFecha(dayStart, { weekday: 'long', day: 'numeric', month: 'long' });
 
-  // 4. Idempotencia.
+  // 4. Orden de mensajes: el resumen del día va DESPUÉS del marcador del último
+  //    partido (standings-announce). Si ese último partido aún no se anunció y su
+  //    ventana de 8h sigue vigente, esperar un tick. Pasada la ventana NO se exige
+  //    (el resumen es el respaldo y debe salir igual aunque standings se la pierda).
+  const STANDINGS_WINDOW_MS = 8 * 3600 * 1000;
+  const lastMatch = dayMatches[dayMatches.length - 1]; // orden ascendente → el más tardío
+  const lastKickoffMs = new Date(lastMatch.match_date).getTime();
+
+  // 5. Idempotencia.
   if (!preview) {
+    if (nowMs - lastKickoffMs < STANDINGS_WINDOW_MS) {
+      const { data: lastAnnounced } = await supabaseAdmin
+        .from('sync_logs')
+        .select('id')
+        .eq('source', 'standings-announce')
+        .eq('endpoint', lastMatch.id)
+        .is('error', null)
+        .limit(1);
+      if (!lastAnnounced?.length) {
+        return json({ skipped: true, reason: 'Espera el marcador del último partido', lastMatchId: lastMatch.id });
+      }
+    }
+
     const { data: alreadySent } = await supabaseAdmin
       .from('sync_logs')
       .select('id')
