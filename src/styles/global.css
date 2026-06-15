@@ -44,6 +44,15 @@
   --color-fifared:      #C8102E;
   --color-fifared-dark: #9C0D23;
 
+  /* Slate (texto secundario) — la rampa por defecto de Tailwind es demasiado
+     oscura sobre el navy #060B15/#0B1422 (los tonos 500–700 quedaban por debajo
+     de 4.5:1, casi ilegibles). Se sube la luminosidad manteniendo el orden de la
+     escala, para que los textos secundarios cumplan WCAG AA en toda la app. */
+  --color-slate-700: #5C6C85; /* antes #334155 — faint pero visible */
+  --color-slate-600: #788AA4; /* antes #475569 — ~5:1 */
+  --color-slate-500: #92A1B8; /* antes #64748B — ~6.5:1 */
+  --color-slate-400: #AEBBCF; /* antes #94A3B8 — ~8:1 */
+
   /* Legacy tokens kept for compatibility */
   --color-gol:       #22c55e;
   --color-gol-hover: #16a34a;
