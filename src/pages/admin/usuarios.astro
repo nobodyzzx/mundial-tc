@@ -17,13 +17,23 @@ if (!navProfile?.es_referi) return Astro.redirect('/dashboard');
 const [
   { data: authList },
   { data: profiles },
+  { data: activeSanctions },
 ] = await Promise.all([
   supabaseAdmin.auth.admin.listUsers({ perPage: 200 }),
   supabaseAdmin.from('profiles').select('id, username, es_referi, puntos_totales, expulsado, pago_70, pago_50, participa, monto_pagado'),
+  supabaseAdmin.from('sanctions').select('user_id, type').eq('active', true),
 ]);
 
 const profileMap: Record<string, any> = {};
 for (const p of profiles ?? []) profileMap[p.id] = p;
+
+// Tarjetas activas por usuario
+const cardsByUser = new Map<string, { yellow: number; red: number; double_red: number }>();
+for (const s of activeSanctions ?? []) {
+  const c = cardsByUser.get(s.user_id) ?? { yellow: 0, red: 0, double_red: 0 };
+  (c as any)[s.type] = ((c as any)[s.type] ?? 0) + 1;
+  cardsByUser.set(s.user_id, c);
+}
 
 const users = (authList?.users ?? []).map(u => ({
   id: u.id,
@@ -41,6 +51,11 @@ const users = (authList?.users ?? []).map(u => ({
 const jugadores  = users.filter(u => !u.profile?.es_referi);
 const referis    = users.filter(u =>  u.profile?.es_referi);
 const participes = users.filter(u =>  u.profile?.participa && !u.profile?.expulsado);
+const sancionadosCount = users.filter(u => cardsByUser.has(u.id)).length;
+const expulsadosCount  = users.filter(u => u.profile?.expulsado).length;
+
+const msg = Astro.url.searchParams.get('msg');
+const err = Astro.url.searchParams.get('err');
 
 function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -54,75 +69,99 @@ function avatarColor(id: string) {
   const idx = id.charCodeAt(0) % colors.length;
   return colors[idx];
 }
+
+function cardChips(id: string) {
+  const c = cardsByUser.get(id);
+  if (!c) return [] as string[];
+  const out: string[] = [];
+  if (c.yellow) out.push('🟨'.repeat(c.yellow));
+  if (c.red) out.push('🟥'.repeat(c.red));
+  if (c.double_red) out.push('🟥🟥'.repeat(c.double_red));
+  return out;
+}
 ---
 
 <Layout title="Gestión de usuarios" navProfile={navProfile} isAuthed={true}>
-  <div class="space-y-8">
+  <div class="max-w-3xl mx-auto space-y-6">
 
     {/* ── Header ── */}
-    <div class="flex items-center justify-between gap-2">
+    <div class="flex items-start justify-between gap-2 flex-wrap">
       <div>
         <h1 class="font-display text-4xl text-white tracking-wide">USUARIOS</h1>
-        <p class="text-slate-500 text-sm mt-1">
+        <p class="text-slate-400 text-sm mt-1">
           {participes.length} participante{participes.length !== 1 ? 's' : ''} · {referis.length} réferi{referis.length !== 1 ? 's' : ''}
         </p>
       </div>
-      <div class="flex items-center gap-2">
-        <button id="btn-export-csv" class="text-xs text-gol hover:text-white transition px-3 py-1.5 border border-gol/40 hover:border-gol rounded-lg">
-          ⬇ CSV
-        </button>
-        <a href="/admin" class="text-xs text-slate-500 hover:text-white transition px-3 py-1.5 border border-brand-700 rounded-lg">
-          ← Panel VAR
-        </a>
+      <div class="flex items-center gap-2 flex-wrap">
+        <a href="/admin/tarjetas" class="text-xs text-amarilla hover:text-white transition px-3 py-1.5 border border-amarilla/40 hover:border-amarilla rounded-lg">🟨 Tarjetas</a>
+        <button id="btn-export-csv" class="text-xs text-gol hover:text-white transition px-3 py-1.5 border border-gol/40 hover:border-gol rounded-lg">⬇ CSV</button>
+        <a href="/admin" class="text-xs text-slate-400 hover:text-white transition px-3 py-1.5 border border-brand-700 rounded-lg">← Panel VAR</a>
       </div>
     </div>
 
-    {/* ── Stats rápidas ── */}
-    <div class="grid grid-cols-3 gap-3">
-      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-4 text-center">
-        <div class="font-display text-3xl text-white">{participes.length}</div>
-        <div class="text-xs text-slate-500 mt-1">Participantes</div>
+    {(msg || err) && (
+      <div class={`rounded-xl px-4 py-3 text-sm font-medium ${err ? 'bg-fifared/15 border border-fifared/40 text-red-200' : 'bg-gol/15 border border-gol/40 text-green-200'}`}>
+        {err ? `⚠️ ${err}` : `✓ ${msg}`}
       </div>
-      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-4 text-center">
-        <div class="font-display text-3xl text-gol">{participes.filter(u => u.profile?.pago_70).length}</div>
-        <div class="text-xs text-slate-500 mt-1">Pagaron</div>
+    )}
+
+    {/* ── Stats ── */}
+    <div class="grid grid-cols-4 gap-2 sm:gap-3 text-center">
+      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl py-3">
+        <div class="font-display text-2xl sm:text-3xl text-white">{participes.length}</div>
+        <div class="text-[10px] sm:text-xs text-slate-400 mt-1">Participantes</div>
       </div>
-      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-4 text-center">
-        <div class="font-display text-3xl text-fifared">{users.filter(u => u.profile?.expulsado).length}</div>
-        <div class="text-xs text-slate-500 mt-1">Expulsados</div>
+      <div class="bg-brand-900 border border-gol/30 rounded-2xl py-3">
+        <div class="font-display text-2xl sm:text-3xl text-gol">{participes.filter(u => u.profile?.pago_70).length}</div>
+        <div class="text-[10px] sm:text-xs text-slate-400 mt-1">Pagaron</div>
       </div>
+      <div class="bg-brand-900 border border-amarilla/30 rounded-2xl py-3">
+        <div class="font-display text-2xl sm:text-3xl text-amarilla">{sancionadosCount}</div>
+        <div class="text-[10px] sm:text-xs text-slate-400 mt-1">Sancionados</div>
+      </div>
+      <div class="bg-brand-900 border border-fifared/30 rounded-2xl py-3">
+        <div class="font-display text-2xl sm:text-3xl text-fifared">{expulsadosCount}</div>
+        <div class="text-[10px] sm:text-xs text-slate-400 mt-1">Expulsados</div>
+      </div>
+    </div>
+
+    {/* ── Buscador ── */}
+    <div class="relative">
+      <input id="user-search" type="search" placeholder="Buscar por nombre o correo…" autocomplete="off"
+        class="w-full bg-brand-900 border border-brand-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50 transition" />
+      <span id="search-empty" class="hidden text-sm text-slate-400 mt-2 block px-1">Sin resultados.</span>
     </div>
 
     {/* ── Agregar jugador ── */}
     <details class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
-      <summary class="flex items-center justify-between px-5 py-4 cursor-pointer list-none select-none">
+      <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center text-gold text-sm font-bold">+</div>
           <span class="font-semibold text-white text-sm">Agregar jugador</span>
         </div>
-        <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </summary>
       <div class="border-t border-brand-800 px-5 py-4">
         <form method="POST" action="/api/admin/create-user" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs text-slate-500 mb-1">Email</label>
+            <label class="block text-xs text-slate-400 mb-1">Email</label>
             <input name="email" type="email" required placeholder="jugador@correo.com"
               class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50" />
           </div>
           <div>
-            <label class="block text-xs text-slate-500 mb-1">Nombre en la polla</label>
+            <label class="block text-xs text-slate-400 mb-1">Nombre en la polla</label>
             <input name="username" type="text" required placeholder="Ej: El Pelé"
               class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50" />
           </div>
           <div>
-            <label class="block text-xs text-slate-500 mb-1">Contraseña <span class="text-slate-600">(opcional — vacío = magic link)</span></label>
+            <label class="block text-xs text-slate-400 mb-1">Contraseña <span class="text-slate-500">(opcional — vacío = magic link)</span></label>
             <input name="password" type="text" placeholder="••••••••"
               class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50" />
           </div>
           <div class="flex items-end gap-3">
-            <label class="flex items-center gap-2 text-xs text-slate-400 pb-2.5 cursor-pointer select-none">
+            <label class="flex items-center gap-2 text-xs text-slate-300 pb-2.5 cursor-pointer select-none">
               <input name="es_referi" type="checkbox" class="w-4 h-4 rounded accent-gold" />
               Es réferi
             </label>
@@ -136,12 +175,15 @@ function avatarColor(id: string) {
 
     {/* ── Lista de jugadores ── */}
     {jugadores.length > 0 && (
-      <div class="space-y-3">
-        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-widest px-1">Jugadores</h2>
+      <div class="space-y-3" data-group="jugadores">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Jugadores</h2>
         <div class="space-y-2">
-          {jugadores.map(u => (
-            <details class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden hover:border-brand-600/60 transition-colors">
-              <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer list-none select-none">
+          {jugadores.map(u => {
+            const chips = cardChips(u.id);
+            return (
+            <details class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden hover:border-brand-600/60 transition-colors"
+              data-user-card data-search={`${u.profile?.username ?? ''} ${u.email}`.toLowerCase()}>
+              <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none">
 
                 {/* Avatar */}
                 <div class={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(u.id)}`}>
@@ -152,21 +194,22 @@ function avatarColor(id: string) {
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-semibold text-sm text-white truncate">
-                      {u.profile?.username ?? <span class="italic text-slate-600">sin perfil</span>}
+                      {u.profile?.username ?? <span class="italic text-slate-500">sin perfil</span>}
                     </span>
-                    {u.id === user.id && <span class="text-[10px] text-brand-400 font-bold bg-brand-700 px-1.5 py-0.5 rounded-full">TÚ</span>}
-                    {u.profile?.expulsado && <span class="text-[10px] bg-fifared/20 text-fifared px-1.5 py-0.5 rounded-full font-bold">🟥🟥 EXPULSADO</span>}
+                    {u.id === user.id && <span class="text-[10px] text-brand-300 font-bold bg-brand-700 px-1.5 py-0.5 rounded-full">TÚ</span>}
+                    {u.profile?.expulsado && <span class="text-[10px] bg-fifared/20 text-red-300 px-1.5 py-0.5 rounded-full font-bold">🟥🟥 EXPULSADO</span>}
+                    {chips.length > 0 && !u.profile?.expulsado && (
+                      <span class="text-xs">{chips.join(' ')}</span>
+                    )}
                   </div>
-                  <div class="flex items-center gap-3 mt-0.5">
-                    <span class="text-xs text-slate-500 truncate">{u.email}</span>
-                  </div>
+                  <div class="text-xs text-slate-400 truncate mt-0.5">{u.email}</div>
                 </div>
 
                 {/* Puntos + estado pago + chevron */}
                 <div class="flex items-center gap-4 flex-shrink-0">
                   <div class="text-right hidden sm:block">
                     <div class="font-display text-xl text-white">{u.profile?.puntos_totales ?? 0}</div>
-                    <div class="text-[10px] text-slate-600">pts</div>
+                    <div class="text-[10px] text-slate-500">pts</div>
                   </div>
                   <div class="w-px h-6 bg-brand-700 hidden sm:block" />
                   <div class="flex flex-col items-center gap-0.5">
@@ -175,10 +218,10 @@ function avatarColor(id: string) {
                       const est = estadoPago(m);
                       if (est === 'completo') return <><span title="Pago completo" class="text-base">✅</span><span class="text-[9px] text-gol">{m} Bs</span></>;
                       if (est === 'parcial')  return <><span title="Pago parcial" class="text-base">⏳</span><span class="text-[9px] text-amber-400">{m} Bs</span></>;
-                      return <><span title="Sin pago" class="text-base">❌</span><span class="text-[9px] text-slate-600">{m} Bs</span></>;
+                      return <><span title="Sin pago" class="text-base">❌</span><span class="text-[9px] text-slate-500">{m} Bs</span></>;
                     })()}
                   </div>
-                  <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
@@ -190,22 +233,22 @@ function avatarColor(id: string) {
                   <input type="hidden" name="user_id" value={u.id} />
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label class="block text-xs text-slate-500 mb-1">Nombre</label>
+                      <label class="block text-xs text-slate-400 mb-1">Nombre</label>
                       <input name="username" type="text" required value={u.profile?.username ?? ''}
                         class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50" />
                     </div>
                     <div>
-                      <label class="block text-xs text-slate-500 mb-1">Email</label>
+                      <label class="block text-xs text-slate-400 mb-1">Email</label>
                       <input name="email" type="email" required value={u.email}
                         class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50" />
                     </div>
                     <div>
-                      <label class="block text-xs text-slate-500 mb-1">Nueva contraseña <span class="text-slate-600">(vacío = no cambia)</span></label>
+                      <label class="block text-xs text-slate-400 mb-1">Nueva contraseña <span class="text-slate-500">(vacío = no cambia)</span></label>
                       <input name="password" type="text" placeholder="••••••••"
                         class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50" />
                     </div>
                     <div class="flex items-end gap-3">
-                      <label class="flex items-center gap-2 text-xs text-slate-400 pb-2 cursor-pointer select-none">
+                      <label class="flex items-center gap-2 text-xs text-slate-300 pb-2 cursor-pointer select-none">
                         <input name="es_referi" type="checkbox" class="w-4 h-4 rounded accent-gold"
                           checked={u.profile?.es_referi ?? false} />
                         Es réferi
@@ -217,11 +260,17 @@ function avatarColor(id: string) {
                   </div>
                 </form>
 
-                {/* El monto depositado se gestiona en el Panel VAR (fuente única). */}
+                {chips.length > 0 && (
+                  <div class="flex items-center justify-between gap-2 bg-brand-900 border border-brand-700/60 rounded-xl px-3 py-2.5 flex-wrap">
+                    <span class="text-xs text-slate-300">Tarjetas activas: <span class="ml-1">{chips.join(' ')}</span></span>
+                    <a href="/admin/tarjetas" class="text-xs text-amarilla hover:text-white transition">Gestionar →</a>
+                  </div>
+                )}
 
-                {/* Último acceso */}
+                {/* El monto depositado se gestiona en el Panel VAR → Pagos (fuente única). */}
+
                 {u.last_sign_in && (
-                  <p class="text-[11px] text-slate-600">
+                  <p class="text-[11px] text-slate-500">
                     Último acceso: {fmtFecha(u.last_sign_in, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     &nbsp;·&nbsp; Creado: {fmtFecha(u.created_at, { day: '2-digit', month: 'short', year: 'numeric' })}
                   </p>
@@ -231,7 +280,7 @@ function avatarColor(id: string) {
                   <form method="POST" action="/api/admin/delete-user"
                     onsubmit={`return confirm('¿Eliminar a ${u.profile?.username ?? u.email}?\\nSe borrarán sus pronósticos y sanciones.')`}>
                     <input type="hidden" name="user_id" value={u.id} />
-                    <button type="submit" class="w-full flex items-center justify-center gap-2 text-xs text-fifared/70 hover:text-fifared border border-fifared/20 hover:border-fifared/40 hover:bg-fifared/5 transition py-2 rounded-xl">
+                    <button type="submit" class="w-full flex items-center justify-center gap-2 text-xs text-fifared/80 hover:text-fifared border border-fifared/20 hover:border-fifared/40 hover:bg-fifared/5 transition py-2 rounded-xl">
                       <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
                       Eliminar usuario permanentemente
                     </button>
@@ -239,19 +288,21 @@ function avatarColor(id: string) {
                 )}
               </div>
             </details>
-          ))}
+            );
+          })}
         </div>
       </div>
     )}
 
     {/* ── Réferis ── */}
     {referis.length > 0 && (
-      <div class="space-y-3">
-        <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-widest px-1">Réferis</h2>
+      <div class="space-y-3" data-group="referis">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Réferis</h2>
         <div class="space-y-2">
           {referis.map(u => (
-            <details class="group bg-brand-900 border border-gold/20 rounded-2xl overflow-hidden">
-              <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer list-none select-none">
+            <details class="group bg-brand-900 border border-gold/20 rounded-2xl overflow-hidden"
+              data-user-card data-search={`${u.profile?.username ?? ''} ${u.email}`.toLowerCase()}>
+              <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none">
                 <div class="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center bg-gold/20 text-gold text-xs font-bold">
                   ⚖️
                 </div>
@@ -259,11 +310,11 @@ function avatarColor(id: string) {
                   <div class="flex items-center gap-2">
                     <span class="font-semibold text-sm text-white">{u.profile?.username ?? u.email}</span>
                     <span class="text-[10px] bg-gold/20 text-gold px-1.5 py-0.5 rounded-full font-bold">RÉFERI</span>
-                    {u.id === user.id && <span class="text-[10px] text-brand-400 font-bold bg-brand-700 px-1.5 py-0.5 rounded-full">TÚ</span>}
+                    {u.id === user.id && <span class="text-[10px] text-brand-300 font-bold bg-brand-700 px-1.5 py-0.5 rounded-full">TÚ</span>}
                   </div>
-                  <div class="text-xs text-slate-500 mt-0.5">{u.email}</div>
+                  <div class="text-xs text-slate-400 mt-0.5">{u.email}</div>
                 </div>
-                <svg class="w-4 h-4 text-slate-600 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </summary>
@@ -272,27 +323,27 @@ function avatarColor(id: string) {
                   <input type="hidden" name="user_id" value={u.id} />
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label class="block text-xs text-slate-500 mb-1">Nombre</label>
+                      <label class="block text-xs text-slate-400 mb-1">Nombre</label>
                       <input name="username" type="text" required value={u.profile?.username ?? ''}
                         class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50" />
                     </div>
                     <div>
-                      <label class="block text-xs text-slate-500 mb-1">Email</label>
+                      <label class="block text-xs text-slate-400 mb-1">Email</label>
                       <input name="email" type="email" required value={u.email}
                         class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-gold/50" />
                     </div>
                     <div>
-                      <label class="block text-xs text-slate-500 mb-1">Nueva contraseña <span class="text-slate-600">(vacío = no cambia)</span></label>
+                      <label class="block text-xs text-slate-400 mb-1">Nueva contraseña <span class="text-slate-500">(vacío = no cambia)</span></label>
                       <input name="password" type="text" placeholder="••••••••"
                         class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50" />
                     </div>
                     <div class="flex items-end gap-3 flex-wrap">
                       <input type="hidden" name="has_participa" value="1" />
-                      <label class="flex items-center gap-2 text-xs text-slate-400 pb-2 cursor-pointer select-none">
+                      <label class="flex items-center gap-2 text-xs text-slate-300 pb-2 cursor-pointer select-none">
                         <input name="es_referi" type="checkbox" class="w-4 h-4 rounded accent-gold" checked={true} />
                         Es réferi
                       </label>
-                      <label class="flex items-center gap-2 text-xs text-slate-400 pb-2 cursor-pointer select-none">
+                      <label class="flex items-center gap-2 text-xs text-slate-300 pb-2 cursor-pointer select-none">
                         <input name="participa" type="checkbox" class="w-4 h-4 rounded accent-gold"
                           checked={u.profile?.participa ?? false} />
                         Jugar en la polla
@@ -304,7 +355,7 @@ function avatarColor(id: string) {
                   </div>
                 </form>
                 {u.last_sign_in && (
-                  <p class="text-[11px] text-slate-600">
+                  <p class="text-[11px] text-slate-500">
                     Último acceso: {fmtFecha(u.last_sign_in, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -316,7 +367,7 @@ function avatarColor(id: string) {
     )}
 
     {users.length === 0 && (
-      <div class="text-center py-20 text-slate-600">
+      <div class="text-center py-20 text-slate-400">
         <div class="text-5xl mb-4">👤</div>
         <p>No hay usuarios registrados.</p>
       </div>
@@ -324,6 +375,34 @@ function avatarColor(id: string) {
 
   </div>
 </Layout>
+
+<script is:inline>
+  function initUsuarios() {
+    var search = document.getElementById('user-search');
+    var emptyMsg = document.getElementById('search-empty');
+    if (search && !search._init) {
+      search._init = true;
+      search.addEventListener('input', function () {
+        var q = search.value.trim().toLowerCase();
+        var cards = document.querySelectorAll('[data-user-card]');
+        var visible = 0;
+        cards.forEach(function (c) {
+          var hit = !q || (c.getAttribute('data-search') || '').indexOf(q) !== -1;
+          c.classList.toggle('hidden', !hit);
+          if (hit) visible++;
+        });
+        // Ocultar encabezados de grupo sin resultados
+        document.querySelectorAll('[data-group]').forEach(function (g) {
+          var any = g.querySelectorAll('[data-user-card]:not(.hidden)').length > 0;
+          g.classList.toggle('hidden', !any);
+        });
+        if (emptyMsg) emptyMsg.classList.toggle('hidden', visible !== 0);
+      });
+    }
+  }
+  document.addEventListener('DOMContentLoaded', initUsuarios);
+  document.addEventListener('astro:page-load', initUsuarios);
+</script>
 
 <script is:inline define:vars={{ csvData: users.map(u => ({
   username:   u.profile?.username ?? '',
@@ -345,7 +424,7 @@ function avatarColor(id: string) {
       r.participa, r.expulsado, r.es_referi, r.registro,
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
 
-    const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const csv = '﻿' + [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

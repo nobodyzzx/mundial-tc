@@ -88,10 +88,27 @@ function formatDate(d: string) {
     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   });
 }
+
+// Stats (calculadas una vez, usadas en las pestañas Tarjetas y Pagos)
+const participantes = (profiles ?? []).filter((p: any) => p.participa);
+const stPagados   = participantes.filter((p: any) => p.pago_70 && p.pago_50).length;
+const stParcial   = participantes.filter((p: any) => p.pago_70 && !p.pago_50).length;
+const stPendiente = participantes.filter((p: any) => !p.pago_70).length;
+const stSancionados = participantes.filter((p: any) => (sanctionsByUser.get(p.id) ?? []).length > 0).length;
+const stExpulsados  = participantes.filter((p: any) => p.expulsado).length;
+let stAmarillas = 0, stRojas = 0;
+for (const arr of sanctionsByUser.values()) for (const s of arr) (s.type === 'yellow' ? stAmarillas++ : stRojas++);
+
+// Jugadores con alguna sanción activa (para el resumen de la pestaña Tarjetas)
+const sancionados = participantes.filter((p: any) => (sanctionsByUser.get(p.id) ?? []).length > 0);
+
+// Mensajes de los endpoints (?msg= / ?err=)
+const msg = Astro.url.searchParams.get('msg');
+const err = Astro.url.searchParams.get('err');
 ---
 
 <Layout title="Panel Réferi" navProfile={profile} isAuthed={true}>
-  <div class="space-y-8">
+  <div class="space-y-6">
 
     <!-- Header -->
     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -135,6 +152,23 @@ function formatDate(d: string) {
       </button>
     </div>
     <div id="test-results" class="hidden space-y-1.5"></div>
+
+    {(msg || err) && (
+      <div class={`rounded-xl px-4 py-3 text-sm font-medium ${err ? 'bg-fifared/15 border border-fifared/40 text-red-200' : 'bg-gol/15 border border-gol/40 text-green-200'}`}>
+        {err ? `⚠️ ${err}` : `✓ ${msg}`}
+      </div>
+    )}
+
+    <!-- ── PESTAÑAS ── -->
+    <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 border-b border-brand-800">
+      <button type="button" data-tab="resultados" class="admin-tab-btn flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-lg border bg-gold/10 border-gold/50 text-gold transition">⚽ Resultados</button>
+      <button type="button" data-tab="tarjetas" class="admin-tab-btn flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-lg border border-brand-700 text-slate-400 transition">🟨 Tarjetas</button>
+      <button type="button" data-tab="pagos" class="admin-tab-btn flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-lg border border-brand-700 text-slate-400 transition">💰 Pagos</button>
+      <button type="button" data-tab="config" class="admin-tab-btn flex-shrink-0 text-sm font-semibold px-4 py-2 rounded-lg border border-brand-700 text-slate-400 transition">⚙️ Config</button>
+    </div>
+
+    <!-- ════════ TAB: RESULTADOS ════════ -->
+    <div id="tab-resultados" class="admin-panel space-y-8">
 
     <!-- ── API DE FÚTBOL ── -->
     <section class="space-y-3">
@@ -237,20 +271,19 @@ function formatDate(d: string) {
       </div>
     </section>
 
-    <!-- ── RESULTADOS ── -->
+    <!-- ── RESULTADOS / CARGA MANUAL ── -->
     <section class="space-y-4">
-
       <div class="space-y-4">
           <button id="toggle-manual"
             class="w-full flex items-center justify-between border-b border-brand-800 pb-2 group">
             <h2 class="font-display text-2xl text-white tracking-wide">📊 CARGA MANUAL</h2>
             <span id="toggle-manual-icon" class="text-slate-500 text-sm transition">▲ ocultar</span>
           </button>
-          <p class="text-xs text-slate-600 -mt-2">Ingresa el marcador a mano. La API del plan gratuito no trae el marcador del Mundial, así que este es el camino fiable.</p>
+          <p class="text-xs text-slate-500 -mt-2">Ingresa el marcador a mano. La API del plan gratuito no trae el marcador del Mundial, así que este es el camino fiable.</p>
           <div id="manual-section" class="space-y-4">
 
             {(!matches || matches.length === 0) && (
-              <p class="text-slate-600 text-sm">No hay partidos pendientes de resultado.</p>
+              <p class="text-slate-500 text-sm">No hay partidos pendientes de resultado.</p>
             )}
 
             <div class="flex flex-col gap-4">
@@ -261,7 +294,7 @@ function formatDate(d: string) {
                   <div>
                     <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">
                       {m.stage === 'group' ? `Grupo ${m.group_name}` : m.round}
-                      {m.jornada && <span class="ml-1 text-brand-600">· {m.jornada}</span>}
+                      {m.jornada && <span class="ml-1 text-brand-400">· {m.jornada}</span>}
                       <span class="ml-2 text-slate-500">· {formatDate(m.match_date)}</span>
                     </div>
                     <div class="font-semibold text-white text-base">
@@ -274,7 +307,7 @@ function formatDate(d: string) {
                       <input type="number" name="homeScore" min="0" max="20" required placeholder="0"
                         class="w-full bg-brand-800 border border-brand-700 rounded-xl px-2 py-4 text-white text-2xl font-display text-center focus:outline-none focus:border-gold transition" />
                     </div>
-                    <span class="text-brand-600 text-xl flex-shrink-0">—</span>
+                    <span class="text-brand-400 text-xl flex-shrink-0">—</span>
                     <div class="flex-1 text-center space-y-1">
                       <span class="text-xs text-slate-500 block truncate">{m.away_team}</span>
                       <input type="number" name="awayScore" min="0" max="20" required placeholder="0"
@@ -310,138 +343,123 @@ function formatDate(d: string) {
         </div>
     </section>
 
-    <!-- ── VAR: SANCIONES ── -->
-    <section class="space-y-3">
-      <h2 class="font-display text-2xl text-white tracking-wide border-b border-brand-800 pb-2">
-        🟨 VAR: SANCIONES
-      </h2>
+    </div><!-- /tab-resultados -->
 
-      {/* Stats rápidas */}
-      {(() => {
-        const jug = (profiles ?? []).filter((p: any) => p.participa);
-        const pagados   = jug.filter((p: any) => p.pago_70 && p.pago_50).length;
-        const parcial   = jug.filter((p: any) => p.pago_70 && !p.pago_50).length;
-        const sancion   = jug.filter((p: any) => (sanctionsByUser.get(p.id) ?? []).length > 0).length;
-        const expuls    = jug.filter((p: any) => p.expulsado).length;
-        return (
-          <div class="grid grid-cols-4 gap-2 text-center">
-            <div class="bg-brand-900 border border-gol/30 rounded-xl py-2.5">
-              <div class="font-display text-2xl text-gol">{pagados}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">Pagados</div>
-            </div>
-            <div class="bg-brand-900 border border-gold/30 rounded-xl py-2.5">
-              <div class="font-display text-2xl text-gold">{parcial}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">Parcial</div>
-            </div>
-            <div class="bg-brand-900 border border-amarilla/30 rounded-xl py-2.5">
-              <div class="font-display text-2xl text-amarilla">{sancion}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">Sancionados</div>
-            </div>
-            <div class="bg-brand-900 border border-fifared/30 rounded-xl py-2.5">
-              <div class="font-display text-2xl text-fifared">{expuls}</div>
-              <div class="text-[10px] text-slate-500 mt-0.5">Expulsados</div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Lista compacta */}
-      <div class="flex flex-col gap-2">
-        {(profiles ?? []).filter((p: any) => p.participa).map((p: any) => {
-          const isExpulsado = p.expulsado === true;
-          const userSanctions = sanctionsByUser.get(p.id) ?? [];
-          const hasActiveRed = userSanctions.some((s: any) => s.type === 'red' || s.type === 'double_red');
-          return (
-            <div class={`rounded-xl border px-3 py-3 space-y-2.5 ${isExpulsado ? 'bg-fifared/5 border-fifared/20' : 'bg-brand-900 border-brand-700/60'}`}>
-
-              {/* Fila 1: nombre + chips sanciones + pts + pago */}
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class={`font-semibold text-sm ${isExpulsado ? 'text-slate-500 line-through' : 'text-white'}`}>
-                  {p.username}
-                </span>
-                {isExpulsado && <span class="text-[10px] text-red-400 font-bold">🟥🟥 EXPULSADO</span>}
-                {userSanctions.map((s: any) => {
-                  const icon  = s.type === 'yellow' ? '🟨' : '🟥';
-                  const label = s.type === 'yellow' ? 'Amarilla' : s.type === 'red' ? 'Roja' : '2ª Roja';
-                  const cls   = s.type === 'yellow' ? 'border-amarilla/40 text-amarilla bg-amarilla/10' : 'border-fifared/40 text-fifared bg-fifared/10';
-                  return (
-                    <form method="POST" action="/api/admin/undo-sanction" class="inline">
-                      <input type="hidden" name="sanctionId" value={s.id} />
-                      <button type="submit" onclick={"return confirm('¿Anular esta sanción?')"}
-                        class={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition ${cls}`}>
-                        {icon} {label} ×
-                      </button>
-                    </form>
-                  );
-                })}
-                <span class="ml-auto font-display text-sm text-gold">{p.puntos_totales}pts</span>
-                {!isExpulsado && (
-                  <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${
-                    p.pago_70 && p.pago_50 ? 'bg-gol/10 border-gol/30 text-gol' :
-                    p.pago_70             ? 'bg-gold/10 border-gold/30 text-gold' :
-                                            'bg-fifared/10 border-fifared/30 text-fifared'
-                  }`}>
-                    {p.pago_70 && p.pago_50 ? '✓ pagado' : p.pago_70 ? '⏳ parcial' : '❌ pendiente'}
-                  </span>
-                )}
-              </div>
-
-              {/* Fila 2: botones de acción (solo si no expulsado) */}
-              {!isExpulsado && (
-                <div class="flex items-center gap-1.5 flex-wrap">
-                  <form method="POST" action="/api/admin/sanction">
-                    <input type="hidden" name="userId" value={p.id} />
-                    <input type="hidden" name="type" value="yellow" />
-                    <input type="hidden" name="reason" value="Advertencia del réferi" />
-                    <button type="submit" onclick={`return confirm('¿Aplicar amarilla a ${p.username}?')`}
-                      class="text-xs px-2.5 py-1.5 rounded-lg border bg-amarilla/10 border-amarilla/40 text-amarilla active:bg-amarilla/20 min-h-[36px]">
-                      🟨 Amarilla
-                    </button>
-                  </form>
-                  <form method="POST" action="/api/admin/sanction">
-                    <input type="hidden" name="userId" value={p.id} />
-                    <input type="hidden" name="type" value="red" />
-                    <input type="hidden" name="reason" value="Tarjeta roja — jornada anulada" />
-                    <button type="submit" disabled={hasActiveRed} onclick={!hasActiveRed ? `return confirm('¿Aplicar roja a ${p.username}? Se anulará su jornada.')` : undefined}
-                      class={`text-xs px-2.5 py-1.5 rounded-lg border min-h-[36px] ${hasActiveRed ? 'bg-brand-800/40 border-brand-700/30 text-slate-600 cursor-not-allowed' : 'bg-fifared/10 border-fifared/40 text-fifared active:bg-fifared/20'}`}>
-                      🟥 Roja
-                    </button>
-                  </form>
-                  <form method="POST" action="/api/admin/sanction">
-                    <input type="hidden" name="userId" value={p.id} />
-                    <input type="hidden" name="type" value="double_red" />
-                    <input type="hidden" name="reason" value="Doble roja — expulsión definitiva" />
-                    <button type="submit" onclick={"return confirm('¿Expulsión definitiva?')"}
-                      class="text-xs px-2.5 py-1.5 rounded-lg border bg-fifared-dark/20 border-fifared-dark/50 text-red-300 active:bg-fifared-dark/40 min-h-[36px]">
-                      🟥🟥 2ª Roja
-                    </button>
-                  </form>
-                  <div class="ml-auto flex items-center gap-1.5 flex-wrap justify-end">
-                    <form method="POST" action="/api/admin/set-monto-pagado" class="flex items-center gap-1">
-                      <input type="hidden" name="user_id" value={p.id} />
-                      <input type="hidden" name="back" value="/admin" />
-                      <input name="monto_pagado" type="number" min="0" max="9999"
-                        value={p.monto_pagado ?? 0}
-                        title="Monto total depositado en Bs"
-                        class="w-16 bg-brand-800 border border-brand-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono text-center focus:outline-none focus:border-gold/50 min-h-[36px]" />
-                      <button type="submit"
-                        class="text-xs px-2 py-1.5 rounded-lg border bg-brand-800 border-brand-700 text-slate-400 hover:text-white hover:border-brand-600 transition min-h-[36px]"
-                        title="Guardar monto depositado">
-                        Bs ✓
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              )}
-
-            </div>
-          );
-        })}
+    <!-- ════════ TAB: TARJETAS ════════ -->
+    <div id="tab-tarjetas" class="admin-panel space-y-4 hidden">
+      <div class="grid grid-cols-4 gap-2 text-center">
+        <div class="bg-brand-900 border border-brand-700/60 rounded-xl py-2.5">
+          <div class="font-display text-2xl text-white">{stSancionados}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Sancionados</div>
+        </div>
+        <div class="bg-brand-900 border border-amarilla/30 rounded-xl py-2.5">
+          <div class="font-display text-2xl text-amarilla">{stAmarillas}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Amarillas</div>
+        </div>
+        <div class="bg-brand-900 border border-fifared/30 rounded-xl py-2.5">
+          <div class="font-display text-2xl text-fifared">{stRojas}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Rojas</div>
+        </div>
+        <div class="bg-brand-900 border border-fifared-dark/40 rounded-xl py-2.5">
+          <div class="font-display text-2xl text-red-300">{stExpulsados}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Expulsados</div>
+        </div>
       </div>
-    </section>
 
-    <!-- ── CONFIGURACIÓN ── -->
-    <section class="space-y-3">
+      <a href="/admin/tarjetas"
+        class="flex items-center justify-center gap-2 w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
+        ➕ Aplicar tarjeta con motivo →
+      </a>
+
+      <div class="space-y-2">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Sancionados actualmente</h3>
+        {sancionados.length === 0 ? (
+          <p class="text-sm text-slate-400 bg-brand-900 border border-brand-700/60 rounded-2xl px-4 py-5 text-center">
+            <span class="text-gol">✓</span> Nadie tiene tarjetas activas.
+          </p>
+        ) : (
+          sancionados.map((p: any) => {
+            const isExpulsado = p.expulsado === true;
+            const userSanctions = sanctionsByUser.get(p.id) ?? [];
+            return (
+              <div class={`rounded-2xl border px-4 py-3 flex items-center gap-2 flex-wrap ${isExpulsado ? 'bg-fifared/5 border-fifared/20' : 'bg-brand-900 border-brand-700/60'}`}>
+                <span class={`font-semibold text-sm ${isExpulsado ? 'text-slate-400 line-through' : 'text-white'}`}>{p.username}</span>
+                {isExpulsado && <span class="text-[10px] text-red-300 font-bold">🟥🟥 EXPULSADO</span>}
+                <div class="flex items-center gap-1.5 flex-wrap ml-auto">
+                  {userSanctions.map((s: any) => {
+                    const icon  = s.type === 'yellow' ? '🟨' : '🟥';
+                    const label = s.type === 'yellow' ? 'Amarilla' : s.type === 'red' ? 'Roja' : '2ª Roja';
+                    const cls   = s.type === 'yellow' ? 'border-amarilla/40 text-amarilla bg-amarilla/10' : 'border-fifared/40 text-fifared bg-fifared/10';
+                    return (
+                      <form method="POST" action="/api/admin/undo-sanction" class="inline" onsubmit="return confirm('¿Anular esta tarjeta?')">
+                        <input type="hidden" name="sanctionId" value={s.id} />
+                        <input type="hidden" name="back" value="/admin" />
+                        <button type="submit"
+                          class={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition ${cls}`}>
+                          {icon} {label} ×
+                        </button>
+                      </form>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+        <p class="text-[11px] text-slate-500 px-1">Toca una tarjeta para anularla. Para aplicar una con motivo, usa el botón de arriba.</p>
+      </div>
+    </div><!-- /tab-tarjetas -->
+
+    <!-- ════════ TAB: PAGOS ════════ -->
+    <div id="tab-pagos" class="admin-panel space-y-4 hidden">
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="bg-brand-900 border border-gol/30 rounded-xl py-2.5">
+          <div class="font-display text-2xl text-gol">{stPagados}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Pagados</div>
+        </div>
+        <div class="bg-brand-900 border border-gold/30 rounded-xl py-2.5">
+          <div class="font-display text-2xl text-gold">{stParcial}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Parcial</div>
+        </div>
+        <div class="bg-brand-900 border border-fifared/30 rounded-xl py-2.5">
+          <div class="font-display text-2xl text-fifared">{stPendiente}</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">Pendientes</div>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">Monto depositado por jugador</h3>
+        {participantes.map((p: any) => (
+          <div class="rounded-2xl border bg-brand-900 border-brand-700/60 px-4 py-3 flex items-center gap-2 flex-wrap">
+            <span class="font-semibold text-sm text-white">{p.username}</span>
+            <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${
+              p.pago_70 && p.pago_50 ? 'bg-gol/10 border-gol/30 text-gol' :
+              p.pago_70             ? 'bg-gold/10 border-gold/30 text-gold' :
+                                      'bg-fifared/10 border-fifared/30 text-fifared'
+            }`}>
+              {p.pago_70 && p.pago_50 ? '✓ pagado' : p.pago_70 ? '⏳ parcial' : '❌ pendiente'}
+            </span>
+            <form method="POST" action="/api/admin/set-monto-pagado" class="flex items-center gap-1 ml-auto">
+              <input type="hidden" name="user_id" value={p.id} />
+              <input type="hidden" name="back" value="/admin" />
+              <input name="monto_pagado" type="number" min="0" max="9999"
+                value={p.monto_pagado ?? 0}
+                title="Monto total depositado en Bs"
+                class="w-20 bg-brand-800 border border-brand-700 rounded-lg px-2 py-1.5 text-sm text-white font-mono text-center focus:outline-none focus:border-gold/50 min-h-[40px]" />
+              <span class="text-xs text-slate-400">Bs</span>
+              <button type="submit"
+                class="text-xs px-3 py-1.5 rounded-lg border bg-brand-800 border-brand-700 text-slate-300 hover:text-white hover:border-brand-600 transition min-h-[40px]"
+                title="Guardar monto depositado">
+                ✓
+              </button>
+            </form>
+          </div>
+        ))}
+      </div>
+    </div><!-- /tab-pagos -->
+
+    <!-- ════════ TAB: CONFIG ════════ -->
+    <div id="tab-config" class="admin-panel space-y-3 hidden">
       <h2 class="font-display text-2xl text-white tracking-wide border-b border-brand-800 pb-2">
         ⚙️ CONFIGURACIÓN
       </h2>
@@ -450,20 +468,20 @@ function formatDate(d: string) {
       <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-4 space-y-3">
         <div class="flex items-center justify-between">
           <span class="text-sm font-semibold text-slate-300">🔄 Sync automático</span>
-          <span class="text-xs text-slate-500 bg-brand-800 border border-brand-700 px-2 py-1 rounded-full font-mono">
+          <span class="text-xs text-slate-400 bg-brand-800 border border-brand-700 px-2 py-1 rounded-full font-mono">
             */5 11-23 * * *
           </span>
         </div>
-        <p class="text-xs text-slate-600">
-          Cron via <span class="text-slate-500">pg_cron + pg_net</span> en Supabase —
-          <code class="text-slate-400 bg-brand-800 px-1 rounded">*/5 16-23,0-5 * * *</code>
+        <p class="text-xs text-slate-500">
+          Cron via <span class="text-slate-400">pg_cron + pg_net</span> en Supabase —
+          <code class="text-slate-300 bg-brand-800 px-1 rounded">*/5 16-23,0-5 * * *</code>
           (cada 5 min · 12:00–01:59 Bolivia · 2 llamadas/run a football-data.org).
           Se activa ejecutando
-          <code class="text-slate-400 bg-brand-800 px-1 rounded">20260101000008_cron_sync.sql</code>
+          <code class="text-slate-300 bg-brand-800 px-1 rounded">20260101000008_cron_sync.sql</code>
           en DataGrip con la URL de producción.
         </p>
         {lastSyncedMatch && (
-          <div class="text-xs text-slate-500 border-t border-brand-800 pt-2">
+          <div class="text-xs text-slate-400 border-t border-brand-800 pt-2">
             Último resultado cargado:
             <span class="text-slate-300 ml-1">
               {lastSyncedMatch.home_team} {lastSyncedMatch.home_score}–{lastSyncedMatch.away_score} {lastSyncedMatch.away_team}
@@ -472,9 +490,10 @@ function formatDate(d: string) {
         )}
       </div>
 
+      <!-- Fechas límite de pago -->
       <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-4">
         <form method="POST" action="/api/admin/save-settings" class="space-y-5">
-          <p class="text-xs text-slate-600">
+          <p class="text-xs text-slate-500">
             Cuando se supere cada fecha, el botón "Compartir pagos" del dashboard se desactiva automáticamente.
           </p>
 
@@ -559,10 +578,39 @@ function formatDate(d: string) {
           </p>
         )}
       </div>
-    </section>
+    </div><!-- /tab-config -->
 
   </div>
 </Layout>
+
+<script is:inline>
+  function initAdminTabs() {
+    var btns = Array.prototype.slice.call(document.querySelectorAll('.admin-tab-btn'));
+    var panels = Array.prototype.slice.call(document.querySelectorAll('.admin-panel'));
+    if (!btns.length) return;
+    function show(name) {
+      panels.forEach(function (p) { p.classList.toggle('hidden', p.id !== 'tab-' + name); });
+      btns.forEach(function (b) {
+        var on = b.getAttribute('data-tab') === name;
+        b.classList.toggle('bg-gold/10', on);
+        b.classList.toggle('border-gold/50', on);
+        b.classList.toggle('text-gold', on);
+        b.classList.toggle('border-brand-700', !on);
+        b.classList.toggle('text-slate-400', !on);
+      });
+      try { history.replaceState(null, '', '#' + name); } catch (e) {}
+    }
+    btns.forEach(function (b) {
+      if (b._tabInit) return;
+      b._tabInit = true;
+      b.addEventListener('click', function () { show(b.getAttribute('data-tab')); });
+    });
+    var initial = (location.hash || '').replace('#', '');
+    show(btns.some(function (b) { return b.getAttribute('data-tab') === initial; }) ? initial : 'resultados');
+  }
+  document.addEventListener('DOMContentLoaded', initAdminTabs);
+  document.addEventListener('astro:page-load', initAdminTabs);
+</script>
 
 <script is:inline>
   function initAdminForms() {
@@ -662,7 +710,7 @@ function formatDate(d: string) {
               .map((c) => `<div class="flex gap-2 py-0.5 border-b border-brand-800/40">
                 <span class="text-gold font-mono w-10 flex-shrink-0">${c.code}</span>
                 <span class="text-slate-300 flex-1">${c.name}</span>
-                <span class="text-slate-600">${c.area}</span>
+                <span class="text-slate-500">${c.area}</span>
               </div>`)
               .join('');
           }
@@ -729,6 +777,3 @@ function formatDate(d: string) {
     </form>
   </div>
 </div>
-
-<script is:inline>
-</script>
