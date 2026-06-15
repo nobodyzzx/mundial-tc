@@ -239,10 +239,16 @@ const firstOpenIdx = jornadaHistory.findIndex((j) => !j.anulada); // abrir la 1�
         <div class="flex items-center justify-between">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">🟨🟥 Tus tarjetas</h2>
           {(yellowCount || redCount || dblRedCount) > 0 && (
-            <span class="text-xs text-slate-500">
-              {yellowCount > 0 && <span class="mr-1">{yellowCount}🟨</span>}
-              {redCount > 0 && <span class="mr-1">{redCount}🟥</span>}
-              {dblRedCount > 0 && <span>{dblRedCount}🟥🟥</span>}
+            <span class="flex items-center gap-1.5">
+              {yellowCount > 0 && (
+                <span class="inline-flex items-center gap-1 text-xs font-bold text-amber-200 bg-amber-400/15 border border-amber-400/40 rounded-full px-2 py-0.5">🟨 {yellowCount}</span>
+              )}
+              {redCount > 0 && (
+                <span class="inline-flex items-center gap-1 text-xs font-bold text-red-200 bg-fifared/20 border border-fifared/50 rounded-full px-2 py-0.5">🟥 {redCount}</span>
+              )}
+              {dblRedCount > 0 && (
+                <span class="inline-flex items-center gap-1 text-xs font-bold text-red-100 bg-fifared/30 border border-fifared/60 rounded-full px-2 py-0.5">🟥🟥 {dblRedCount}</span>
+              )}
             </span>
           )}
         </div>
