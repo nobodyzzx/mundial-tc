@@ -8,7 +8,9 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   const form = await request.formData();
   const sanctionId = form.get('sanctionId')?.toString();
-  if (!sanctionId) return redirect(`/admin?err=${encodeURIComponent('Sanción no encontrada')}`);
+  const backRaw = form.get('back')?.toString() ?? '/admin';
+  const back = backRaw.startsWith('/admin') ? backRaw : '/admin';
+  if (!sanctionId) return redirect(`${back}?err=${encodeURIComponent('Sanción no encontrada')}`);
 
   // Obtener la sanción antes de desactivarla
   const { data: sanction } = await supabaseAdmin
@@ -18,7 +20,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .single();
 
   if (!sanction || !sanction.active) {
-    return redirect(`/admin?err=${encodeURIComponent('Sanción no encontrada o ya inactiva')}`);
+    return redirect(`${back}?err=${encodeURIComponent('Sanción no encontrada o ya inactiva')}`);
   }
 
   // Desactivar la sanción
@@ -70,5 +72,5 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     ? 'Roja'
     : 'Doble Roja (expulsión revertida)';
 
-  return redirect(`/admin?msg=${encodeURIComponent('Sanción revertida: ' + typeLabel)}`);
+  return redirect(`${back}?msg=${encodeURIComponent('Sanción revertida: ' + typeLabel)}`);
 };

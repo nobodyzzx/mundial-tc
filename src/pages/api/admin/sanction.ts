@@ -10,10 +10,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const form = await request.formData();
   const userId = form.get('userId')?.toString();
   const type   = form.get('type')?.toString();
-  const reason = form.get('reason')?.toString() ?? '';
+  const reason = form.get('reason')?.toString().trim() || 'Advertencia del réferi';
 
-  if (!userId || !type) return redirect('/admin?err=Datos+incompletos');
-  if (!['yellow', 'red', 'double_red'].includes(type)) return redirect('/admin?err=Tipo+de+sanción+no+válido');
+  // Página a la que volver (evita open-redirect: solo rutas internas de admin).
+  const backRaw = form.get('back')?.toString() ?? '/admin';
+  const back = backRaw.startsWith('/admin') ? backRaw : '/admin';
+
+  if (!userId || !type) return redirect(`${back}?err=Datos+incompletos`);
+  if (!['yellow', 'red', 'double_red'].includes(type)) return redirect(`${back}?err=Tipo+de+sanción+no+válido`);
 
   // Prevenir doble sanción roja activa
   if (type === 'red' || type === 'double_red') {
@@ -26,7 +30,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
     if (existing && existing.length > 0) {
       const label = existing[0].type === 'double_red' ? 'ya está expulsado' : 'ya tiene tarjeta roja activa';
-      return redirect(`/admin?err=${encodeURIComponent('El usuario ' + label)}`);
+      return redirect(`${back}?err=${encodeURIComponent('El usuario ' + label)}`);
     }
   }
 
@@ -88,5 +92,5 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     ? 'Roja (jornada anulada)'
     : 'Doble Roja (expulsado permanentemente)';
 
-  return redirect(`/admin?msg=${encodeURIComponent('Sanción aplicada: ' + typeLabel)}`);
+  return redirect(`${back}?msg=${encodeURIComponent('Sanción aplicada: ' + typeLabel)}`);
 };

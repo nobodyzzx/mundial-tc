@@ -1,0 +1,266 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { fmtFecha } from '@/lib/fechas';
+import { boliviaDayStart } from '@/lib/jornada';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+if (!accessToken || !refreshToken) { Astro.cookies.delete('sb-access-token', { path: '/' }); Astro.cookies.delete('sb-refresh-token', { path: '/' }); return Astro.redirect('/login'); }
+
+const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+if (!user) { Astro.cookies.delete('sb-access-token', { path: '/' }); Astro.cookies.delete('sb-refresh-token', { path: '/' }); return Astro.redirect('/login'); }
+
+const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
+if (!navProfile?.es_referi) return Astro.redirect('/dashboard');
+
+const [{ data: allProfiles }, { data: allSanctions }] = await Promise.all([
+  supabaseAdmin.from('profiles').select('id, username, expulsado, participa'),
+  supabaseAdmin.from('sanctions').select('id, user_id, type, reason, active, created_at, created_by').order('created_at', { ascending: false }),
+]);
+
+const nameById = new Map((allProfiles ?? []).map((p: any) => [p.id, p.username as string]));
+const participantes = (allProfiles ?? [])
+  .filter((p: any) => p.participa && !p.expulsado)
+  .sort((a: any, b: any) => (a.username ?? '').localeCompare(b.username ?? ''));
+
+const TYPE_META: Record<string, { icon: string; label: string; cls: string }> = {
+  yellow:     { icon: '🟨',   label: 'Amarilla',   cls: 'border-amarilla/40 text-amarilla bg-amarilla/10' },
+  red:        { icon: '🟥',   label: 'Roja',       cls: 'border-fifared/40 text-fifared bg-fifared/10' },
+  double_red: { icon: '🟥🟥', label: 'Doble roja', cls: 'border-fifared-dark/50 text-red-300 bg-fifared-dark/20' },
+};
+
+const sanctions = (allSanctions ?? []).map((s: any) => ({
+  ...s,
+  username: nameById.get(s.user_id) ?? '—',
+  byName: s.created_by ? (nameById.get(s.created_by) ?? null) : null,
+  dia: fmtFecha(boliviaDayStart(new Date(s.created_at).getTime()), { weekday: 'short', day: 'numeric', month: 'short' }),
+  hora: fmtFecha(s.created_at, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+  meta: TYPE_META[s.type] ?? TYPE_META.yellow,
+}));
+
+const active = sanctions.filter((s) => s.active);
+const history = sanctions; // todo (activas + revertidas)
+
+// Stats
+const expulsados = (allProfiles ?? []).filter((p: any) => p.expulsado).length;
+const sancionados = new Set(active.map((s) => s.user_id)).size;
+const amarillas = active.filter((s) => s.type === 'yellow').length;
+const rojas = active.filter((s) => s.type === 'red' || s.type === 'double_red').length;
+
+// Mensajes de los endpoints
+const msg = Astro.url.searchParams.get('msg');
+const err = Astro.url.searchParams.get('err');
+---
+
+<Layout title="Tarjetas" navProfile={navProfile} isAuthed={true}>
+  <div class="max-w-3xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-2">
+      <div>
+        <h1 class="font-display text-4xl text-white tracking-wide">🟨🟥 TARJETAS</h1>
+        <p class="text-slate-400 text-sm mt-1">VAR del réferi · aplicar y revisar sanciones</p>
+      </div>
+      <a href="/admin" class="text-xs text-slate-400 hover:text-white transition px-3 py-1.5 border border-brand-700 rounded-lg flex-shrink-0">← Panel VAR</a>
+    </div>
+
+    {(msg || err) && (
+      <div class={`rounded-xl px-4 py-3 text-sm font-medium ${err ? 'bg-fifared/15 border border-fifared/40 text-red-200' : 'bg-gol/15 border border-gol/40 text-green-200'}`}>
+        {err ? `⚠️ ${err}` : `✓ ${msg}`}
+      </div>
+    )}
+
+    <!-- Stats -->
+    <div class="grid grid-cols-4 gap-2 text-center">
+      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl py-3">
+        <div class="font-display text-2xl text-white">{sancionados}</div>
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">Sancionados</div>
+      </div>
+      <div class="bg-brand-900 border border-amarilla/30 rounded-2xl py-3">
+        <div class="font-display text-2xl text-amarilla">{amarillas}</div>
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">Amarillas</div>
+      </div>
+      <div class="bg-brand-900 border border-fifared/30 rounded-2xl py-3">
+        <div class="font-display text-2xl text-fifared">{rojas}</div>
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">Rojas</div>
+      </div>
+      <div class="bg-brand-900 border border-fifared-dark/40 rounded-2xl py-3">
+        <div class="font-display text-2xl text-red-300">{expulsados}</div>
+        <div class="text-[10px] text-slate-400 uppercase tracking-wide mt-0.5">Expulsados</div>
+      </div>
+    </div>
+
+    <!-- Aplicar tarjeta -->
+    <div class="bg-brand-900 border border-gold/30 rounded-2xl p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide">Aplicar tarjeta</h2>
+      <form method="POST" action="/api/admin/sanction" id="form-tarjeta" class="space-y-4">
+        <input type="hidden" name="back" value="/admin/tarjetas" />
+
+        <!-- Jugador -->
+        <div class="space-y-1.5">
+          <label for="sel-jugador" class="text-xs text-slate-400">Jugador</label>
+          <select id="sel-jugador" name="userId" required
+            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-3 text-base text-white focus:outline-none focus:border-gold transition">
+            <option value="" disabled selected>Elige un jugador…</option>
+            {participantes.map((p: any) => (
+              <option value={p.id}>{p.username}</option>
+            ))}
+          </select>
+        </div>
+
+        <!-- Tipo de tarjeta (segmentado) -->
+        <div class="space-y-1.5">
+          <span class="text-xs text-slate-400">Tipo de tarjeta</span>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="cursor-pointer">
+              <input type="radio" name="type" value="yellow" class="peer" style="position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none" checked />
+              <div class="text-center py-2.5 rounded-xl border border-brand-700 bg-brand-800 text-slate-300 text-sm font-semibold transition peer-checked:border-amarilla peer-checked:bg-amarilla/15 peer-checked:text-amarilla">
+                🟨 Amarilla
+              </div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="radio" name="type" value="red" class="peer" style="position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none" />
+              <div class="text-center py-2.5 rounded-xl border border-brand-700 bg-brand-800 text-slate-300 text-sm font-semibold transition peer-checked:border-fifared peer-checked:bg-fifared/15 peer-checked:text-fifared">
+                🟥 Roja
+              </div>
+            </label>
+            <label class="cursor-pointer">
+              <input type="radio" name="type" value="double_red" class="peer" style="position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none" />
+              <div class="text-center py-2.5 rounded-xl border border-brand-700 bg-brand-800 text-slate-300 text-sm font-semibold transition peer-checked:border-fifared-dark peer-checked:bg-fifared-dark/25 peer-checked:text-red-300">
+                🟥🟥 Doble
+              </div>
+            </label>
+          </div>
+          <p id="type-hint" class="text-[11px] text-slate-400 leading-snug"></p>
+        </div>
+
+        <!-- Motivo -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label for="reason" class="text-xs text-slate-400">Motivo / descripción</label>
+            <span id="reason-counter" class="text-[10px] text-slate-500">0/200</span>
+          </div>
+          <textarea id="reason" name="reason" rows="2" maxlength="200"
+            placeholder="Ej: Insultos en el grupo · spam de stickers · borró un mensaje (tolerancia cero)…"
+            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold transition resize-none"></textarea>
+        </div>
+
+        <button type="submit"
+          class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
+          Aplicar tarjeta
+        </button>
+      </form>
+    </div>
+
+    <!-- Tarjetas activas -->
+    <div class="space-y-3">
+      <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest px-1">
+        Tarjetas activas {active.length > 0 && <span class="text-slate-500">· {active.length}</span>}
+      </h2>
+      {active.length === 0 ? (
+        <p class="text-sm text-slate-400 bg-brand-900 border border-brand-700/60 rounded-2xl px-4 py-5 text-center">
+          <span class="text-gol">✓</span> No hay tarjetas activas.
+        </p>
+      ) : (
+        <div class="space-y-2">
+          {active.map((s) => (
+            <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-4 flex items-start gap-3">
+              <span class="text-lg leading-none mt-0.5 flex-shrink-0">{s.meta.icon}</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-semibold text-white text-sm">{s.username}</span>
+                  <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${s.meta.cls}`}>{s.meta.label}</span>
+                </div>
+                <p class="text-sm text-slate-300 mt-1 leading-snug break-words">{s.reason}</p>
+                <p class="text-xs text-slate-500 mt-1">
+                  {s.dia} · {s.hora}{s.byName ? ` · por ${s.byName}` : ''}
+                </p>
+              </div>
+              <form method="POST" action="/api/admin/undo-sanction" class="flex-shrink-0"
+                onsubmit="return confirm('¿Anular esta tarjeta?')">
+                <input type="hidden" name="sanctionId" value={s.id} />
+                <input type="hidden" name="back" value="/admin/tarjetas" />
+                <button type="submit"
+                  class="text-xs px-3 py-1.5 rounded-lg border border-brand-600 bg-brand-800 text-slate-300 hover:text-white hover:border-brand-500 transition">
+                  Anular
+                </button>
+              </form>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <!-- Historial -->
+    {history.length > 0 && (
+      <details class="group bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
+        <summary class="flex items-center justify-between px-5 py-4 cursor-pointer select-none">
+          <span class="text-sm font-semibold text-slate-300">Historial completo ({history.length})</span>
+          <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+        </summary>
+        <div class="border-t border-brand-800 divide-y divide-brand-800/60">
+          {history.map((s) => (
+            <div class={`px-4 py-2.5 flex items-start gap-3 ${s.active ? '' : 'opacity-50'}`}>
+              <span class="text-base leading-none mt-0.5 flex-shrink-0">{s.meta.icon}</span>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm text-slate-300 leading-snug">
+                  <span class={`font-semibold ${s.active ? 'text-white' : 'text-slate-400 line-through'}`}>{s.username}</span>
+                  <span class="text-slate-500"> · {s.meta.label}</span>
+                  {!s.active && <span class="text-[10px] text-slate-500 ml-1">(revertida)</span>}
+                </p>
+                <p class="text-xs text-slate-500 leading-snug break-words">{s.reason} · {s.hora}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
+    )}
+
+  </div>
+</Layout>
+
+<script is:inline>
+  function initTarjetas() {
+    var form = document.getElementById('form-tarjeta');
+    if (!form || form._init) return;
+    form._init = true;
+
+    var hint = document.getElementById('type-hint');
+    var sel = document.getElementById('sel-jugador');
+    var reason = document.getElementById('reason');
+    var counter = document.getElementById('reason-counter');
+
+    var HINTS = {
+      yellow: 'Advertencia. Se limpia al final de la jornada.',
+      red: '⚠️ Anula la jornada del jugador (0 pts ese día). Se limpia al final de la jornada.',
+      double_red: '⚠️ Expulsión definitiva: el jugador sale de la tabla, sin devolución.',
+    };
+    function selectedType() {
+      var el = form.querySelector('input[name="type"]:checked');
+      return el ? el.value : 'yellow';
+    }
+    function updateHint() {
+      if (hint) hint.textContent = HINTS[selectedType()] || '';
+    }
+    form.querySelectorAll('input[name="type"]').forEach(function (r) {
+      r.addEventListener('change', updateHint);
+    });
+    updateHint();
+
+    if (reason && counter) {
+      function upd() { counter.textContent = reason.value.length + '/200'; }
+      reason.addEventListener('input', upd);
+      upd();
+    }
+
+    form.addEventListener('submit', function (e) {
+      var type = selectedType();
+      var name = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : 'el jugador';
+      var label = type === 'yellow' ? 'amarilla' : type === 'red' ? 'ROJA (anula su jornada)' : 'DOBLE ROJA (expulsión definitiva)';
+      if (!confirm('¿Aplicar tarjeta ' + label + ' a ' + name + '?')) e.preventDefault();
+    });
+  }
+  document.addEventListener('DOMContentLoaded', initTarjetas);
+  document.addEventListener('astro:page-load', initTarjetas);
+</script>
