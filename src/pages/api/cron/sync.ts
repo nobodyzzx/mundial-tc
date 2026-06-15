@@ -10,6 +10,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
 import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 import { logEvent } from '@/lib/system-log';
+import { alertGroupError } from '@/lib/whatsapp';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 
@@ -71,6 +72,7 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   if (!code || isNaN(season)) {
     await logSync('error:config', { httpStatus: 500, error: 'TOURNAMENT_CODE/SEASON no configurados', t0 });
+    await alertGroupError({ source: 'sync', detail: 'Config faltante: TOURNAMENT_CODE/SEASON no configurados.' });
     return json({ error: 'TOURNAMENT_CODE o TOURNAMENT_SEASON no configurados' }, 500);
   }
 
@@ -100,6 +102,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     allFixtures = await getFixtures(code, season);
   } catch (e: any) {
     await logSync('error:provider', { httpStatus: 502, error: e.message, t0 });
+    await alertGroupError({ source: 'sync', detail: `El proveedor de marcadores falló: ${e.message}. Los resultados pueden no actualizarse.` });
     return json({ error: 'Error API fútbol: ' + e.message }, 502);
   }
   const finished = allFixtures.filter(f => f.status === 'FINISHED');

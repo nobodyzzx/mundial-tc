@@ -3,6 +3,8 @@
  * Las credenciales (GREEN_API_*) viven en el dashboard de Vercel, no en el repo.
  */
 import { logEvent } from './system-log';
+import { supabaseAdmin } from './supabase';
+import { fmtDiaKey } from './fechas';
 
 export type WhatsAppResult = { ok: boolean; detail: string; configured: boolean };
 
@@ -34,4 +36,56 @@ export async function sendWhatsApp(message: string, source = 'mensaje'): Promise
   } catch (e: any) {
     return { ok: false, detail: e?.message ?? 'fetch failed', configured: true };
   }
+}
+
+/**
+ * Publica un AVISO DE ERROR en el grupo de la polla cuando la automatización
+ * falla (sync caído, proveedor de marcadores con error, excepción inesperada),
+ * para que un fallo no pase desapercibido. Incluye una línea para que la referí,
+ * que está en el grupo, ingrese pronósticos/resultados a mano si hace falta.
+ *
+ * Best-effort y NO directo: solo va al grupo (mismo canal que los mensajes
+ * normales). Deduplicado por día y fuente vía sync_logs (source 'alert') para
+ * no spamear si un cron que corre cada pocos minutos sigue fallando. Nunca
+ * lanza: un fallo al avisar jamás debe romper el cron que lo invoca.
+ */
+export async function alertGroupError(opts: {
+  /** Cron/flujo que falló (p.ej. 'sync', 'resumen-dia'). */
+  source: string;
+  /** Detalle técnico corto del error. */
+  detail: string;
+}): Promise<void> {
+  try {
+    // Dedupe: un solo aviso por fuente y día. La clave usa el día Bolivia.
+    const dedupeKey = `${opts.source}:${fmtDiaKey(Date.now())}`;
+    const { data: already } = await supabaseAdmin
+      .from('sync_logs')
+      .select('id')
+      .eq('source', 'alert')
+      .eq('endpoint', dedupeKey)
+      .is('error', null)
+      .limit(1);
+    if (already?.length) return;
+
+    const text = [
+      `🚨 *Problema en la app · ${opts.source}*`,
+      opts.detail.slice(0, 300),
+      '',
+      '⚖️ Referí: si hace falta, ingresa los pronósticos/resultados a mano desde el panel.',
+      '👉 mundial.tecnocondor.dev/admin',
+    ].join('\n');
+
+    const res = await sendWhatsApp(text, 'alert');
+    // Sella el dedupe solo si se envió (si WhatsApp también está caído, se
+    // reintentará en la próxima corrida del cron).
+    if (res.ok) {
+      await supabaseAdmin.from('sync_logs').insert({
+        source: 'alert',
+        endpoint: dedupeKey,
+        response_status: 200,
+        matches_updated: 0,
+        error: null,
+      });
+    }
+  } catch { /* avisar nunca debe romper el cron que llama */ }
 }
