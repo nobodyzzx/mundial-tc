@@ -3,6 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
 import { boliviaDayStart } from '@/lib/jornada';
+import { teamFlag, spanishName } from '@/lib/isoFlags';
 
 const accessToken  = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -14,170 +15,402 @@ const { data: { user }, error: sessionErr } = await supabase.auth.setSession({
 });
 if (sessionErr || !user) return Astro.redirect('/login');
 
-const [{ data: profile }, { data: predHistory }] = await Promise.all([
+const [{ data: profile }, { data: predHistory }, { data: sanctions }, { data: ranking }] = await Promise.all([
   supabaseAdmin
     .from('profiles')
-    .select('username, puntos_totales, es_referi, pago_70, pago_50')
+    .select('username, puntos_totales, es_referi, pago_70, pago_50, expulsado')
     .eq('id', user.id)
     .single(),
   supabaseAdmin
     .from('predictions')
-    .select('points_earned, match:matches!inner(match_date, jornada, stage, round, group_name, home_team, away_team, is_finished)')
+    .select('points_earned, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, match:matches!inner(id, match_date, jornada, stage, round, group_name, home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, is_finished)')
     .eq('user_id', user.id)
-    .eq('matches.is_finished', true)
-    .order('matches.match_date', { ascending: true }),
+    .eq('matches.is_finished', true),
+  supabaseAdmin
+    .from('sanctions')
+    .select('type, reason, created_at')
+    .eq('user_id', user.id)
+    .eq('active', true)
+    .order('created_at', { ascending: false }),
+  supabaseAdmin
+    .from('profiles')
+    .select('id, puntos_totales')
+    .eq('participa', true)
+    .eq('expulsado', false)
+    .order('puntos_totales', { ascending: false }),
 ]);
 
-// Agrupar por día jornada Bolivia (frontera 03:00 BOT, vía boliviaDayStart) para
+const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+// Posición en la tabla general (solo participantes no expulsados).
+const rankIndex = (ranking ?? []).findIndex((p: any) => p.id === user.id);
+const rank = rankIndex >= 0 ? rankIndex + 1 : null;
+const totalPlayers = (ranking ?? []).length;
+
+// Tarjetas activas del usuario. El día se calcula con la frontera 03:00 BOT, igual
+// que el scoring: una amarilla/roja pertenece a la jornada del día en que se dio.
+const cardItems = (sanctions ?? []).map((s: any) => ({
+  type: s.type as 'yellow' | 'red' | 'double_red',
+  reason: s.reason as string,
+  day: fmtFecha(boliviaDayStart(new Date(s.created_at).getTime()), { day: 'numeric', month: 'long' }),
+}));
+const yellowCount = cardItems.filter((c) => c.type === 'yellow').length;
+const redCount = cardItems.filter((c) => c.type === 'red').length;
+const dblRedCount = cardItems.filter((c) => c.type === 'double_red').length;
+
+// Días con jornada anulada por roja/doble roja (frontera 03:00 BOT).
+const anulledDays = new Set<number>(
+  (sanctions ?? [])
+    .filter((s: any) => s.type === 'red' || s.type === 'double_red')
+    .map((s: any) => boliviaDayStart(new Date(s.created_at).getTime()).getTime()),
+);
+
+// Detalle por partido agrupado por jornada (día Bolivia, frontera 03:00 BOT) para
 // que un partido de medianoche cuente en su jornada real, no en el día siguiente.
-const jornadaMap = new Map<string, { pts: number; partidos: number; label: string }>();
-for (const p of (predHistory ?? []) as any[]) {
+type MatchDetail = {
+  home_team: string; away_team: string;
+  real: string; pred: string; pen: string;
+  icon: string; cls: string; pts: number;
+};
+const jornadaMap = new Map<string, { dayMs: number; pts: number; matches: MatchDetail[] }>();
+// Ordenar por hora de partido en JS (PostgREST no ordena por columna embebida aquí).
+const sortedPreds = ((predHistory ?? []) as any[]).sort(
+  (a, b) => new Date(a.match?.match_date ?? 0).getTime() - new Date(b.match?.match_date ?? 0).getTime(),
+);
+
+let totalPartidos = 0, aciertos = 0, exactos = 0;
+for (const p of sortedPreds) {
   const m = p.match;
   if (!m?.is_finished) continue;
-  const dayKey = fmtFecha(boliviaDayStart(new Date(m.match_date).getTime()), {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
-  const label = m.stage === 'group'
-    ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada ?? dayKey)
-    : (m.round ?? dayKey);
-  if (!jornadaMap.has(dayKey)) jornadaMap.set(dayKey, { pts: 0, partidos: 0, label });
+  const dayMs = boliviaDayStart(new Date(m.match_date).getTime()).getTime();
+  const dayKey = fmtFecha(new Date(dayMs), { weekday: 'long', day: 'numeric', month: 'long' });
+
+  // Misma comparación que resumen.astro: exacto (⭐) > resultado correcto (✅) > fallo (❌).
+  const hasPred = p.user_home !== null && p.user_away !== null;
+  const exact = hasPred && p.user_home === m.home_score && p.user_away === m.away_score;
+  const pR = !hasPred ? '' : p.user_home > p.user_away ? 'H' : p.user_home < p.user_away ? 'A' : 'E';
+  const mR = m.home_score > m.away_score ? 'H' : m.home_score < m.away_score ? 'A' : 'E';
+  const ok = hasPred && !exact && pR === mR;
+  const icon = !hasPred ? '–' : exact ? '⭐' : ok ? '✅' : '❌';
+  const cls = exact ? 'text-gold' : ok ? 'text-gol' : !hasPred ? 'text-slate-600' : 'text-slate-500';
+
+  // Stats: no cuentan las jornadas anuladas por roja (valen 0, no reflejan acierto real).
+  if (hasPred && !anulledDays.has(dayMs)) { totalPartidos++; if (exact) exactos++; if (exact || ok) aciertos++; }
+
+  let pen = '';
+  if (hasPred && p.user_home === p.user_away && p.user_winner_penalties && p.user_home_pen !== null)
+    pen = `${p.user_home_pen}–${p.user_away_pen} pen`;
+
+  if (!jornadaMap.has(dayKey)) jornadaMap.set(dayKey, { dayMs, pts: 0, matches: [] });
   const entry = jornadaMap.get(dayKey)!;
   entry.pts += p.points_earned ?? 0;
-  entry.partidos++;
+  entry.matches.push({
+    home_team: m.home_team,
+    away_team: m.away_team,
+    real: `${m.home_score}–${m.away_score}`,
+    pred: hasPred ? `${p.user_home}–${p.user_away}` : 'Sin pronóstico',
+    pen,
+    icon,
+    cls,
+    pts: p.points_earned ?? 0,
+  });
 }
-const jornadaHistory = [...jornadaMap.entries()].map(([day, v]) => ({ day, ...v }));
+const jornadaHistory = [...jornadaMap.entries()]
+  .map(([day, v]) => ({ day, ...v, anulada: anulledDays.has(v.dayMs) }))
+  .sort((a, b) => b.dayMs - a.dayMs); // jornada más reciente primero
+
+// Texto para compartir por WhatsApp (mismo estilo que el resumen de los jugadores).
+const shareLines: string[] = [
+  `📋 *MI RESUMEN · ${profile?.username ?? ''}*`,
+  `_Polla Mundial 2026_ · ${profile?.puntos_totales ?? 0} pts${rank ? ` · ${rank}.º de ${totalPlayers}` : ''}`,
+  '',
+];
+for (const j of jornadaHistory) {
+  if (j.anulada) {
+    shareLines.push(`🟥 *${cap(j.day)}* — Jornada anulada (0 pts)`, '');
+    continue;
+  }
+  shareLines.push(`🗓️ *${cap(j.day)}* _(+${j.pts} pts)_`);
+  for (const mt of j.matches) {
+    shareLines.push(
+      `${teamFlag(mt.home_team)} ${spanishName(mt.home_team)} ${mt.real} ${spanishName(mt.away_team)} ${teamFlag(mt.away_team)} · tú ${mt.pred} ${mt.icon}${mt.pts ? ` +${mt.pts}` : ''}`,
+    );
+  }
+  shareLines.push('');
+}
+if (yellowCount || redCount || dblRedCount) {
+  const parts: string[] = [];
+  if (yellowCount) parts.push(`${yellowCount} 🟨`);
+  if (redCount) parts.push(`${redCount} 🟥`);
+  if (dblRedCount) parts.push(`${dblRedCount} 🟥🟥`);
+  shareLines.push(`Tarjetas: ${parts.join(' · ')}`);
+}
+shareLines.push('_Polla Mundial 2026_ 🏆');
+const shareText = shareLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+
+const ptsCls = (pts: number) => pts >= 6 ? 'text-gold' : pts >= 3 ? 'text-gol' : pts >= 1 ? 'text-slate-300' : 'text-slate-600';
+const firstOpenIdx = jornadaHistory.findIndex((j) => !j.anulada); // abrir la 1ª jornada no anulada
 ---
 
 <Layout title="Mi Perfil" navProfile={profile} isAuthed={true}>
-  <div class="max-w-md mx-auto space-y-6">
+  <div class="max-w-3xl mx-auto space-y-5">
 
     <h1 class="font-display text-4xl text-white tracking-wide">MI PERFIL</h1>
 
-    <!-- Info actual -->
-    <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-3">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Tu cuenta</h2>
-      <div class="flex items-center justify-between">
-        <span class="text-sm text-slate-400">Usuario</span>
-        <span class="font-semibold text-white">{profile?.username}</span>
-      </div>
-      <div class="flex items-center justify-between">
-        <span class="text-sm text-slate-400">Correo</span>
-        <span class="font-semibold text-slate-300 text-sm truncate max-w-[60%] text-right">{user.email}</span>
-      </div>
-      <div class="flex items-center justify-between">
-        <span class="text-sm text-slate-400">Puntos</span>
-        <span class="font-bold text-gold">{profile?.puntos_totales ?? 0} pts</span>
-      </div>
-      <div class="h-px bg-brand-800"></div>
-      <p class="text-xs text-slate-600 uppercase tracking-wide font-semibold">Estado de pagos</p>
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="text-sm text-slate-300">1er pago — 70 Bs</span>
-            <p class="text-xs text-slate-600">{profile?.pago_70 ? 'Pronósticos habilitados' : 'Sin esto no puedes pronosticar'}</p>
+    <!-- Identidad + tarjetas (lado a lado en desktop) -->
+    <div class="grid gap-5 lg:grid-cols-2 items-start">
+
+      <!-- Identidad + stats + pagos -->
+      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Jugador</p>
+            <h2 class="font-display text-2xl text-white truncate">
+              {profile?.username}{profile?.es_referi && <span class="text-gold text-base ml-1">⚖️</span>}
+            </h2>
+            <p class="text-xs text-slate-600 truncate">{user.email}</p>
           </div>
-          <span class={`text-xs px-3 py-1 rounded-full font-semibold ${profile?.pago_70 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-amber-900/30 text-amber-400 border border-amber-500/40'}`}>
-            {profile?.pago_70 ? '✓ Pagado' : '⚠️ Pronósticos bloqueados'}
-          </span>
+          {profile?.expulsado && (
+            <span class="text-xs px-3 py-1 rounded-full font-semibold bg-fifared/20 text-red-300 border border-fifared/40 flex-shrink-0">Expulsado</span>
+          )}
         </div>
-        <div class="flex items-center justify-between">
-          <div>
-            <span class="text-sm text-slate-300">2do pago — 50 Bs</span>
-            <p class="text-xs text-slate-600">{profile?.pago_50 ? 'Participación completa' : 'Sin esto solo aportas 50 Bs al pozo'}</p>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="bg-brand-800/50 rounded-xl px-2 py-2.5 text-center">
+            <p class="font-display text-2xl text-gold leading-none">{profile?.puntos_totales ?? 0}</p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">Puntos</p>
           </div>
-          <span class={`text-xs px-3 py-1 rounded-full font-semibold ${profile?.pago_50 ? 'bg-gol/20 text-green-300 border border-gol/30' : 'bg-brand-800 text-slate-500 border border-brand-700'}`}>
-            {profile?.pago_50 ? '✓ Pagado' : '⚠️ Pozo incompleto'}
-          </span>
+          <div class="bg-brand-800/50 rounded-xl px-2 py-2.5 text-center">
+            <p class="font-display text-2xl text-white leading-none">{rank ? `${rank}º` : '—'}</p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">{rank ? `de ${totalPlayers}` : 'Posición'}</p>
+          </div>
+          <div class="bg-brand-800/50 rounded-xl px-2 py-2.5 text-center">
+            <p class="font-display text-2xl text-gol leading-none">{aciertos}<span class="text-sm text-slate-600">/{totalPartidos}</span></p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">Aciertos</p>
+          </div>
+          <div class="bg-brand-800/50 rounded-xl px-2 py-2.5 text-center">
+            <p class="font-display text-2xl text-gold leading-none">{exactos} <span class="text-sm">⭐</span></p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">Exactos</p>
+          </div>
+        </div>
+
+        <!-- Pagos: solo si queda algo pendiente. Con la competencia en curso y todo
+             pagado, el bloque desaparece para no estorbar. -->
+        {(!profile?.pago_70 || !profile?.pago_50) && (
+          <Fragment>
+            <div class="h-px bg-brand-800"></div>
+            <p class="text-xs text-slate-600 uppercase tracking-wide font-semibold">Pagos pendientes</p>
+            <div class="space-y-2">
+              {!profile?.pago_70 && (
+                <div class="flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <span class="text-sm text-slate-300">1er pago — 70 Bs</span>
+                    <p class="text-xs text-slate-600">Sin esto no puedes pronosticar</p>
+                  </div>
+                  <span class="text-xs px-3 py-1 rounded-full font-semibold flex-shrink-0 bg-amber-900/30 text-amber-400 border border-amber-500/40">
+                    ⚠️ Bloqueado
+                  </span>
+                </div>
+              )}
+              {!profile?.pago_50 && (
+                <div class="flex items-center justify-between gap-2">
+                  <div class="min-w-0">
+                    <span class="text-sm text-slate-300">2do pago — 50 Bs</span>
+                    <p class="text-xs text-slate-600">Sin esto solo aportas 50 Bs al pozo</p>
+                  </div>
+                  <span class="text-xs px-3 py-1 rounded-full font-semibold flex-shrink-0 bg-brand-800 text-slate-500 border border-brand-700">
+                    ⚠️ Incompleto
+                  </span>
+                </div>
+              )}
+            </div>
+            {!profile?.pago_70 && (
+              <a href="/pago" class="flex items-center justify-center gap-2 w-full bg-gold/10 border border-gold/30 text-gold text-sm font-semibold py-2.5 rounded-xl transition active:bg-gold/20">
+                💰 Ver cómo pagar →
+              </a>
+            )}
+          </Fragment>
+        )}
+      </div>
+
+      <!-- Tus tarjetas -->
+      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">🟨🟥 Tus tarjetas</h2>
+          {(yellowCount || redCount || dblRedCount) > 0 && (
+            <span class="text-xs text-slate-500">
+              {yellowCount > 0 && <span class="mr-1">{yellowCount}🟨</span>}
+              {redCount > 0 && <span class="mr-1">{redCount}🟥</span>}
+              {dblRedCount > 0 && <span>{dblRedCount}🟥🟥</span>}
+            </span>
+          )}
+        </div>
+        {cardItems.length === 0 && !profile?.expulsado ? (
+          <p class="text-sm text-slate-500 flex items-center gap-2 py-2">
+            <span class="text-gol">✓</span> Sin tarjetas. Juego limpio.
+          </p>
+        ) : (
+          <div class="space-y-1">
+            {cardItems.map((c) => (
+              <div class="flex items-start gap-2.5 py-1.5 border-b border-brand-800/60 last:border-0">
+                <span class="text-base leading-none mt-0.5">{c.type === 'yellow' ? '🟨' : c.type === 'red' ? '🟥' : '🟥🟥'}</span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm text-slate-300 leading-tight">
+                    {c.type === 'yellow' ? 'Amarilla' : c.type === 'red' ? 'Roja — jornada anulada' : 'Doble roja — expulsión'}
+                  </p>
+                  <p class="text-xs text-slate-600 mt-0.5">{c.reason} · {c.day}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p class="text-[11px] text-slate-600 leading-snug pt-1 border-t border-brand-800/60">
+          ⚖️ Amarillas y rojas se limpian cada jornada. Solo la doble roja es expulsión definitiva.
+        </p>
+      </div>
+    </div>
+
+    <!-- Tus puntos por partido -->
+    <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Tus puntos por partido</h2>
+        <div class="flex items-center gap-3">
+          <span class="text-gold font-bold text-sm">{profile?.puntos_totales ?? 0} pts</span>
+          {jornadaHistory.length > 0 && (
+            <button id="share-btn" type="button" data-share={shareText}
+              class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gol/40 bg-gol/10 text-green-300 transition active:bg-gol/20 hover:bg-gol/15">
+              📋 Compartir
+            </button>
+          )}
         </div>
       </div>
-      {!profile?.pago_70 && (
-        <a href="/pago" class="flex items-center justify-center gap-2 w-full bg-gold/10 border border-gold/30 text-gold text-sm font-semibold py-2.5 rounded-xl transition active:bg-gold/20">
-          💰 Ver cómo pagar →
-        </a>
+
+      {jornadaHistory.length === 0 ? (
+        <p class="text-sm text-slate-500 py-6 text-center">
+          Aún no tienes partidos jugados. Tus puntos aparecerán aquí cuando terminen.
+        </p>
+      ) : (
+        <div class="space-y-2">
+          {jornadaHistory.map((j, i) => (
+            j.anulada ? (
+              <div class="flex items-center justify-between gap-2 px-4 py-3 bg-fifared/8 border border-fifared/25 rounded-xl">
+                <span class="flex items-center gap-2 min-w-0">
+                  <span class="text-base">🟥</span>
+                  <span class="text-sm font-semibold text-slate-300 truncate">{cap(j.day)}</span>
+                </span>
+                <span class="text-xs font-bold text-fifared flex-shrink-0">Anulada · 0 pts</span>
+              </div>
+            ) : (
+              <details class="group bg-brand-800/30 rounded-xl overflow-hidden" open={i === firstOpenIdx}>
+                <summary class="flex items-center justify-between gap-2 px-4 py-3 cursor-pointer select-none">
+                  <span class="flex items-center gap-2 min-w-0">
+                    <svg class="w-3.5 h-3.5 text-slate-500 flex-shrink-0 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                    <span class="text-sm font-semibold text-slate-300 truncate">{cap(j.day)}</span>
+                  </span>
+                  <span class={`text-xs font-bold flex-shrink-0 ${ptsCls(j.pts)}`}>⚽ {j.matches.length} · +{j.pts} pts</span>
+                </summary>
+                <div class="px-4 pb-2">
+                  {j.matches.map((mt) => (
+                    <div class="flex items-start justify-between gap-2 py-1.5 border-t border-brand-800/40">
+                      <div class="min-w-0 flex-1">
+                        <p class="text-sm text-slate-300 leading-snug">
+                          {teamFlag(mt.home_team)} {spanishName(mt.home_team)} <span class="font-display text-white">{mt.real}</span> {spanishName(mt.away_team)} {teamFlag(mt.away_team)}
+                        </p>
+                        <p class="text-xs text-slate-600 mt-0.5">
+                          Tu pronóstico: {mt.pred}{mt.pen ? ` (${mt.pen})` : ''}
+                        </p>
+                      </div>
+                      <div class={`flex items-center gap-1 flex-shrink-0 ${mt.cls}`}>
+                        <span class="text-base leading-none">{mt.icon}</span>
+                        <span class="font-display text-sm font-bold w-4 text-right">{mt.pts}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )
+          ))}
+        </div>
+      )}
+
+      {jornadaHistory.length > 0 && (
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600 pt-1 border-t border-brand-800/60">
+          <span class="text-gold">⭐ Exacto</span>
+          <span class="text-gol">✅ Acierto</span>
+          <span class="text-slate-500">❌ Fallo</span>
+          <span class="text-fifared">🟥 Jornada anulada</span>
+        </div>
       )}
     </div>
 
-    <!-- Cambiar nombre -->
-    <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Cambiar nombre</h2>
-      <form method="POST" action="/api/profile/update" class="space-y-3">
-        <input type="hidden" name="field" value="username" />
-        <div class="space-y-1.5">
-          <div class="flex items-center justify-between">
-            <label class="text-sm text-slate-300">Nombre de usuario</label>
-            <span id="username-counter" class="text-xs text-slate-600">0/30</span>
-          </div>
-          <input id="username-input" name="username" type="text" required
-            value={profile?.username ?? ''}
-            maxlength="30"
-            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 text-base text-white focus:outline-none focus:border-gold transition" />
-        </div>
-        <button type="submit"
-          class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
-          Actualizar nombre
-        </button>
-      </form>
-    </div>
+    <!-- Ajustes (2 columnas en desktop) -->
+    <div class="grid gap-5 md:grid-cols-2 items-start">
 
-    <!-- Historial de puntos por jornada -->
-    {jornadaHistory.length > 0 && (
-      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Historial de puntos</h2>
-          <span class="text-gold font-bold text-sm">{profile?.puntos_totales ?? 0} pts total</span>
-        </div>
-        <div class="space-y-1.5">
-          {jornadaHistory.map(({ day, pts, partidos }) => (
-            <div class="flex items-center justify-between py-2 border-b border-brand-800/60 last:border-0">
-              <div class="min-w-0">
-                <p class="text-sm text-slate-300 capitalize leading-tight">{day}</p>
-                <p class="text-xs text-slate-600 mt-0.5">{partidos} partido{partidos !== 1 ? 's' : ''}</p>
-              </div>
-              <span class={`font-display text-xl font-bold flex-shrink-0 ml-3 ${pts >= 6 ? 'text-gold' : pts >= 3 ? 'text-gol' : pts >= 1 ? 'text-slate-300' : 'text-slate-600'}`}>
-                {pts}<span class="text-xs font-sans text-slate-500 ml-0.5">pts</span>
-              </span>
+      <!-- Cambiar nombre -->
+      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Cambiar nombre</h2>
+        <form method="POST" action="/api/profile/update" class="space-y-3">
+          <input type="hidden" name="field" value="username" />
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-sm text-slate-300">Nombre de usuario</label>
+              <span id="username-counter" class="text-xs text-slate-600">0/30</span>
             </div>
-          ))}
-        </div>
+            <input id="username-input" name="username" type="text" required
+              value={profile?.username ?? ''}
+              maxlength="30"
+              class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 text-base text-white focus:outline-none focus:border-gold transition" />
+          </div>
+          <button type="submit"
+            class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
+            Actualizar nombre
+          </button>
+        </form>
       </div>
-    )}
 
-    <!-- Cambiar contraseña -->
-    <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Cambiar contraseña</h2>
-      <form method="POST" action="/api/auth/update-password" class="space-y-3" id="pw-form">
-        <div class="space-y-1.5">
-          <label class="text-sm text-slate-300 block">Nueva contraseña <span class="text-slate-600">(mín. 8 caracteres)</span></label>
-          <div class="relative">
-            <input id="pw1" name="password" type="password" required minlength="8" placeholder="••••••••"
-              class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
-            <button type="button" class="eye-toggle absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition touch-manipulation" data-target="pw1">
-              <svg class="eye-icon w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-              <svg class="eye-off-icon w-5 h-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-            </button>
+      <!-- Cambiar contraseña -->
+      <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Cambiar contraseña</h2>
+        <form method="POST" action="/api/auth/update-password" class="space-y-3" id="pw-form">
+          <div class="space-y-1.5">
+            <label class="text-sm text-slate-300 block">Nueva contraseña <span class="text-slate-600">(mín. 8 caracteres)</span></label>
+            <div class="relative">
+              <input id="pw1" name="password" type="password" required minlength="8" placeholder="••••••••"
+                class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
+              <button type="button" class="eye-toggle absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition touch-manipulation" data-target="pw1">
+                <svg class="eye-icon w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                <svg class="eye-off-icon w-5 h-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+              </button>
+            </div>
           </div>
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm text-slate-300 block">Confirmá la contraseña</label>
-          <div class="relative">
-            <input id="pw2" name="confirm_password" type="password" required minlength="8" placeholder="Repetí la contraseña"
-              class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
-            <button type="button" class="eye-toggle absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition touch-manipulation" data-target="pw2">
-              <svg class="eye-icon w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-              <svg class="eye-off-icon w-5 h-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-            </button>
+          <div class="space-y-1.5">
+            <label class="text-sm text-slate-300 block">Confirmá la contraseña</label>
+            <div class="relative">
+              <input id="pw2" name="confirm_password" type="password" required minlength="8" placeholder="Repetí la contraseña"
+                class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
+              <button type="button" class="eye-toggle absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition touch-manipulation" data-target="pw2">
+                <svg class="eye-icon w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                <svg class="eye-off-icon w-5 h-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+              </button>
+            </div>
           </div>
-        </div>
-        <p id="pw-mismatch" class="text-sm text-red-400 hidden flex items-center gap-1.5">⚠️ Las contraseñas no coinciden</p>
-        <button type="submit"
-          class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
-          Cambiar contraseña
-        </button>
-      </form>
+          <p id="pw-mismatch" class="text-sm text-red-400 hidden flex items-center gap-1.5">⚠️ Las contraseñas no coinciden</p>
+          <button type="submit"
+            class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
+            Cambiar contraseña
+          </button>
+        </form>
+      </div>
     </div>
 
   </div>
 </Layout>
+
+<style>
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+</style>
 
 <script is:inline>
   function initPerfil() {
@@ -207,6 +440,27 @@ const jornadaHistory = [...jornadaMap.entries()].map(([day, v]) => ({ day, ...v 
       }
       updateCounter();
       usernameInput.addEventListener('input', updateCounter);
+    }
+
+    // Compartir resumen (Web Share API en móvil, copiar al portapapeles en escritorio)
+    var shareBtn = document.getElementById('share-btn');
+    if (shareBtn && !shareBtn._shareInit) {
+      shareBtn._shareInit = true;
+      shareBtn.addEventListener('click', async function() {
+        var text = shareBtn.getAttribute('data-share') || '';
+        if (navigator.share) {
+          try { await navigator.share({ text: text }); } catch (e) { /* cancelado */ }
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          var orig = shareBtn.textContent;
+          shareBtn.textContent = '✓ Copiado';
+          setTimeout(function() { shareBtn.textContent = orig; }, 1800);
+        } catch (e) {
+          window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+        }
+      });
     }
 
     // Validar contraseñas (submit + tiempo real)
