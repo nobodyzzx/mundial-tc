@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
+import { mdToHtml } from '@/lib/markdown';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -104,7 +105,7 @@ const err = Astro.url.searchParams.get('err');
               </form>
             </span>
           </div>
-          <p class="text-sm text-slate-100 whitespace-pre-wrap leading-relaxed">{a.body}</p>
+          <div class="text-sm text-slate-100 leading-relaxed space-y-1 [&_strong]:text-white [&_a]:text-gold" set:html={mdToHtml(a.body)} />
         </div>
       ))}
     </div>

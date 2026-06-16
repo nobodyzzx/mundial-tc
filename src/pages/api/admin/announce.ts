@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { getAdminUser } from '@/lib/auth-helpers';
 import { sendWhatsApp } from '@/lib/whatsapp';
+import { mdToWhatsApp } from '@/lib/markdown';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
@@ -31,7 +32,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       const text = [
         '📣 *ANUNCIO*',
         '',
-        body,
+        mdToWhatsApp(body),
         '',
         `— ${admin.username}, la Réferi ⚖️`,
         '_Polla Mundial 2026_ 🏆',

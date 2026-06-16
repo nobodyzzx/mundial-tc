@@ -3,6 +3,7 @@ import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { getAdminUser } from '@/lib/auth-helpers';
 import { boliviaDayStart } from '@/lib/jornada';
 import { sendWhatsApp } from '@/lib/whatsapp';
+import { mdToWhatsApp } from '@/lib/markdown';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
@@ -102,20 +103,27 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
         .from('profiles').select('username').eq('id', userId).single();
       const nombre = prof?.username ?? 'Jugador';
       const head = type === 'yellow'
-        ? '🟨 *TARJETA AMARILLA*'
+        ? '**🟨 TARJETA AMARILLA**'
         : type === 'red'
-        ? '🟥 *TARJETA ROJA*'
-        : '🟥🟥 *DOBLE ROJA · EXPULSIÓN*';
+        ? '**🟥 TARJETA ROJA**'
+        : '**🟥🟥 DOBLE ROJA · EXPULSIÓN**';
       const consecuencia = type === 'red'
-        ? '\n⚠️ _Jornada anulada: 0 puntos._'
+        ? '_⚠️ Jornada anulada: 0 puntos._'
         : type === 'double_red'
-        ? '\n⛔ _Expulsión definitiva, sin devolución._'
-        : '\n_Advertencia. Se limpia al final de la jornada._';
-      const text = [
+        ? '_⛔ Expulsión definitiva, sin devolución._'
+        : '_Advertencia. Se limpia al cerrar la jornada._';
+
+      // Cuerpo en markdown (se renderiza en el tablón y se convierte para WhatsApp)
+      const cardMd = [
         head,
-        `👤 *${nombre}*`,
+        `👤 **${nombre}**`,
         `📝 ${reason}`,
+        '',
         consecuencia,
+      ].join('\n');
+
+      const text = [
+        mdToWhatsApp(cardMd),
         '',
         `— ${admin.username}, la Réferi ⚖️`,
         '_Polla Mundial 2026_ 🏆',
@@ -125,16 +133,10 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
         ? ' (WhatsApp no configurado)'
         : res.ok ? ' y enviada al grupo' : ' (no se pudo enviar al grupo)';
 
-      // También dejarla en el tablón de la app (sin la firma/pie: el tablón
-      // ya muestra al réferi como autor).
-      const boardBody = [
-        head.replace(/\*/g, ''),
-        `👤 ${nombre}`,
-        `📝 ${reason}`,
-        consecuencia.replace(/_/g, '').trim(),
-      ].join('\n');
+      // También dejarla en el tablón de la app, en markdown (sin firma/pie:
+      // el tablón ya muestra al réferi como autor).
       await supabaseAdmin.from('announcements').insert({
-        body: boardBody,
+        body: cardMd,
         author_name: admin.username,
         created_by: admin.user.id,
         sent_to_whatsapp: res.ok,
