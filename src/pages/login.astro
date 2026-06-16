@@ -28,35 +28,42 @@ const message = Astro.url.searchParams.get('message');
   </script>
   <body class="min-h-screen antialiased">
 
-    <!-- Background image + overlay -->
+    <!-- Background image + overlays -->
     <div
-      class="fixed inset-0 bg-cover bg-center bg-no-repeat"
+      class="fixed inset-0 bg-cover bg-center bg-no-repeat scale-105"
       style="background-image: url('/bg-login.jpg')"
     ></div>
-    <div class="fixed inset-0 bg-brand-950/78"></div>
+    <!-- Gradiente vertical: da profundidad y oscurece bordes -->
+    <div class="fixed inset-0 bg-gradient-to-b from-brand-950/72 via-brand-950/88 to-black/96"></div>
+    <!-- Resplandor dorado de "luz de estadio" detrás del logo -->
+    <div class="fixed inset-0 pointer-events-none"
+      style="background: radial-gradient(58% 42% at 50% 17%, rgba(240,165,0,0.16), transparent 72%)"></div>
 
     <!-- Content -->
     <div class="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 py-10">
 
       <!-- Logo & host countries -->
-      <div class="mb-7 text-center">
-        <img src="/logo-fifa2026.png" alt="FIFA World Cup 2026" class="h-24 sm:h-28 mx-auto object-contain drop-shadow-2xl" />
-        <div class="flex items-center justify-center gap-3 mt-3 text-2xl">
+      <div class="relative mb-7 text-center">
+        <!-- Halo radial para que el trofeo no se pierda en el fondo oscuro -->
+        <div class="pointer-events-none absolute left-1/2 top-12 sm:top-14 -translate-x-1/2 -translate-y-1/2 h-44 w-44 rounded-full bg-gold/25 blur-3xl"></div>
+        <img src="/logo-fifa2026.png" alt="FIFA World Cup 2026"
+          class="relative h-28 sm:h-32 mx-auto object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.6)]" />
+        <div class="relative inline-flex items-center gap-2.5 mt-4 px-3.5 py-1.5 rounded-full bg-white/8 border border-white/12 text-xl backdrop-blur-sm shadow-lg shadow-black/30">
           <span title="Estados Unidos">🇺🇸</span>
-          <span class="text-brand-600">·</span>
           <span title="Canadá">🇨🇦</span>
-          <span class="text-brand-600">·</span>
           <span title="México">🇲🇽</span>
         </div>
       </div>
 
-      <!-- Card -->
+      <!-- Card (borde con degradado dorado tipo "premium") -->
       <div class="w-full max-w-sm">
-        <div class="bg-brand-900/85 backdrop-blur-md border border-brand-700/70 rounded-2xl p-6 sm:p-8 space-y-5 shadow-2xl">
+        <div class="rounded-[1.4rem] bg-gradient-to-b from-gold/45 via-brand-700/40 to-transparent p-px shadow-2xl shadow-black/50">
+          <div class="rounded-[1.35rem] bg-gradient-to-b from-brand-900/92 to-brand-800/88 backdrop-blur-xl p-6 sm:p-8 space-y-5">
 
-          <div class="text-center space-y-1">
-            <h1 class="text-xl font-bold text-white tracking-wide">Polla Mundial 2026</h1>
-            <p class="text-slate-400 text-sm">Ingresa para continuar</p>
+          <div class="text-center space-y-1.5">
+            <span class="inline-block text-[0.65rem] font-bold tracking-[0.3em] text-gold/90 uppercase">Mundial 2026</span>
+            <h1 class="text-2xl font-extrabold tracking-wide bg-gradient-to-r from-gold-light to-gold bg-clip-text text-transparent">Polla Mundial</h1>
+            <p class="text-slate-300 text-sm">Predice. Compite. Gana. ⚽</p>
           </div>
 
           {error && (
@@ -72,15 +79,15 @@ const message = Astro.url.searchParams.get('message');
 
           <form method="POST" action="/api/auth/login" class="space-y-4">
             <div class="space-y-1.5">
-              <label class="text-sm text-slate-400 block">Correo electrónico</label>
+              <label class="text-sm text-slate-300 block font-medium">Correo electrónico</label>
               <input name="email" type="email" required placeholder="tu@correo.com"
-                class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
+                class="w-full bg-brand-950/60 border border-brand-700 rounded-xl px-4 py-3.5 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/30 transition" />
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm text-slate-400 block">Contraseña</label>
+              <label class="text-sm text-slate-300 block font-medium">Contraseña</label>
               <div class="relative">
                 <input id="password-input" name="password" type="password" required placeholder="••••••••"
-                  class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold transition" />
+                  class="w-full bg-brand-950/60 border border-brand-700 rounded-xl px-4 py-3.5 pr-12 text-base text-white placeholder-slate-500 focus:outline-none focus:border-gold focus:ring-2 focus:ring-gold/30 transition" />
                 <button type="button" id="toggle-password"
                   class="absolute right-0 top-0 h-full w-12 flex items-center justify-center text-slate-500 hover:text-slate-300 transition touch-manipulation"
                   aria-label="Mostrar contraseña">
@@ -95,19 +102,26 @@ const message = Astro.url.searchParams.get('message');
               </div>
             </div>
             <button type="submit"
-              class="w-full bg-gold text-brand-950 font-bold py-4 rounded-xl transition active:bg-gold-dark text-base min-h-[52px] mt-1">
-              Entrar al Mundial
+              class="w-full bg-gradient-to-r from-gold-light to-gold text-brand-950 font-extrabold py-4 rounded-xl text-base min-h-[52px] mt-1 shadow-lg shadow-gold/25 transition hover:shadow-gold/40 active:scale-[0.99]">
+              Entrar al Mundial ⚽
             </button>
 
             {/* Recuperación por correo oculta: los correos son de relleno
                 (usuario@mundial.com) y no llega ningún email. El réferi resetea
                 claves desde /admin/usuarios. */}
-            <p class="text-center text-xs text-slate-400 leading-relaxed pt-1">
-              ¿Olvidaste tu contraseña?<br />
-              Escríbele al réferi o a <span class="text-slate-300 font-medium">Harold</span> por WhatsApp 📲
-            </p>
+            <div class="pt-1 text-center">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="h-px flex-1 bg-brand-700/70"></span>
+                <span class="text-[0.65rem] uppercase tracking-widest text-slate-500">¿Olvidaste tu clave?</span>
+                <span class="h-px flex-1 bg-brand-700/70"></span>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Escríbele al réferi o a <span class="text-gold font-semibold">Harold</span> por WhatsApp 📲
+              </p>
+            </div>
           </form>
 
+          </div>
         </div>
 
         <p class="text-center text-xs text-slate-500 mt-5">
