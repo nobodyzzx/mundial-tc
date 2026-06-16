@@ -99,10 +99,13 @@ const message = Astro.url.searchParams.get('message');
               Entrar al Mundial
             </button>
 
-            {/* Recuperación oculta: los correos son de relleno (usuario@mundial.com)
-                y no llega ningún email. La funcionalidad sigue en /olvidaste por si
-                en el futuro se usan correos reales. El réferi resetea claves desde
-                /admin/usuarios. */}
+            {/* Recuperación por correo oculta: los correos son de relleno
+                (usuario@mundial.com) y no llega ningún email. El réferi resetea
+                claves desde /admin/usuarios. */}
+            <p class="text-center text-xs text-slate-400 leading-relaxed pt-1">
+              ¿Olvidaste tu contraseña?<br />
+              Escríbele al réferi o a <span class="text-slate-300 font-medium">Harold</span> por WhatsApp 📲
+            </p>
           </form>
 
         </div>
