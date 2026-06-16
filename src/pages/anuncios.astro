@@ -1,0 +1,56 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { fmtFecha } from '@/lib/fechas';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+if (!accessToken || !refreshToken) { Astro.cookies.delete('sb-access-token', { path: '/' }); Astro.cookies.delete('sb-refresh-token', { path: '/' }); return Astro.redirect('/login'); }
+
+const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+if (!user) { Astro.cookies.delete('sb-access-token', { path: '/' }); Astro.cookies.delete('sb-refresh-token', { path: '/' }); return Astro.redirect('/login'); }
+
+const { data: navProfile } = await supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single();
+
+const { data: rows } = await supabaseAdmin
+  .from('announcements')
+  .select('id, body, author_name, created_at')
+  .order('created_at', { ascending: false })
+  .limit(50);
+
+const anuncios = (rows ?? []).map((a: any) => ({
+  ...a,
+  cuando: fmtFecha(a.created_at, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+}));
+---
+
+<Layout title="Tablón" navProfile={navProfile} isAuthed={true}>
+  <div class="max-w-2xl mx-auto space-y-5">
+
+    <!-- Header -->
+    <div class="text-center space-y-1.5 py-3">
+      <h1 class="font-display text-4xl text-white tracking-wide">📣 TABLÓN</h1>
+      <p class="text-slate-400 text-sm">Anuncios del réferi</p>
+    </div>
+
+    {anuncios.length === 0 && (
+      <p class="text-slate-400 text-sm bg-brand-900 border border-brand-700/60 rounded-2xl px-4 py-8 text-center">
+        No hay anuncios por ahora. Cuando el réferi publique algo, aparecerá aquí.
+      </p>
+    )}
+
+    {anuncios.map((a) => (
+      <article class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-3 shadow-lg shadow-black/10">
+        <div class="flex items-center gap-2.5">
+          <span class="w-9 h-9 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center text-base flex-shrink-0">⚖️</span>
+          <div class="leading-tight">
+            <div class="text-sm text-white font-semibold">{a.author_name} <span class="text-slate-500 font-normal">· Réferi</span></div>
+            <div class="text-xs text-slate-500">{a.cuando}</div>
+          </div>
+        </div>
+        <p class="text-[15px] text-slate-100 whitespace-pre-wrap leading-relaxed">{a.body}</p>
+      </article>
+    ))}
+
+  </div>
+</Layout>

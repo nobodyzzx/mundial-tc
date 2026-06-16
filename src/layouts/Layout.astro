@@ -299,6 +299,7 @@ if (!isAuthed) {
                 <span id="pending-badge-desktop" class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-fifared text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none"></span>
               </a>
               <a href="/pronosticos" class={navLink('/pronosticos')}>👥 La Polla</a>
+              <a href="/anuncios"    class={navLink('/anuncios')}>📣 Tablón</a>
               <a href="/reglas"      class={navLink('/reglas')}>📖 Reglas</a>
               {profile?.es_referi && (
                 <div class="relative group">
@@ -313,6 +314,8 @@ if (!isAuthed) {
                       <a href="/admin"             class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/admin' ? 'text-gold' : 'text-gold/80'}`}>⚖️ Panel VAR</a>
                       <div class="h-px bg-brand-800" />
                       <a href="/admin/usuarios"    class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/admin/usuarios' ? 'text-gold' : 'text-gold/70'}`}>👥 Usuarios</a>
+                      <div class="h-px bg-brand-800" />
+                      <a href="/admin/anuncios"    class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/admin/anuncios' ? 'text-gold' : 'text-gold/70'}`}>📣 Tablón</a>
                       <div class="h-px bg-brand-800" />
                       <a href="/admin/pronosticos" class={`flex items-center gap-2 px-4 py-3 text-sm hover:bg-brand-800 transition ${pathname === '/admin/pronosticos' ? 'text-gold' : 'text-gold/70'}`}>📋 Pronósticos</a>
                       <div class="h-px bg-brand-800" />
@@ -408,6 +411,7 @@ if (!isAuthed) {
               { href: '/grupos',      icon: '📊', label: 'Grupos y Eliminatorias' },
               { href: '/predictions', icon: '📅', label: 'Mis Pronósticos', startsWith: true },
               { href: '/pronosticos', icon: '👥', label: 'La Polla · Resultados' },
+              { href: '/anuncios',    icon: '📣', label: 'Tablón de anuncios' },
               { href: '/reglas',      icon: '📖', label: 'Reglamento' },
               // Oculto: ya no se está cobrando (no borrar — /pago sigue existiendo).
               // { href: '/pago',        icon: '💰', label: 'Cómo pagar' },
@@ -428,6 +432,7 @@ if (!isAuthed) {
                 {[
                   { href: '/admin',             label: 'Panel VAR' },
                   { href: '/admin/usuarios',    label: 'Usuarios' },
+                  { href: '/admin/anuncios',    label: 'Tablón' },
                   { href: '/admin/pronosticos', label: 'Pronósticos' },
                   { href: '/resumen',           label: 'Resumen' },
                 ].map(({ href, label }) => (
