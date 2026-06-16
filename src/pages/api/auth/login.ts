@@ -30,44 +30,32 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (!email) {
     return redirect('/login?error=El+correo+es+obligatorio');
   }
-
-  // Si viene password: login clásico
-  if (password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error || !data.session) {
-      return redirect(`/login?error=${encodeURIComponent(traducirError(error?.message ?? 'Credenciales incorrectas'))}`);
-    }
-
-    // Redirigir al callback con los tokens como query params simulados
-    // En realidad seteamos las cookies aquí directamente
-    const response = new Response(null, {
-      status: 302,
-      headers: { Location: '/dashboard' },
-    });
-
-    const maxAge = 60 * 60 * 24 * 7;
-    const secure = import.meta.env.PROD ? '; Secure' : '';
-    const cookieOpts = `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
-    response.headers.append('Set-Cookie', `sb-access-token=${data.session.access_token}; ${cookieOpts}`);
-    response.headers.append('Set-Cookie', `sb-refresh-token=${data.session.refresh_token}; ${cookieOpts}`);
-
-    await ensureProfile(data.user, supabase, import.meta.env.ADMIN_EMAIL);
-    await logAccess(data.user?.id, 'login', 'password');
-    return response;
+  if (!password) {
+    return redirect('/login?error=Ingresa+tu+contraseña');
   }
 
-  // Magic link (producción)
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: `${new URL(request.url).origin}/api/auth/callback`,
-    },
+  // Login con contraseña. Sin magic link a propósito: los magic links generaban
+  // correos rebotados (emails mal escritos) y Supabase amenazó con restringir el
+  // envío del proyecto. La recuperación de clave es vía /olvidaste.
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error || !data.session) {
+    return redirect(`/login?error=${encodeURIComponent(traducirError(error?.message ?? 'Credenciales incorrectas'))}`);
+  }
+
+  // Seteamos las cookies de sesión directamente
+  const response = new Response(null, {
+    status: 302,
+    headers: { Location: '/dashboard' },
   });
 
-  if (error) {
-    return redirect(`/login?error=${encodeURIComponent(traducirError(error.message))}`);
-  }
+  const maxAge = 60 * 60 * 24 * 7;
+  const secure = import.meta.env.PROD ? '; Secure' : '';
+  const cookieOpts = `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure}`;
+  response.headers.append('Set-Cookie', `sb-access-token=${data.session.access_token}; ${cookieOpts}`);
+  response.headers.append('Set-Cookie', `sb-refresh-token=${data.session.refresh_token}; ${cookieOpts}`);
 
-  return redirect('/login?message=¡Revisa+tu+correo!+Te+enviamos+el+link+para+entrar.');
+  await ensureProfile(data.user, supabase, import.meta.env.ADMIN_EMAIL);
+  await logAccess(data.user?.id, 'login', 'password');
+  return response;
 };

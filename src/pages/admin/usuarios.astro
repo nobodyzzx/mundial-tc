@@ -156,8 +156,8 @@ function cardChips(id: string) {
               class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50" />
           </div>
           <div>
-            <label class="block text-xs text-slate-400 mb-1">Contraseña <span class="text-slate-500">(opcional — vacío = magic link)</span></label>
-            <input name="password" type="text" placeholder="••••••••"
+            <label class="block text-xs text-slate-400 mb-1">Contraseña <span class="text-slate-500">(obligatoria — el jugador entra con ella)</span></label>
+            <input name="password" type="text" required minlength="6" placeholder="mínimo 6 caracteres"
               class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold/50" />
           </div>
           <div class="flex items-end gap-3">

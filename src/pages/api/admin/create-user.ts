@@ -13,11 +13,13 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const esReferi = form.get('es_referi') === 'on';
 
   if (!email || !username) return redirect('/admin/usuarios?err=Email+y+nombre+son+obligatorios');
+  // Sin magic link: el jugador entra con contraseña, así que es obligatoria.
+  if (!password || password.length < 6) return redirect('/admin/usuarios?err=' + encodeURIComponent('La contraseña es obligatoria (mínimo 6 caracteres)'));
 
   // Crear usuario en Auth (confirmado directamente, sin email de verificación)
   const { data: created, error: authErr } = await supabaseAdmin.auth.admin.createUser({
     email,
-    password: password || undefined,
+    password,
     email_confirm: true,
   });
 
