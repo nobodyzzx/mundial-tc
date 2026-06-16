@@ -92,62 +92,84 @@ const err = Astro.url.searchParams.get('err');
     </div>
 
     <!-- Aplicar tarjeta -->
-    <div class="bg-brand-900 border border-gold/30 rounded-2xl p-5 space-y-4">
-      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wide">Aplicar tarjeta</h2>
-      <form method="POST" action="/api/admin/sanction" id="form-tarjeta" class="space-y-4">
+    <div class="bg-gradient-to-b from-brand-900 to-brand-900/50 border border-gold/30 rounded-2xl p-5 sm:p-6 space-y-5 shadow-lg shadow-black/20">
+      <div class="flex items-center gap-2.5">
+        <span class="w-9 h-9 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center text-lg flex-shrink-0">⚖️</span>
+        <div>
+          <h2 class="font-display text-2xl text-white tracking-wide leading-none">Aplicar tarjeta</h2>
+          <p class="text-xs text-slate-400 mt-1">El motivo queda registrado en el historial.</p>
+        </div>
+      </div>
+
+      <form method="POST" action="/api/admin/sanction" id="form-tarjeta" class="space-y-5">
         <input type="hidden" name="back" value="/admin/tarjetas" />
 
         <!-- Jugador -->
         <div class="space-y-1.5">
-          <label for="sel-jugador" class="text-xs text-slate-400">Jugador</label>
-          <select id="sel-jugador" name="userId" required
-            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-3 text-base text-white focus:outline-none focus:border-gold transition">
-            <option value="" disabled selected>Elige un jugador…</option>
-            {participantes.map((p: any) => (
-              <option value={p.id}>{p.username}</option>
-            ))}
-          </select>
+          <label for="sel-jugador" class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Jugador</label>
+          <div class="relative">
+            <select id="sel-jugador" name="userId" required
+              class="w-full appearance-none bg-brand-800 border border-brand-700 rounded-xl pl-4 pr-10 py-3.5 text-base text-white focus:outline-none focus:border-gold transition">
+              <option value="" disabled selected>Elige un jugador…</option>
+              {participantes.map((p: any) => (
+                <option value={p.id}>{p.username}</option>
+              ))}
+            </select>
+            <svg class="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          </div>
         </div>
 
-        <!-- Tipo de tarjeta (segmentado) -->
-        <div class="space-y-1.5">
-          <span class="text-xs text-slate-400">Tipo de tarjeta</span>
-          <div class="grid grid-cols-3 gap-2">
+        <!-- Tipo de tarjeta -->
+        <div class="space-y-2">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Tipo de tarjeta</span>
+          <div class="grid grid-cols-3 gap-2.5">
             <label class="cursor-pointer">
-              <input type="radio" name="type" value="yellow" class="peer" style="position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none" checked />
-              <div class="text-center py-2.5 rounded-xl border border-brand-700 bg-brand-800 text-slate-300 text-sm font-semibold transition peer-checked:border-amarilla peer-checked:bg-amarilla/15 peer-checked:text-amarilla">
-                🟨 Amarilla
+              <input type="radio" name="type" value="yellow" class="peer" style="position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none" checked />
+              <div class="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl border-2 border-brand-700 bg-brand-800/40 transition peer-checked:border-amarilla peer-checked:bg-amarilla/10">
+                <span class="text-2xl leading-none">🟨</span>
+                <span class="text-xs font-semibold text-slate-200">Amarilla</span>
               </div>
             </label>
             <label class="cursor-pointer">
-              <input type="radio" name="type" value="red" class="peer" style="position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none" />
-              <div class="text-center py-2.5 rounded-xl border border-brand-700 bg-brand-800 text-slate-300 text-sm font-semibold transition peer-checked:border-fifared peer-checked:bg-fifared/15 peer-checked:text-fifared">
-                🟥 Roja
+              <input type="radio" name="type" value="red" class="peer" style="position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none" />
+              <div class="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl border-2 border-brand-700 bg-brand-800/40 transition peer-checked:border-fifared peer-checked:bg-fifared/10">
+                <span class="text-2xl leading-none">🟥</span>
+                <span class="text-xs font-semibold text-slate-200">Roja</span>
               </div>
             </label>
             <label class="cursor-pointer">
-              <input type="radio" name="type" value="double_red" class="peer" style="position:absolute;width:1px;height:1px;opacity:0;margin:0;pointer-events:none" />
-              <div class="text-center py-2.5 rounded-xl border border-brand-700 bg-brand-800 text-slate-300 text-sm font-semibold transition peer-checked:border-fifared-dark peer-checked:bg-fifared-dark/25 peer-checked:text-red-300">
-                🟥🟥 Doble
+              <input type="radio" name="type" value="double_red" class="peer" style="position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none" />
+              <div class="flex flex-col items-center gap-1.5 py-3.5 rounded-2xl border-2 border-brand-700 bg-brand-800/40 transition peer-checked:border-fifared-dark peer-checked:bg-fifared-dark/20">
+                <span class="text-2xl leading-none">🟥🟥</span>
+                <span class="text-xs font-semibold text-slate-200">Doble</span>
               </div>
             </label>
           </div>
-          <p id="type-hint" class="text-[11px] text-slate-400 leading-snug"></p>
+          <p id="type-hint" class="text-xs text-slate-300 leading-snug bg-brand-800/50 border border-brand-700/50 rounded-lg px-3 py-2"></p>
         </div>
 
         <!-- Motivo -->
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
-            <label for="reason" class="text-xs text-slate-400">Motivo / descripción</label>
+            <label for="reason" class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Motivo / descripción</label>
             <span id="reason-counter" class="text-[10px] text-slate-500">0/200</span>
           </div>
           <textarea id="reason" name="reason" rows="2" maxlength="200"
             placeholder="Ej: Insultos en el grupo · spam de stickers · borró un mensaje (tolerancia cero)…"
-            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold transition resize-none"></textarea>
+            class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-gold transition resize-none"></textarea>
         </div>
 
+        <!-- Anunciar en WhatsApp -->
+        <label class="flex items-center justify-between gap-3 bg-gol/8 border border-gol/30 rounded-xl px-4 py-3 cursor-pointer select-none">
+          <span class="flex items-center gap-2.5 text-sm text-slate-200">
+            <span class="text-lg">📢</span>
+            <span>Anunciar en el grupo de WhatsApp</span>
+          </span>
+          <input type="checkbox" name="notify" checked class="w-5 h-5 rounded accent-gol flex-shrink-0" />
+        </label>
+
         <button type="submit"
-          class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
+          class="w-full bg-gold text-brand-950 font-bold py-3.5 rounded-xl transition active:opacity-80 hover:opacity-90 min-h-[52px] text-base">
           Aplicar tarjeta
         </button>
       </form>
@@ -258,7 +280,9 @@ const err = Astro.url.searchParams.get('err');
       var type = selectedType();
       var name = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : 'el jugador';
       var label = type === 'yellow' ? 'amarilla' : type === 'red' ? 'ROJA (anula su jornada)' : 'DOBLE ROJA (expulsión definitiva)';
-      if (!confirm('¿Aplicar tarjeta ' + label + ' a ' + name + '?')) e.preventDefault();
+      var notify = form.querySelector('input[name="notify"]');
+      var extra = notify && notify.checked ? '\n\nSe anunciará en el grupo de WhatsApp.' : '';
+      if (!confirm('¿Aplicar tarjeta ' + label + ' a ' + name + '?' + extra)) e.preventDefault();
     });
   }
   document.addEventListener('DOMContentLoaded', initTarjetas);

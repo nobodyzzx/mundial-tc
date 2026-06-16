@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { getAdminUser } from '@/lib/auth-helpers';
 import { boliviaDayStart } from '@/lib/jornada';
+import { sendWhatsApp } from '@/lib/whatsapp';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
@@ -11,6 +12,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const userId = form.get('userId')?.toString();
   const type   = form.get('type')?.toString();
   const reason = form.get('reason')?.toString().trim() || 'Advertencia del réferi';
+  const notify = form.get('notify')?.toString() === 'on'; // ¿publicar en el grupo?
 
   // Página a la que volver (evita open-redirect: solo rutas internas de admin).
   const backRaw = form.get('back')?.toString() ?? '/admin';
@@ -92,5 +94,40 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     ? 'Roja (jornada anulada)'
     : 'Doble Roja (expulsado permanentemente)';
 
-  return redirect(`${back}?msg=${encodeURIComponent('Sanción aplicada: ' + typeLabel)}`);
+  // Publicar en el grupo de WhatsApp (opcional). Nunca rompe el flujo de la sanción.
+  let notifyNote = '';
+  if (notify) {
+    try {
+      const { data: prof } = await supabaseAdmin
+        .from('profiles').select('username').eq('id', userId).single();
+      const nombre = prof?.username ?? 'Jugador';
+      const head = type === 'yellow'
+        ? '🟨 *TARJETA AMARILLA*'
+        : type === 'red'
+        ? '🟥 *TARJETA ROJA*'
+        : '🟥🟥 *DOBLE ROJA · EXPULSIÓN*';
+      const consecuencia = type === 'red'
+        ? '\n⚠️ _Jornada anulada: 0 puntos._'
+        : type === 'double_red'
+        ? '\n⛔ _Expulsión definitiva, sin devolución._'
+        : '\n_Advertencia. Se limpia al final de la jornada._';
+      const text = [
+        head,
+        `👤 *${nombre}*`,
+        `📝 ${reason}`,
+        consecuencia,
+        '',
+        '— El Réferi ⚖️',
+        '_Polla Mundial 2026_ 🏆',
+      ].join('\n');
+      const res = await sendWhatsApp(text, 'sanction-card');
+      notifyNote = !res.configured
+        ? ' (WhatsApp no configurado)'
+        : res.ok ? ' y enviada al grupo' : ' (no se pudo enviar al grupo)';
+    } catch {
+      notifyNote = ' (no se pudo enviar al grupo)';
+    }
+  }
+
+  return redirect(`${back}?msg=${encodeURIComponent('Sanción aplicada: ' + typeLabel + notifyNote)}`);
 };
