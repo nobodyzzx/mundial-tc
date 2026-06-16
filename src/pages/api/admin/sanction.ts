@@ -124,6 +124,22 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       notifyNote = !res.configured
         ? ' (WhatsApp no configurado)'
         : res.ok ? ' y enviada al grupo' : ' (no se pudo enviar al grupo)';
+
+      // También dejarla en el tablón de la app (sin la firma/pie: el tablón
+      // ya muestra al réferi como autor).
+      const boardBody = [
+        head.replace(/\*/g, ''),
+        `👤 ${nombre}`,
+        `📝 ${reason}`,
+        consecuencia.replace(/_/g, '').trim(),
+      ].join('\n');
+      await supabaseAdmin.from('announcements').insert({
+        body: boardBody,
+        author_name: admin.username,
+        created_by: admin.user.id,
+        sent_to_whatsapp: res.ok,
+        wa_detail: res.detail ?? null,
+      });
     } catch {
       notifyNote = ' (no se pudo enviar al grupo)';
     }
