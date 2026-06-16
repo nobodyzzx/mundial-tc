@@ -33,7 +33,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
         '',
         body,
         '',
-        `— ${admin.username}, Réferi ⚖️`,
+        `— ${admin.username}, la Réferi ⚖️`,
         '_Polla Mundial 2026_ 🏆',
       ].join('\n');
       const res = await sendWhatsApp(text, 'anuncio');
