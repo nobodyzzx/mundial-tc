@@ -1,0 +1,163 @@
+---
+import Layout from '@/layouts/Layout.astro';
+---
+
+<Layout title="Reglamento (respaldo)">
+  <div class="max-w-2xl mx-auto space-y-5">
+
+    <!-- Header -->
+    <div class="text-center space-y-2 py-4">
+      <img src="/logo-fifa2026.png" alt="FIFA 2026" class="h-12 mx-auto object-contain opacity-80" />
+      <h1 class="font-display text-4xl text-white tracking-wide">REGLAMENTO OFICIAL</h1>
+      <p class="text-slate-500 text-sm">Polla Mundial 2026 · Versión de respaldo (anterior)</p>
+      <a href="/reglas" class="inline-block text-xs text-gold/80 hover:text-gold transition mt-1">← Ver reglamento vigente</a>
+    </div>
+
+    <!-- 1. Inscripción -->
+    <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-3">
+      <h2 class="font-semibold text-white flex items-center gap-2">
+        <span class="text-gold text-lg">💰</span> 1. Inscripción y Premios
+      </h2>
+      <ul class="space-y-2.5 text-sm text-slate-300">
+        <li>• <strong class="text-white">Monto total:</strong> 120 Bs por participante.</li>
+        <li>• <strong class="text-white">Distribución:</strong> 100 Bs al pozo · 20 Bs para el Réferi.</li>
+        <li>• <strong class="text-white">1er pago (70 Bs):</strong> Hasta el jueves 4 de junio de 2026.</li>
+        <li>• <strong class="text-white">2do pago (50 Bs):</strong> Hasta el miércoles 10 de junio a las 12:00.</li>
+        <li>• Se puede pagar el total (120 Bs) antes de las fechas sin problema.</li>
+        <li class="text-gold font-semibold">• SOLO HABRÁ UN GANADOR. El 100% del pozo es para el 1er lugar.</li>
+      </ul>
+    </section>
+
+    <!-- 2. Pronósticos -->
+    <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-3">
+      <h2 class="font-semibold text-white flex items-center gap-2">
+        <span class="text-gold text-lg">📅</span> 2. Envío de Pronósticos
+      </h2>
+      <ul class="space-y-2.5 text-sm text-slate-300">
+        <li>• <strong class="text-white">Bloque de jornada:</strong> Se envían todos los partidos de la jornada en un solo registro.</li>
+        <li>• <strong class="text-white">Tiempo límite:</strong> Hasta <strong class="text-fifared">2 horas antes</strong> del primer partido de la jornada. Sin excepciones.</li>
+        <li class="border border-fifared/40 rounded-xl px-4 py-3 bg-fifared/8 text-slate-300">
+          ⚠️ <strong class="text-fifared">Tolerancia Cero:</strong> No se permite editar, borrar ni reenviar. Si aparece "mensaje eliminado", la jornada queda automáticamente anulada (0 pts).
+        </li>
+        <li>• <strong class="text-white">Anulación:</strong> Envío tardío, incompleto o duplicado = 0 puntos esa jornada.</li>
+      </ul>
+    </section>
+
+    <!-- 3. Puntuación -->
+    <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-4">
+      <h2 class="font-semibold text-white flex items-center gap-2">
+        <span class="text-gold text-lg">🏆</span> 3. Sistema de Puntuación
+      </h2>
+
+      <div class="space-y-2">
+        <h3 class="text-xs font-bold text-gol uppercase tracking-wider">A. Fase de Grupos</h3>
+        <ul class="space-y-1.5 text-sm text-slate-300">
+          <li>• Acierto de ganador o empate: <strong class="text-white">1 punto</strong></li>
+          <li>• Marcador exacto: <strong class="text-white">+2 puntos adicionales</strong> <span class="text-gold">(Máx. 3 pts/partido)</span></li>
+        </ul>
+      </div>
+
+      <div class="space-y-2">
+        <h3 class="text-xs font-bold text-brand-400 uppercase tracking-wider">B. Fase Eliminatoria</h3>
+        <p class="text-xs text-slate-500">Resultado tras 120' (90' + prórroga). Penales solo puntúan si pronosticaste empate.</p>
+        <ul class="space-y-1.5 text-sm text-slate-300">
+          <li>• Si se define en 120': Ganador (1 pt) + Marcador exacto (+2 pts)</li>
+        </ul>
+        <div class="bg-brand-800 rounded-xl p-4 space-y-2.5 mt-1">
+          <p class="text-xs text-slate-400 font-semibold">Si va a PENALES (solo si pronosticaste EMPATE en los 120'):</p>
+          <div class="flex flex-col gap-2 text-sm">
+            {[
+              { label: 'Empate exacto + penales exactos',     pts: '6 pts', color: 'text-gold' },
+              { label: 'Empate exacto + penales incorrectos', pts: '4 pts', color: 'text-brand-400' },
+              { label: 'Empate errado + clasificado correcto',pts: '2 pts', color: 'text-amarilla' },
+              { label: 'Empate errado + clasificado incorrecto', pts: '1 pt', color: 'text-slate-400' },
+            ].map(({ label, pts, color }) => (
+              <div class="flex justify-between items-center">
+                <span class="text-slate-300">{label}</span>
+                <span class={`${color} font-bold ml-2 flex-shrink-0`}>{pts}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p class="text-xs text-fifared mt-1">⚠️ Si pronosticaste victoria y el partido va a penales → 0 puntos.</p>
+      </div>
+    </section>
+
+    <!-- 4. VAR -->
+    <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-4">
+      <h2 class="font-semibold text-white flex items-center gap-2">
+        <span class="text-lg">🟨</span> 4. VAR del Réferi: Sanciones
+      </h2>
+      <p class="text-xs text-slate-500">El Réferi es la única autoridad. <strong class="text-slate-400">Al estar en la Polla, aceptas estas reglas sin derecho a réplica.</strong></p>
+      <div class="space-y-4">
+        {[
+          {
+            icon: '🟨', color: 'text-amarilla',
+            title: 'Tarjeta Amarilla (Advertencia)',
+            body: 'Spam, quejas contra el reglamento o temas ajenos al Mundial. Se limpia cada jornada.',
+          },
+          {
+            icon: '🟥', color: 'text-fifared',
+            title: 'Tarjeta Roja (Anulación Total)',
+            body: 'Reincidencia, insultos o conducta que molesta al grupo. ANULA TODA TU JORNADA (0 pts). Se limpia cada jornada.',
+          },
+          {
+            icon: '🟥🟥', color: 'text-fifared-dark',
+            title: 'Doble Roja (Expulsión)',
+            body: 'Agresiones graves o desacato total. EXPULSIÓN DEFINITIVA sin devolución.',
+          },
+        ].map(({ icon, color, title, body }) => (
+          <div class="flex gap-3 items-start">
+            <span class="text-2xl flex-shrink-0 mt-0.5">{icon}</span>
+            <div class="text-sm">
+              <strong class={color}>{title}:</strong>
+              <p class="text-slate-400 mt-1">{body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div class="bg-brand-800 rounded-xl p-4 text-xs text-slate-400 space-y-1.5">
+        <p class="font-semibold text-slate-300">Ejemplos:</p>
+        <p>🟨 Spam de stickers · Quejarse del sistema · Saturar el grupo</p>
+        <p>🟥 Insultos · Reincidencia tras amarilla · Contenido ofensivo</p>
+        <p>🟥🟥 Agresiones graves · Desacato directo al Réferi</p>
+      </div>
+    </section>
+
+    <!-- 5. Cláusula de Hierro -->
+    <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-3">
+      <h2 class="font-semibold text-white flex items-center gap-2">
+        <span class="text-lg">🔨</span> 5. La Cláusula de Hierro
+      </h2>
+      <ul class="space-y-2.5 text-sm text-slate-300">
+        <li>• <strong class="text-white">Poder de Veto:</strong> No hay votaciones. El Réferi tiene la última palabra.</li>
+        <li>• <strong class="text-white">Fuente oficial:</strong> Resultados validados con FIFA.com.</li>
+        <li>• <strong class="text-white">Período de gracia:</strong> Reclamos por errores de suma solo hasta el cierre de la siguiente jornada.</li>
+        <li>• <strong class="text-white">Abandono:</strong> Salir del grupo = fuera definitivamente.</li>
+      </ul>
+    </section>
+
+    <div class="relative mt-8 mb-4 rounded-2xl overflow-hidden">
+      <div class="absolute inset-0 bg-linear-to-r from-gold/20 via-gold/40 to-gold/20 animate-shimmer bg-size-[200%_100%]"></div>
+      <div class="relative border border-gold/50 rounded-2xl px-6 py-5 text-center">
+        <p class="font-display text-lg text-gold tracking-wide animate-pulse-slow">
+          Participar en la Polla implica la aceptación total de este reglamento. ⚽
+        </p>
+      </div>
+    </div>
+
+  </div>
+</Layout>
+
+<style>
+  @keyframes shimmer {
+    0%   { background-position: 200% center; }
+    100% { background-position: -200% center; }
+  }
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.65; }
+  }
+  .animate-shimmer    { animation: shimmer 3s linear infinite; }
+  .animate-pulse-slow { animation: pulse-slow 2.5s ease-in-out infinite; }
+</style>

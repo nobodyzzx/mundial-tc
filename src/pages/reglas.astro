@@ -1,5 +1,25 @@
 ---
 import Layout from '@/layouts/Layout.astro';
+
+// Bloques reutilizables para mantener el markup limpio
+const principios = [
+  'La Réferi es la única autoridad. Aplica, no consulta ni debate. Sus decisiones son inapelables.',
+  'Las tarjetas NO son acumulativas entre jornadas: se limpian al cerrar cada jornada y se empieza de cero.',
+  'Las sanciones se aplican desde el hecho, no desde el partido. La jornada rige desde que la app la abre. No existe el “el partido es mañana”.',
+  'No se requiere advertencia previa para aplicar roja o doble roja. Cada falta tiene su tarjeta según su gravedad. La amarilla NO es requisito obligatorio antes de la roja.',
+  'La misma falta se sanciona igual para todos, sin importar quién la cometa.',
+];
+
+const casos = [
+  { q: '¿Apodos como “negro”, “fósforo”, “bolillo”, “meco”, “kini”?', a: 'Amarilla preventiva, para todos por igual. No es insulto ni quita puntos, pero queda la advertencia. Si se reincide, sube a roja.' },
+  { q: '¿Una pregunta o consulta genuina?', a: 'No es sanción. Insistir en lo ya respondido, sí es spam (amarilla).' },
+  { q: '¿Insultar a alguien que no juega la polla?', a: 'Es roja. No importa que no esté en el grupo.' },
+  { q: '¿Borrar un mensaje aunque “no fuera un pronóstico”?', a: 'Es roja igual. Se sanciona el acto de borrar, no el contenido borrado.' },
+  { q: '¿“El partido es mañana, todavía no aplica”?', a: 'No válido. La jornada rige desde que se abre en la app.' },
+  { q: '¿La amarilla obliga a esperar para dar roja?', a: 'No. Insultos, borrados y conducta grave son roja directa, con o sin amarilla previa.' },
+  { q: '¿Por qué a unos amarilla y a otros roja por lo mismo?', a: 'No ocurre. La misma falta = la misma tarjeta para todos. Apodos = amarilla para todos. Insultos = roja para todos. Borrar mensaje = roja para todos.' },
+  { q: '¿Y si la app falla y no puedo pronosticar?', a: 'Avisa en el grupo Y manda tu respaldo a la Réferi, ambos antes de que empiecen los partidos (sección 2). Solo así se valida. Avisar sin mandar pronóstico, o avisar tarde, no da derecho a corrección.' },
+];
 ---
 
 <Layout title="Reglamento">
@@ -7,10 +27,19 @@ import Layout from '@/layouts/Layout.astro';
 
     <!-- Header -->
     <div class="text-center space-y-2 py-4">
-      <img src="/logo-fifa2026.png" alt="FIFA 2026" class="h-12 mx-auto object-contain opacity-80" />
-      <h1 class="font-display text-4xl text-white tracking-wide">REGLAMENTO OFICIAL</h1>
-      <p class="text-slate-500 text-sm">Polla Mundial 2026 · Vigente desde el 11 de junio</p>
+      <img src="/trophy.svg" alt="Copa del Mundo FIFA" class="h-16 mx-auto object-contain drop-shadow-[0_6px_18px_rgba(0,0,0,0.5)]" />
+      <h1 class="font-display text-4xl text-white tracking-wide">📋 REGLAMENTO OFICIAL</h1>
+      <p class="text-slate-400 text-sm">Polla Mundial 2026 · Versión detallada y explícita</p>
     </div>
+
+    <!-- Preámbulo -->
+    <section class="border border-gold/30 bg-gold/5 rounded-2xl p-5 sm:p-6">
+      <p class="text-sm text-slate-300 leading-relaxed">
+        Este documento <strong class="text-white">no modifica las reglas</strong>: precisa y aclara las normas
+        vigentes desde el pitazo inicial, para que no queden dudas ni espacio a interpretaciones.
+        <strong class="text-gold">Participar en la Polla implica la aceptación total de este reglamento.</strong>
+      </p>
+    </section>
 
     <!-- 1. Inscripción -->
     <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-3">
@@ -19,27 +48,38 @@ import Layout from '@/layouts/Layout.astro';
       </h2>
       <ul class="space-y-2.5 text-sm text-slate-300">
         <li>• <strong class="text-white">Monto total:</strong> 120 Bs por participante.</li>
-        <li>• <strong class="text-white">Distribución:</strong> 100 Bs al pozo · 20 Bs para el Réferi.</li>
-        <li>• <strong class="text-white">1er pago (70 Bs):</strong> Hasta el jueves 4 de junio de 2026.</li>
-        <li>• <strong class="text-white">2do pago (50 Bs):</strong> Hasta el miércoles 10 de junio a las 12:00.</li>
-        <li>• Se puede pagar el total (120 Bs) antes de las fechas sin problema.</li>
-        <li class="text-gold font-semibold">• SOLO HABRÁ UN GANADOR. El 100% del pozo es para el 1er lugar.</li>
+        <li>• <strong class="text-white">Distribución:</strong> 100 Bs al pozo · 20 Bs para la Réferi.</li>
+        <li>• <strong class="text-white">1er pago (70 Bs):</strong> hasta el jueves 4 de junio de 2026.</li>
+        <li>• <strong class="text-white">2do pago (50 Bs):</strong> hasta el miércoles 10 de junio, 12:00.</li>
+        <li>• Se puede pagar el total (120 Bs) por adelantado sin problema.</li>
+        <li class="text-gold font-semibold">• Habrá un solo ganador. El 100% del pozo es para el 1er lugar.</li>
       </ul>
     </section>
 
-    <!-- 2. Pronósticos -->
+    <!-- 2. Registro de Pronósticos -->
     <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-3">
       <h2 class="font-semibold text-white flex items-center gap-2">
-        <span class="text-gold text-lg">📅</span> 2. Envío de Pronósticos
+        <span class="text-gold text-lg">📲</span> 2. Registro de Pronósticos
       </h2>
       <ul class="space-y-2.5 text-sm text-slate-300">
-        <li>• <strong class="text-white">Bloque de jornada:</strong> Se envían todos los partidos de la jornada en un solo registro.</li>
-        <li>• <strong class="text-white">Tiempo límite:</strong> Hasta <strong class="text-fifared">2 horas antes</strong> del primer partido de la jornada. Sin excepciones.</li>
-        <li class="border border-fifared/40 rounded-xl px-4 py-3 bg-fifared/8 text-slate-300">
-          ⚠️ <strong class="text-fifared">Tolerancia Cero:</strong> No se permite editar, borrar ni reenviar. Si aparece "mensaje eliminado", la jornada queda automáticamente anulada (0 pts).
-        </li>
-        <li>• <strong class="text-white">Anulación:</strong> Envío tardío, incompleto o duplicado = 0 puntos esa jornada.</li>
+        <li>• <strong class="text-white">Canal único oficial:</strong> la aplicación (salvo el respaldo por falla técnica de abajo). Los pronósticos solo cuentan si están registrados en la app dentro del plazo. No se reciben, validan ni corrigen por WhatsApp, privado ni ningún otro medio.</li>
+        <li>• <strong class="text-white">Compartir en WhatsApp es opcional y sin valor oficial:</strong> es gusto personal, no es registro ni respaldo. Lo único que cuenta es lo que está en la app.</li>
+        <li>• <strong class="text-white">Plazo:</strong> el registro se completa hasta <strong class="text-fifared">2 horas antes</strong> del primer partido de la jornada. Sin excepciones.</li>
+        <li>• <strong class="text-white">Qué es una jornada:</strong> va desde su apertura en la app hasta el cierre del registro, sin importar cuándo se jueguen los partidos. El argumento “el partido es mañana” no aplica.</li>
+        <li>• <strong class="text-white">Anulación de la jornada (0 pts):</strong> no registrar a tiempo, registro incompleto, o no haber ingresado a la app dentro del plazo.</li>
+        <li>• <strong class="text-white">Acceso:</strong> cada participante es responsable de su usuario, su contraseña y de ingresar a tiempo. Si olvida la clave, debe pedir el reseteo con antelación.</li>
       </ul>
+
+      <!-- Fallas técnicas -->
+      <div class="border border-amarilla/40 rounded-xl px-4 py-3.5 bg-amarilla/8 space-y-2 text-sm text-slate-300">
+        <p class="font-semibold text-amarilla">⚙️ Falla técnica de la app</p>
+        <p>Si la app presenta un error o no habilita la jornada, el participante debe —de inmediato y antes del inicio de los partidos— hacer <strong class="text-white">las dos cosas a la vez</strong>:</p>
+        <ol class="list-decimal list-inside space-y-1 pl-1">
+          <li>Publicar el error en el grupo (capturas o descripción), para que quede constancia con hora ante todos.</li>
+          <li>Enviar sus pronósticos por privado al chat de la Réferi, como respaldo.</li>
+        </ol>
+        <p class="text-xs text-slate-400">Solo cumpliendo <strong class="text-slate-300">ambos</strong> pasos a tiempo se podrá validar el pronóstico. La Réferi lo cargará por ingreso manual y quedará marcado con ⚖️ para trazabilidad. Es exclusivo para fallas reales reportadas en el momento: no aplica a olvidos, descuidos, falta de tiempo ni reclamos tardíos.</p>
+      </div>
     </section>
 
     <!-- 3. Puntuación -->
@@ -52,13 +92,13 @@ import Layout from '@/layouts/Layout.astro';
         <h3 class="text-xs font-bold text-gol uppercase tracking-wider">A. Fase de Grupos</h3>
         <ul class="space-y-1.5 text-sm text-slate-300">
           <li>• Acierto de ganador o empate: <strong class="text-white">1 punto</strong></li>
-          <li>• Marcador exacto: <strong class="text-white">+2 puntos adicionales</strong> <span class="text-gold">(Máx. 3 pts/partido)</span></li>
+          <li>• Marcador exacto: <strong class="text-white">+2 puntos adicionales</strong> <span class="text-gold">(máx. 3 pts/partido)</span></li>
         </ul>
       </div>
 
       <div class="space-y-2">
         <h3 class="text-xs font-bold text-brand-400 uppercase tracking-wider">B. Fase Eliminatoria</h3>
-        <p class="text-xs text-slate-500">Resultado tras 120' (90' + prórroga). Penales solo puntúan si pronosticaste empate.</p>
+        <p class="text-xs text-slate-500">Resultado tras 120' (90' + prórroga). Los penales solo puntúan si pronosticaste empate.</p>
         <ul class="space-y-1.5 text-sm text-slate-300">
           <li>• Si se define en 120': Ganador (1 pt) + Marcador exacto (+2 pts)</li>
         </ul>
@@ -66,10 +106,10 @@ import Layout from '@/layouts/Layout.astro';
           <p class="text-xs text-slate-400 font-semibold">Si va a PENALES (solo si pronosticaste EMPATE en los 120'):</p>
           <div class="flex flex-col gap-2 text-sm">
             {[
-              { label: 'Empate exacto + penales exactos',     pts: '6 pts', color: 'text-gold' },
-              { label: 'Empate exacto + penales incorrectos', pts: '4 pts', color: 'text-brand-400' },
-              { label: 'Empate errado + clasificado correcto',pts: '2 pts', color: 'text-amarilla' },
-              { label: 'Empate errado + clasificado incorrecto', pts: '1 pt', color: 'text-slate-400' },
+              { label: 'Empate exacto + penales exactos',        pts: '6 pts', color: 'text-gold' },
+              { label: 'Empate exacto + penales incorrectos',    pts: '4 pts', color: 'text-brand-400' },
+              { label: 'Empate errado + clasificado correcto',   pts: '2 pts', color: 'text-amarilla' },
+              { label: 'Empate errado + clasificado incorrecto', pts: '1 pt',  color: 'text-slate-400' },
             ].map(({ label, pts, color }) => (
               <div class="flex justify-between items-center">
                 <span class="text-slate-300">{label}</span>
@@ -82,68 +122,105 @@ import Layout from '@/layouts/Layout.astro';
       </div>
     </section>
 
-    <!-- 4. VAR -->
+    <!-- 4. Sanciones -->
     <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-4">
       <h2 class="font-semibold text-white flex items-center gap-2">
-        <span class="text-lg">🟨</span> 4. VAR del Réferi: Sanciones
+        <span class="text-lg">🟨🟥</span> 4. Sanciones — VAR de la Réferi
       </h2>
-      <p class="text-xs text-slate-500">El Réferi es la única autoridad. <strong class="text-slate-400">Al estar en la Polla, aceptas estas reglas sin derecho a réplica.</strong></p>
-      <div class="space-y-4">
-        {[
-          {
-            icon: '🟨', color: 'text-amarilla',
-            title: 'Tarjeta Amarilla (Advertencia)',
-            body: 'Spam, quejas contra el reglamento o temas ajenos al Mundial. Se limpia cada jornada.',
-          },
-          {
-            icon: '🟥', color: 'text-fifared',
-            title: 'Tarjeta Roja (Anulación Total)',
-            body: 'Reincidencia, insultos o conducta que molesta al grupo. ANULA TODA TU JORNADA (0 pts). Se limpia cada jornada.',
-          },
-          {
-            icon: '🟥🟥', color: 'text-fifared-dark',
-            title: 'Doble Roja (Expulsión)',
-            body: 'Agresiones graves o desacato total. EXPULSIÓN DEFINITIVA sin devolución.',
-          },
-        ].map(({ icon, color, title, body }) => (
-          <div class="flex gap-3 items-start">
-            <span class="text-2xl flex-shrink-0 mt-0.5">{icon}</span>
-            <div class="text-sm">
-              <strong class={color}>{title}:</strong>
-              <p class="text-slate-400 mt-1">{body}</p>
-            </div>
+
+      <!-- Principios -->
+      <div class="space-y-2">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Principios que rigen TODAS las sanciones</h3>
+        <ul class="space-y-2 text-sm text-slate-300">
+          {principios.map((p) => (<li class="flex gap-2"><span class="text-gold flex-shrink-0">•</span><span set:html={p} /></li>))}
+        </ul>
+      </div>
+
+      <!-- Amarilla -->
+      <div class="border border-amarilla/30 bg-amarilla/5 rounded-xl p-4 space-y-2">
+        <div class="flex items-center gap-2"><span class="text-xl">🟨</span><strong class="text-amarilla">Tarjeta Amarilla — Advertencia</strong></div>
+        <p class="text-xs text-slate-400">No quita puntos. Se limpia al cerrar la jornada. Se aplica por:</p>
+        <ul class="space-y-1.5 text-sm text-slate-300 list-disc list-inside marker:text-amarilla/70">
+          <li><strong class="text-white">Spam:</strong> mensajes repetitivos, insistir en un tema ya resuelto o saturar el grupo (referencia: ~10 mensajes en una misma discusión improductiva).</li>
+          <li>Quejas o cuestionamientos reiterados contra el reglamento o una decisión ya tomada por la Réferi.</li>
+          <li>Exigir nuevas “aclaraciones” de un punto ya resuelto.</li>
+          <li>Temas ajenos al Mundial que entorpecen el grupo.</li>
+          <li><strong class="text-white">Apodos hacia otro participante:</strong> quedan advertidos con amarilla preventiva, para todos por igual. Un apodo familiar sin intención de denigrar no es insulto (no es roja), pero sí amerita esta advertencia.</li>
+          <li><strong class="text-white">Amarilla preventiva general:</strong> cuando una conducta roza el límite, aunque no llegue a ser insulto.</li>
+        </ul>
+      </div>
+
+      <!-- Roja -->
+      <div class="border border-fifared/30 bg-fifared/5 rounded-xl p-4 space-y-2">
+        <div class="flex items-center gap-2"><span class="text-xl">🟥</span><strong class="text-fifared">Tarjeta Roja — Anulación de la jornada (0 pts)</strong></div>
+        <p class="text-xs text-slate-400">Anula todos los puntos de esa jornada. Se limpia al cerrar la jornada. Se aplica por:</p>
+        <ul class="space-y-1.5 text-sm text-slate-300 list-disc list-inside marker:text-fifared/70">
+          <li><strong class="text-white">Insultos directos:</strong> cualquier palabra o expresión con intención de ofender, humillar o menospreciar.</li>
+          <li><strong class="text-white">Insultos camuflados:</strong> sarcasmo ofensivo, ironía hiriente, dobles sentidos, indirectas o “halagos” envenenados. La intención cuenta, aunque las palabras suenen suaves.</li>
+          <li><strong class="text-white">Insultos a terceros</strong>, estén o no en el grupo o en la polla (parejas, familiares, externos).</li>
+          <li><strong class="text-white">Borrar, editar o reenviar</strong> un mensaje propio en el grupo (Tolerancia Cero). Si aparece “mensaje eliminado”, la jornada queda anulada automáticamente.</li>
+          <li><strong class="text-white">Reincidencia:</strong> repetir una falta después de una amarilla en la misma jornada.</li>
+          <li>Conducta que molesta al grupo de forma manifiesta.</li>
+        </ul>
+      </div>
+
+      <!-- Doble roja -->
+      <div class="border border-fifared-dark/50 bg-fifared-dark/10 rounded-xl p-4 space-y-2">
+        <div class="flex items-center gap-2"><span class="text-xl">🟥🟥</span><strong class="text-red-300">Doble Roja — Expulsión definitiva</strong></div>
+        <p class="text-xs text-slate-400">Expulsión del torneo, sin devolución del dinero. Se aplica por:</p>
+        <ul class="space-y-1.5 text-sm text-slate-300 list-disc list-inside marker:text-red-300/70">
+          <li><strong class="text-white">Agresiones graves:</strong> insultos severos, ofensas personales fuertes o ataques sostenidos.</li>
+          <li><strong class="text-white">Desacato total a la Réferi:</strong> ignorar abiertamente sus decisiones, acusarla de parcialidad sin fundamento, o seguir litigando un punto ya cerrado tras advertencia.</li>
+          <li><strong class="text-white">Reincidencia</strong> tras una roja en la misma jornada.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Casos aclarados -->
+    <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-3">
+      <h2 class="font-semibold text-white flex items-center gap-2">
+        <span class="text-gold text-lg">❓</span> Casos aclarados
+      </h2>
+      <div class="space-y-2.5">
+        {casos.map(({ q, a }) => (
+          <div class="bg-brand-800/60 rounded-xl px-4 py-3">
+            <p class="text-sm font-semibold text-white">{q}</p>
+            <p class="text-sm text-slate-300 mt-1">{a}</p>
           </div>
         ))}
-      </div>
-      <div class="bg-brand-800 rounded-xl p-4 text-xs text-slate-400 space-y-1.5">
-        <p class="font-semibold text-slate-300">Ejemplos:</p>
-        <p>🟨 Spam de stickers · Quejarse del sistema · Saturar el grupo</p>
-        <p>🟥 Insultos · Reincidencia tras amarilla · Contenido ofensivo</p>
-        <p>🟥🟥 Agresiones graves · Desacato directo al Réferi</p>
       </div>
     </section>
 
     <!-- 5. Cláusula de Hierro -->
     <section class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 sm:p-6 space-y-3">
       <h2 class="font-semibold text-white flex items-center gap-2">
-        <span class="text-lg">🔨</span> 5. La Cláusula de Hierro
+        <span class="text-lg">🔨</span> 5. Cláusula de Hierro
       </h2>
       <ul class="space-y-2.5 text-sm text-slate-300">
-        <li>• <strong class="text-white">Poder de Veto:</strong> No hay votaciones. El Réferi tiene la última palabra.</li>
-        <li>• <strong class="text-white">Fuente oficial:</strong> Resultados validados con FIFA.com.</li>
-        <li>• <strong class="text-white">Período de gracia:</strong> Reclamos por errores de suma solo hasta el cierre de la siguiente jornada.</li>
-        <li>• <strong class="text-white">Abandono:</strong> Salir del grupo = fuera definitivamente.</li>
+        <li>• <strong class="text-white">Poder de veto:</strong> no hay votaciones. La Réferi tiene la última palabra y sus decisiones son inapelables.</li>
+        <li>• <strong class="text-white">Reglamento completo y cerrado:</strong> contiene la totalidad de las normas vigentes desde el pitazo inicial. No se modifica ni negocia durante el torneo. Cualquier situación no listada se resuelve por el principio general de “conducta que molesta al grupo” (sección 4), a criterio final e inapelable de la Réferi.</li>
+        <li>• <strong class="text-white">Interpretación:</strong> la Réferi interpreta y aplica el reglamento; no lo crea ni lo cambia. Su lectura de cualquier artículo es definitiva. Discutir o exigir nuevas “aclaraciones” de un punto ya resuelto es spam contra el reglamento (amarilla).</li>
+        <li>• <strong class="text-white">Fuente oficial de resultados:</strong> validados con FIFA.com.</li>
+        <li>• <strong class="text-white">Criterio de jugador:</strong> ningún participante define, modifica ni interpreta las normas. El criterio de un jugador nunca está por encima del reglamento ni de la Réferi.</li>
+        <li>• <strong class="text-white">Período de gracia:</strong> reclamos por errores de suma, solo hasta el cierre de la siguiente jornada.</li>
+        <li>• <strong class="text-white">Abandono:</strong> salir del grupo = quedar fuera definitivamente.</li>
       </ul>
     </section>
 
+    <!-- Cierre -->
     <div class="relative mt-8 mb-4 rounded-2xl overflow-hidden">
       <div class="absolute inset-0 bg-linear-to-r from-gold/20 via-gold/40 to-gold/20 animate-shimmer bg-size-[200%_100%]"></div>
-      <div class="relative border border-gold/50 rounded-2xl px-6 py-5 text-center">
+      <div class="relative border border-gold/50 rounded-2xl px-6 py-5 text-center space-y-2">
         <p class="font-display text-lg text-gold tracking-wide animate-pulse-slow">
           Participar en la Polla implica la aceptación total de este reglamento. ⚽
         </p>
+        <p class="text-sm text-slate-300 font-semibold tracking-wide">No es democracia, es competición.</p>
       </div>
     </div>
+
+    <p class="text-center pb-2">
+      <a href="/reglas-v1" class="text-xs text-slate-500 hover:text-slate-300 transition">Ver versión de respaldo (anterior)</a>
+    </p>
 
   </div>
 </Layout>
