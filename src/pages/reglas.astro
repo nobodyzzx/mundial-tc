@@ -1,6 +1,12 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 
+// Desempate de la tabla. El sistema YA lo aplica internamente (lib/standings.ts:
+// puntos → marcadores exactos → aciertos), pero para ESTE campeonato no se
+// publica en el reglamento. Para el próximo, cambiar esta bandera a `true` y la
+// regla aparecerá en la sección 3.
+const MOSTRAR_DESEMPATE = false;
+
 // Bloques reutilizables para mantener el markup limpio
 const principios = [
   'La Réferi es la única autoridad. Aplica, no consulta ni debate. Sus decisiones son inapelables.',
@@ -120,6 +126,18 @@ const casos = [
         </div>
         <p class="text-xs text-fifared mt-1">⚠️ Si pronosticaste victoria y el partido va a penales → 0 puntos.</p>
       </div>
+
+      {MOSTRAR_DESEMPATE && (
+        <div class="space-y-2 border-t border-brand-700/60 pt-4">
+          <h3 class="text-xs font-bold text-gold uppercase tracking-wider">C. Desempate</h3>
+          <p class="text-sm text-slate-300">Si dos o más participantes terminan con los mismos puntos, el orden se define así, en cascada:</p>
+          <ol class="space-y-1.5 text-sm text-slate-300 list-decimal list-inside marker:text-gold">
+            <li>Mayor cantidad de <strong class="text-white">marcadores exactos</strong> (pronósticos de 3+ pts).</li>
+            <li>Si persiste, mayor cantidad de <strong class="text-white">aciertos</strong> (pronósticos que sumaron algún punto).</li>
+            <li>Si aún empatan, comparten posición.</li>
+          </ol>
+        </div>
+      )}
     </section>
 
     <!-- 4. Sanciones -->

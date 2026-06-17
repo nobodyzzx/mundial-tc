@@ -2,6 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { teamFlag } from '@/lib/isoFlags';
+import { tiebreakStatsFromPreds, compareStandings } from '@/lib/standings';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -20,7 +21,6 @@ const [{ data: rawMatches }, { data: rawPlayers }] = await Promise.all([
 ]);
 
 const matches  = rawMatches ?? [];
-const players  = rawPlayers ?? [];
 const matchIds = matches.map((m: any) => m.id);
 
 const rawPreds = matchIds.length
@@ -28,6 +28,13 @@ const rawPreds = matchIds.length
       .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, points_earned')
       .in('match_id', matchIds)).data ?? []
   : [];
+
+// Desempate (puntos → exactos → aciertos): reordena las columnas de jugadores.
+// Criterio interno, no documentado en el reglamento de este campeonato.
+const tbMap = tiebreakStatsFromPreds(rawPreds);
+const players = (rawPlayers ?? [])
+  .map((p: any) => ({ ...p, ...(tbMap.get(p.id) ?? { exactos: 0, aciertos: 0 }) }))
+  .sort(compareStandings);
 
 const predMap: Record<string, Record<string, any>> = {};
 for (const p of rawPreds) {

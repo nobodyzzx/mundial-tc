@@ -1,6 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { rankProfiles } from '@/lib/standings';
 import { betaNow, betaNowMs } from '@/lib/betaTime';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
 import { resumenPozo } from '@/lib/payments';
@@ -139,9 +140,12 @@ type StandingRow = {
   puntos_totales: number;
   es_referi: boolean;
   monto_pagado: number;
+  exactos: number;
+  aciertos: number;
 };
 
-const rows: StandingRow[] = standings ?? [];
+// Desempate (puntos → exactos → aciertos). Criterio interno, ver lib/standings.ts.
+const rows: StandingRow[] = await rankProfiles(supabaseAdmin, standings ?? []);
 const today = fmtFecha(betaNow(), {
   weekday: 'long', day: 'numeric', month: 'long',
 });

@@ -17,6 +17,7 @@ import { spanishName, teamFlag } from '@/lib/isoFlags';
 import { betaNowMs } from '@/lib/betaTime';
 import { checkCronSecret, json } from '@/lib/cron';
 import { sendWhatsApp } from '@/lib/whatsapp';
+import { rankProfiles } from '@/lib/standings';
 
 // Solo partidos cuyo inicio fue dentro de esta ventana (evita anunciar historial
 // en el primer despliegue; un partido termina ~2h después de su match_date).
@@ -61,12 +62,13 @@ export const GET: APIRoute = async ({ url, request }) => {
   }
 
   // 4. Tabla de posiciones actualizada + puntos ganados en el/los partido(s) anunciados.
-  const { data: standings } = await supabaseAdmin
+  //    Desempate (puntos → exactos → aciertos): criterio interno, ver lib/standings.ts.
+  const { data: rawStandings } = await supabaseAdmin
     .from('profiles')
     .select('id, username, puntos_totales')
     .eq('participa', true)
-    .eq('expulsado', false)
-    .order('puntos_totales', { ascending: false });
+    .eq('expulsado', false);
+  const standings = await rankProfiles(supabaseAdmin, rawStandings ?? []);
 
   const { data: matchPreds } = await supabaseAdmin
     .from('predictions')
