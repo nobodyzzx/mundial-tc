@@ -76,6 +76,16 @@ export function mdToHtml(md: string): string {
   return out.join('');
 }
 
+/**
+ * Markdown → HTML en línea (sin bloques): negrita, cursiva, tachado, código y
+ * enlaces, sin envolver en <p> ni listas. Útil para mostrar el motivo dentro de
+ * una línea (p. ej. el historial de tarjetas). Los saltos de línea se vuelven
+ * espacios.
+ */
+export function mdInline(md: string): string {
+  return inlineToHtml(escapeHtml((md ?? '').replace(/\r?\n/g, ' ')));
+}
+
 /** Markdown estándar → formato de WhatsApp (*negrita*, _cursiva_, ~tachado~). */
 export function mdToWhatsApp(md: string): string {
   let t = (md ?? '').replace(/\r\n/g, '\n');

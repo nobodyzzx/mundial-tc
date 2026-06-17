@@ -3,6 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
 import { boliviaDayStart } from '@/lib/jornada';
+import { mdToHtml, mdInline } from '@/lib/markdown';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -366,9 +367,7 @@ const err = Astro.url.searchParams.get('err');
                       {s.meta.label}
                     </span>
                   </div>
-                  <p class="text-sm text-slate-300 mt-1 leading-snug break-words">
-                    {s.reason}
-                  </p>
+                  <div class="text-sm text-slate-300 mt-1 leading-snug break-words space-y-1 [&_strong]:text-white [&_a]:text-gold" set:html={mdToHtml(s.reason)} />
                   <p class="text-xs text-slate-500 mt-1">
                     {s.dia} · {s.hora}
                     {s.byName ? ` · por ${s.byName}` : ''}
@@ -441,7 +440,7 @@ const err = Astro.url.searchParams.get('err');
                     )}
                   </p>
                   <p class="text-xs text-slate-500 leading-snug break-words">
-                    {s.reason} · {s.hora}
+                    <span class="[&_strong]:text-slate-300 [&_a]:text-gold" set:html={mdInline(s.reason)} /> · {s.hora}
                   </p>
                 </div>
               </div>
