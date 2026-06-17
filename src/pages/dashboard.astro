@@ -338,6 +338,9 @@ function barFill(i: number, isMe: boolean) {
                     {p.username}
                   </span>
                   {isMe && <span class="text-xs text-brand-400 font-medium">(tú)</span>}
+                  {p.exactos > 0 && (
+                    <span class="inline-flex items-center gap-0.5 text-[11px] font-bold text-gold bg-gold/10 border border-gold/25 rounded-full px-1.5 py-0.5 leading-none tabular-nums" title={`${p.exactos} marcador${p.exactos === 1 ? '' : 'es'} exacto${p.exactos === 1 ? '' : 's'}`}>⭐{p.exactos}</span>
+                  )}
                   {i === rows.length - 1 && rows.length > 1 && <span class="text-xs font-bold text-fifared tracking-widest">👻 LOSER!!</span>}
                   {p.es_referi && <span class="text-xs text-gold">⚖️</span>}
                   {(() => { const s = sanctionMap.get(p.id); return s ? (
@@ -401,6 +404,9 @@ function barFill(i: number, isMe: boolean) {
                         {p.username}
                       </span>
                       {isMe && <span class="text-xs text-brand-400">(tú)</span>}
+                      {p.exactos > 0 && (
+                        <span class="inline-flex items-center gap-0.5 text-[11px] font-bold text-gold bg-gold/10 border border-gold/25 rounded-full px-1.5 py-0.5 leading-none tabular-nums" title={`${p.exactos} marcador${p.exactos === 1 ? '' : 'es'} exacto${p.exactos === 1 ? '' : 's'}`}>⭐{p.exactos}</span>
+                      )}
                       {i === rows.length - 1 && rows.length > 1 && <span class="text-xs font-bold text-fifared tracking-widest">👻 LOSER!!</span>}
                       {p.es_referi && <span class="text-gold text-xs">⚖️</span>}
                       {(() => { const s = sanctionMap.get(p.id); return s ? (
