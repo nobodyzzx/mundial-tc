@@ -1,0 +1,46 @@
+{
+  "name": "Polla · cada 10 min",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/10 * * * *" } ] } },
+      "id": "d0000000-0010-0010-0010-000000000001",
+      "name": "Cada 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://mundial.tecnocondor.dev/api/cron/jornada-abierta",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": { "timeout": 25000 }
+      },
+      "id": "d0000000-0010-0010-0010-000000000002",
+      "name": "GET /jornada-abierta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 160]
+    },
+    {
+      "parameters": {
+        "url": "https://mundial.tecnocondor.dev/api/cron/tarjetas-aviso",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": { "timeout": 25000 }
+      },
+      "id": "d0000000-0010-0010-0010-000000000004",
+      "name": "GET /tarjetas-aviso",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 440]
+    }
+  ],
+  "connections": {
+    "Cada 10 min": { "main": [ [
+      { "node": "GET /jornada-abierta", "type": "main", "index": 0 },
+      { "node": "GET /tarjetas-aviso", "type": "main", "index": 0 }
+    ] ] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

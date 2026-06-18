@@ -1,0 +1,74 @@
+{
+  "name": "Polla · cada 5 min",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "*/5 * * * *" } ] } },
+      "id": "c0000000-0005-0005-0005-000000000001",
+      "name": "Cada 5 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://mundial.tecnocondor.dev/api/cron/dia-pronosticos",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": { "timeout": 25000 }
+      },
+      "id": "c0000000-0005-0005-0005-000000000002",
+      "name": "GET /dia-pronosticos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://mundial.tecnocondor.dev/api/cron/resumen-dia",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": { "timeout": 25000 }
+      },
+      "id": "c0000000-0005-0005-0005-000000000003",
+      "name": "GET /resumen-dia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://mundial.tecnocondor.dev/api/cron/jornada-reminder",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": { "timeout": 25000 }
+      },
+      "id": "c0000000-0005-0005-0005-000000000004",
+      "name": "GET /jornada-reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 600]
+    },
+    {
+      "parameters": {
+        "url": "https://mundial.tecnocondor.dev/api/cron/standings-announce",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": { "timeout": 25000 }
+      },
+      "id": "c0000000-0005-0005-0005-000000000005",
+      "name": "GET /standings-announce",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 800]
+    }
+  ],
+  "connections": {
+    "Cada 5 min": { "main": [ [
+      { "node": "GET /dia-pronosticos", "type": "main", "index": 0 },
+      { "node": "GET /resumen-dia", "type": "main", "index": 0 },
+      { "node": "GET /jornada-reminder", "type": "main", "index": 0 },
+      { "node": "GET /standings-announce", "type": "main", "index": 0 }
+    ] ] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

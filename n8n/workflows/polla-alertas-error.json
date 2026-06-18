@@ -1,0 +1,29 @@
+{
+  "name": "Polla · alertas de error",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e1111111-0000-0000-0000-000000000001",
+      "name": "Cuando un workflow falla",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "14210177",
+        "text": "=🚨 *Polla · falló un workflow*\n\n*Workflow:* {{ $json.workflow.name }}\n*Nodo:* {{ $json.execution.lastNodeExecuted }}\n*Error:* {{ $json.execution.error.message }}\n\n🔗 {{ $json.execution.url }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "e1111111-0000-0000-0000-000000000002",
+      "name": "Avisar por Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [500, 300]
+    }
+  ],
+  "connections": {
+    "Cuando un workflow falla": { "main": [ [ { "node": "Avisar por Telegram", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

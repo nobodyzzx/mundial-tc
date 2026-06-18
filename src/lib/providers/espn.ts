@@ -16,7 +16,7 @@
  *  - Se empareja con la BD por hora+equipos (ver lib/match-link.ts, igual que
  *    api-football): los external_id de ESPN difieren de los del sembrado.
  */
-import type { ApiMatch } from '../match-types';
+import type { ApiMatch, GoalEvent } from '../match-types';
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world';
 
@@ -55,6 +55,45 @@ function teamName(c: any): string {
   return c?.team?.displayName ?? c?.team?.name ?? c?.team?.shortDisplayName ?? '';
 }
 
+/**
+ * Goles en orden desde competitions[0].details. ESPN marca cada jugada de gol
+ * con scoringPlay=true y el `team.id` del lado BENEFICIADO (en autogol, el rival
+ * del autor). Se topa el conteo al marcador de cada lado para no contar penales
+ * de tanda (que no suman al fullTime). Tolerante: ante cualquier forma rara → [].
+ */
+function extractGoals(comp: any, home: any, away: any): GoalEvent[] {
+  try {
+    const details: any[] = comp?.details ?? [];
+    if (!details.length) return [];
+    const homeId = String(home?.team?.id ?? '');
+    const awayId = String(away?.team?.id ?? '');
+    const maxHome = toIntOrNull(home?.score) ?? Infinity;
+    const maxAway = toIntOrNull(away?.score) ?? Infinity;
+
+    let h = 0, a = 0;
+    const goals: GoalEvent[] = [];
+    for (const d of details) {
+      if (d?.scoringPlay !== true) continue;
+      const tid = String(d?.team?.id ?? '');
+      const side: 'home' | 'away' | null = tid === homeId ? 'home' : tid === awayId ? 'away' : null;
+      if (!side) continue;
+      // No pasar del marcador real (excluye penales de tanda en eliminatorias).
+      if (side === 'home') { if (h >= maxHome) continue; h++; }
+      else { if (a >= maxAway) continue; a++; }
+      goals.push({
+        side,
+        scorer: d?.athletesInvolved?.[0]?.displayName ?? null,
+        minute: d?.clock?.displayValue ?? null,
+        penalty: d?.penaltyKick === true || /penalty/i.test(d?.type?.text ?? ''),
+        ownGoal: d?.ownGoal === true || /own goal/i.test(d?.type?.text ?? ''),
+      });
+    }
+    return goals;
+  } catch {
+    return [];
+  }
+}
+
 function normalize(ev: any, stageName: string): ApiMatch {
   const comp = ev?.competitions?.[0] ?? {};
   const type = comp?.status?.type ?? {};
@@ -85,6 +124,7 @@ function normalize(ev: any, stageName: string): ApiMatch {
     group: null,                 // ESPN no expone la letra de grupo en el scoreboard
     matchday: null,
     minute: (type?.state ?? '') === 'in' ? toIntOrNull(comp?.status?.displayClock) : null,
+    goals: started ? extractGoals(comp, home, away) : [],
     homeTeam: { name: teamName(home) },
     awayTeam: { name: teamName(away) },
     score: {

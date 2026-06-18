@@ -67,6 +67,10 @@ export const GET: APIRoute = async ({ url, request }) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
+  // ?preview=1 → solo eventos en vivo en modo dry-run: arma los avisos que se
+  // mandarían AHORA y los devuelve, sin enviar ni escribir nada. Saltea el gate.
+  const preview = url.searchParams.get('preview') === '1';
+
   const t0 = Date.now();
   const code   = import.meta.env.TOURNAMENT_CODE;
   const season = parseInt(import.meta.env.TOURNAMENT_SEASON ?? '');
@@ -77,12 +81,15 @@ export const GET: APIRoute = async ({ url, request }) => {
     return json({ error: 'TOURNAMENT_CODE o TOURNAMENT_SEASON no configurados' }, 500);
   }
 
-  // Gate (api-football): la cuota free es 100/día. Solo se llama a la API si hay un
-  // partido en ventana de juego (chequeo gratis en la BD). Evita gastar requests las
-  // ~20h sin partidos. football-data no tiene cuota diaria → no se gatea.
-  if (PROVIDER === 'api-football') {
+  // Gate (proveedores por fecha/en-vivo): solo se llama a la API si hay un partido
+  // en ventana de juego (chequeo gratis en la BD). Sirve doble: ahorra cuota
+  // (api-football: 100/día) y permite pollear muy seguido (cada 1 min) para avisos
+  // en vivo sin golpear a ESPN las ~20h sin partidos. Ventana de 6h: cubre tiempo
+  // extra, demoras y reintentos tras una caída breve. football-data (por temporada)
+  // no se gatea. En preview no se gatea (se quiere ver el aviso aunque no haya ventana).
+  if (!preview && (PROVIDER === 'api-football' || PROVIDER === 'espn')) {
     const nowIso = new Date().toISOString();
-    const sinceIso = new Date(Date.now() - 5 * 3600 * 1000).toISOString();
+    const sinceIso = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
     const { data: active } = await supabaseAdmin
       .from('matches')
       .select('id')
@@ -118,6 +125,10 @@ export const GET: APIRoute = async ({ url, request }) => {
 
   // ── 0. Eventos en vivo (arranque + gol) ─────────────────────────
   // Reusa los fixtures ya traídos (no llama al proveedor). Best-effort.
+  if (preview) {
+    const live = await emitLiveEvents(allFixtures, dbRows, PROVIDER, { dryRun: true });
+    return json({ preview: true, provider: PROVIDER, liveEvents: live });
+  }
   await emitLiveEvents(allFixtures, dbRows, PROVIDER);
 
   // ── 1. Rellenar nombres de placeholders de bracket ya definidos ──

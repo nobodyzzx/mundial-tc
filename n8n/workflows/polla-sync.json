@@ -1,0 +1,30 @@
+{
+  "name": "Polla · sync marcadores",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "* * * * *" } ] } },
+      "id": "a1b2c3d4-0003-0003-0003-000000000001",
+      "name": "Cada 1 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://mundial.tecnocondor.dev/api/cron/sync",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "options": { "timeout": 25000 }
+      },
+      "id": "a1b2c3d4-0003-0003-0003-000000000002",
+      "name": "GET /sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300]
+    }
+  ],
+  "connections": {
+    "Cada 3 min": { "main": [ [ { "node": "GET /sync", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
