@@ -11,6 +11,7 @@ import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
 import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 import { logEvent } from '@/lib/system-log';
 import { alertGroupError } from '@/lib/whatsapp';
+import { emitLiveEvents } from '@/lib/live-events';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 
@@ -114,6 +115,10 @@ export const GET: APIRoute = async ({ url, request }) => {
     .eq('is_finished', false);
   const dbRows = dbMatchesRaw ?? [];
   const dbById = new Map(dbRows.map(d => [d.id, d]));
+
+  // ── 0. Eventos en vivo (arranque + gol) ─────────────────────────
+  // Reusa los fixtures ya traídos (no llama al proveedor). Best-effort.
+  await emitLiveEvents(allFixtures, dbRows, PROVIDER);
 
   // ── 1. Rellenar nombres de placeholders de bracket ya definidos ──
   const pending = allFixtures.filter(f =>
