@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { createRequestClient } from '@/lib/supabase';
 
 /** Valida UUID v4 */
 export function isValidUUID(value: string): boolean {
@@ -52,16 +53,21 @@ export interface AdminContext {
  * Uso:
  *   const admin = await getAdminUser(cookies, supabase, supabaseAdmin);
  *   if (!admin) return redirect('/login');
+ *
+ * Nota: el 2º parámetro (cliente anon) se ignora — internamente se crea un
+ * cliente POR PETICIÓN para validar la sesión, evitando la carrera del singleton
+ * compartido (ver lib/supabase). Se mantiene en la firma por compatibilidad.
  */
 export async function getAdminUser(
   cookies: { get: (name: string) => { value?: string } | undefined },
-  supabase: SupabaseClient,
+  _legacyAnonClient: SupabaseClient,
   supabaseAdmin: SupabaseClient,
 ): Promise<AdminContext | null> {
   const accessToken  = cookies.get('sb-access-token')?.value;
   const refreshToken = cookies.get('sb-refresh-token')?.value;
   if (!accessToken || !refreshToken) return null;
 
+  const supabase = createRequestClient(); // sesión aislada por petición
   const { data: { user } } = await supabase.auth.setSession({
     access_token: accessToken,
     refresh_token: refreshToken,

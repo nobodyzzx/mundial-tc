@@ -1,12 +1,13 @@
 ---
 import Layout from '@/layouts/Layout.astro';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
 if (!accessToken || !refreshToken) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
 
+const supabase = createRequestClient(); // sesión aislada por petición (ver lib/supabase)
 const { data: { user } } = await supabase.auth.setSession({
   access_token: accessToken,
   refresh_token: refreshToken,

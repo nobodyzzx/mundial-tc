@@ -36,9 +36,14 @@ export function boliviaDayStart(dateMs: number): Date {
 /**
  * Retorna true si la jornada está cerrada (ya pasó el cutoff de JORNADA_CLOSE_MS
  * antes del primer partido).
+ *
+ * Usa `<=` para que el instante EXACTO del cutoff (faltan justo 2h) ya cuente
+ * como cerrado, igual que la política RLS de `predictions` (`match_date > now()
+ * + 2h`, que rechaza cuando falta 2h exactas). Así app y BD coinciden en el
+ * borde y el usuario ve el mensaje "jornada cerrada" en vez de un error genérico.
  */
 export function isCutoffPassed(firstMatchTimeMs: number, nowMs: number): boolean {
-  return firstMatchTimeMs - nowMs < JORNADA_CLOSE_MS;
+  return firstMatchTimeMs - nowMs <= JORNADA_CLOSE_MS;
 }
 
 /**
