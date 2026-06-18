@@ -43,9 +43,20 @@ async function exists(matchId: string, type: string, h: number, a: number): Prom
   return !!data?.length;
 }
 
-async function record(row: EventRow): Promise<void> {
-  // El índice único sella la idempotencia; ignoramos choques por carrera.
-  await supabaseAdmin.from('match_events').insert(row);
+/**
+ * Reclama un evento de forma ATÓMICA: INSERT ... ON CONFLICT DO NOTHING.
+ * Devuelve el id de la fila si ESTA llamada la insertó (ganó la carrera), o null
+ * si ya existía (otra corrida concurrente la reclamó). Así, con varios `sync`
+ * simultáneos, solo uno envía el aviso. Evita el doble envío que el chequeo
+ * "consultar y luego actuar" no podía evitar.
+ */
+async function claim(row: EventRow): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from('match_events')
+    .upsert(row, { onConflict: 'match_id,type,home_score,away_score', ignoreDuplicates: true })
+    .select('id');
+  if (error || !data?.length) return null;
+  return data[0].id;
 }
 
 /** Último marcador de gol ya registrado (fallback sin lista de goles). */
@@ -79,11 +90,19 @@ export async function emitLiveEvents(
   const dryRun = opts.dryRun === true;
   const out: string[] = [];
 
-  // Envía (o, en dryRun, solo acumula) y registra el evento al confirmarse.
+  // Reclamo atómico → envío. En dryRun solo lee (no escribe ni envía) y muestra
+  // los avisos aún no registrados.
   const emit = async (text: string, source: string, row: EventRow): Promise<void> => {
+    if (dryRun) {
+      if (!(await exists(row.match_id, row.type, row.home_score, row.away_score))) out.push(text);
+      return;
+    }
+    const claimedId = await claim(row);
+    if (!claimedId) return; // otra corrida ya lo reclamó → no duplicar
     out.push(text);
-    if (dryRun) return;
-    if ((await sendWhatsApp(text, source)).ok) await record(row);
+    const res = await sendWhatsApp(text, source);
+    // Si el envío falla, liberar la fila para reintentar en la próxima corrida.
+    if (!res.ok) await supabaseAdmin.from('match_events').delete().eq('id', claimedId);
   };
 
   try {
