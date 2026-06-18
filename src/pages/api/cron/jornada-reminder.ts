@@ -1,13 +1,12 @@
 /**
  * GET /api/cron/jornada-reminder
  *
- * Recordatorio de cierre de jornada por WhatsApp (Green API).
- * Pensado para ser llamado por cron-job.org cada ~30–60 min durante el torneo,
- * con header Authorization: Bearer CRON_SECRET.
- *
- * Solo envía dentro de una ventana antes del cierre (2h antes del primer
- * partido del día Bolivia). Idempotente: registra el envío en sync_logs y no
- * repite el aviso de la misma jornada aunque el cron lo llame varias veces.
+ * Aviso de CIERRE de pronósticos por WhatsApp (Green API): "ya no se puede
+ * pronosticar". Dispara cuando las apuestas acaban de cerrar — el cierre es 2h
+ * antes del primer partido del día Bolivia (JORNADA_CLOSE_MS).
+ * Pensado para correr cada ~5–10 min (n8n); envía en la ventana inmediatamente
+ * posterior al cierre. Idempotente: registra el envío en sync_logs y no repite
+ * el aviso de la misma jornada aunque el cron lo llame varias veces.
  */
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -16,10 +15,12 @@ import { boliviaDayStart, JORNADA_CLOSE_MS } from '@/lib/jornada';
 import { betaNowMs } from '@/lib/betaTime';
 import { fmtFecha, fmtDiaKey } from '@/lib/fechas';
 
-// Cuánto antes del cierre se considera "hora de recordar".
-// Con cron-job.org corriendo cada 30–60 min, esta ventana garantiza que al
-// menos un tick caiga dentro; la idempotencia evita envíos duplicados.
-const REMIND_WINDOW_MS = 90 * 60 * 1000; // 90 minutos antes del cierre
+// Ventana DESPUÉS del cierre en la que aún se manda el aviso. Con el cron cada
+// ~5–10 min, garantiza que un tick caiga dentro justo tras el cierre; pasada la
+// ventana ya no tiene sentido avisar "recién cerró". La idempotencia evita
+// duplicados. (El cierre ocurre 2h antes del primer partido, así que dentro de
+// esta ventana los partidos todavía no empezaron.)
+const CLOSE_NOTICE_WINDOW_MS = 30 * 60 * 1000; // 30 min tras el cierre
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -52,14 +53,6 @@ function fmtTime(iso: string): string {
   return fmtFecha(iso, {
     hour: '2-digit', minute: '2-digit',
   });
-}
-
-function humanRemaining(ms: number): string {
-  const totalMin = Math.round(ms / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h <= 0) return `${m} min`;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
 // Clave única de jornada: fecha Bolivia (YYYY-MM-DD) del primer partido del día.
@@ -117,10 +110,12 @@ export const GET: APIRoute = async ({ url, request }) => {
   const dayKey = boliviaDateKey(firstTime);
 
   if (!preview) {
-    // 3. Ventana: ni muy temprano ni después del cierre.
-    if (remaining <= 0) return json({ skipped: true, reason: 'La jornada ya cerró' });
-    if (remaining > REMIND_WINDOW_MS) {
-      return json({ skipped: true, reason: 'Aún temprano', minutesToCutoff: Math.round(remaining / 60000) });
+    // 3. Ventana: solo en los minutos inmediatamente posteriores al cierre.
+    if (remaining > 0) {
+      return json({ skipped: true, reason: 'Aún no cierra', minutesToCutoff: Math.round(remaining / 60000) });
+    }
+    if (-remaining > CLOSE_NOTICE_WINDOW_MS) {
+      return json({ skipped: true, reason: 'El cierre fue hace rato', minutesSinceCutoff: Math.round(-remaining / 60000) });
     }
 
     // 4. Idempotencia: ¿ya se envió el aviso de esta jornada?
@@ -168,19 +163,19 @@ export const GET: APIRoute = async ({ url, request }) => {
   );
 
   const text = [
-    '⚽ *CIERRE DE PRONÓSTICOS HOY*',
+    '🔒 *APUESTAS CERRADAS*',
     '_Polla Mundial 2026_',
     '',
-    `⏰ Los pronósticos cierran a las *${fmtTime(new Date(cutoffMs).toISOString())}*${remaining > 0 ? ` (faltan ~${humanRemaining(remaining)})` : ''}`,
+    `⛔ Ya no se puede pronosticar para hoy. El cierre fue a las *${fmtTime(new Date(cutoffMs).toISOString())}* (2h antes del primer partido).`,
     '',
-    '📋 *Partidos de la jornada:*',
+    '📋 *Partidos de hoy:*',
     ...matchLines,
     '',
     missing.length
-      ? `⚠️ *Aún sin pronosticar todo:*\n${missing.map(u => `• ${u}`).join('\n')}`
-      : '✅ ¡Todos ya pronosticaron! Suerte ⚽',
+      ? `😬 *Se quedaron sin pronosticar todo:*\n${missing.map(u => `• ${u}`).join('\n')}`
+      : '✅ ¡Todos pronosticaron a tiempo! Suerte ⚽',
     '',
-    '👉 mundial.tecnocondor.dev/predictions',
+    '👉 mundial.tecnocondor.dev',
   ].join('\n');
 
   if (preview) {
