@@ -1,7 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import TeamName from '@/components/TeamName.astro';
-import { supabase } from '@/lib/supabase';
+import { createRequestClient } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart, boliviaDayKey, jornadaLockState, countsUnresolved } from '@/lib/jornada';
 import { fmtFecha } from '@/lib/fechas';
@@ -11,6 +11,7 @@ const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
 if (!accessToken || !refreshToken) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
 
+const supabase = createRequestClient(); // sesión aislada por petición (ver lib/supabase)
 const { data: { user } } = await supabase.auth.setSession({
   access_token: accessToken,
   refresh_token: refreshToken,

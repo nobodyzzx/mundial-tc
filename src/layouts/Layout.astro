@@ -1,7 +1,7 @@
 ---
 import '@/styles/global.css';
 import { ClientRouter } from 'astro:transitions';
-import { supabase } from '@/lib/supabase';
+import { createRequestClient } from '@/lib/supabase';
 
 interface NavProfile {
   username: string;
@@ -43,6 +43,7 @@ if (!isAuthed) {
   const accessToken = Astro.cookies.get('sb-access-token')?.value;
   const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
   if (accessToken && refreshToken) {
+    const supabase = createRequestClient(); // sesión aislada por petición (ver lib/supabase)
     const { data: { user } } = await supabase.auth.setSession({
       access_token: accessToken,
       refresh_token: refreshToken,

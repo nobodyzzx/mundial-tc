@@ -1,10 +1,14 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '@/lib/supabase';
+import { createRequestClient } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
 import { boliviaDayStart, jornadaLockState } from '@/lib/jornada';
 import { logEvent } from '@/lib/system-log';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
+  // Cliente POR PETICIÓN: aísla la sesión para que envíos concurrentes (varios
+  // jugadores a la vez antes del cierre) no se pisen y RLS no rechace (42501).
+  const supabase = createRequestClient();
+
   const accessToken = cookies.get('sb-access-token')?.value;
   const refreshToken = cookies.get('sb-refresh-token')?.value;
   if (!accessToken || !refreshToken) return redirect('/login');

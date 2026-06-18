@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
-import { supabase, supabaseAdmin } from '@/lib/supabase';
+import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
+  const supabase = createRequestClient(); // sesión aislada por petición (ver lib/supabase)
   const accessToken  = cookies.get('sb-access-token')?.value;
   const refreshToken = cookies.get('sb-refresh-token')?.value;
   if (!accessToken || !refreshToken) return redirect('/login');

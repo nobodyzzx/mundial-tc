@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '@/lib/supabase';
+import { createRequestClient } from '@/lib/supabase';
 
 export const GET: APIRoute = async ({ cookies }) => {
+  const supabase = createRequestClient(); // sesión aislada por petición (ver lib/supabase)
   const accessToken = cookies.get('sb-access-token')?.value;
   const refreshToken = cookies.get('sb-refresh-token')?.value;
   if (!accessToken || !refreshToken) {
