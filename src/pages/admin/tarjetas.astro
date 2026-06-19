@@ -2,7 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
-import { boliviaDayStart } from '@/lib/jornada';
+import { boliviaDayStart, boliviaDayKey } from '@/lib/jornada';
 import { mdToHtml, mdInline } from '@/lib/markdown';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -33,13 +33,31 @@ const { data: navProfile } = await supabase
   .single();
 if (!navProfile?.es_referi) return Astro.redirect('/dashboard');
 
-const [{ data: allProfiles }, { data: allSanctions }] = await Promise.all([
-  supabaseAdmin.from('profiles').select('id, username, expulsado, participa'),
-  supabaseAdmin
-    .from('sanctions')
-    .select('id, user_id, type, reason, active, created_at, created_by')
-    .order('created_at', { ascending: false }),
-]);
+const [{ data: allProfiles }, { data: allSanctions }, { data: allMatches }] =
+  await Promise.all([
+    supabaseAdmin.from('profiles').select('id, username, expulsado, participa'),
+    supabaseAdmin
+      .from('sanctions')
+      .select('id, user_id, type, reason, active, created_at, created_by, game_day')
+      .order('created_at', { ascending: false }),
+    supabaseAdmin.from('matches').select('match_date'),
+  ]);
+
+// Días de juego con partidos (frontera 03:00 BOT), hasta hoy, recientes primero.
+// El réferi elige a qué día imputar la tarjeta; por defecto, el día de hoy.
+const todayKey = boliviaDayKey(Date.now());
+const dayKeys = Array.from(
+  new Set(
+    (allMatches ?? []).map((m: any) => boliviaDayKey(new Date(m.match_date).getTime())),
+  ),
+)
+  .filter((k) => k <= todayKey)
+  .sort((a, b) => b - a);
+const dayOptions = dayKeys.map((k) => ({
+  ms: k,
+  isToday: k === todayKey,
+  label: fmtFecha(new Date(k), { weekday: 'short', day: 'numeric', month: 'short' }),
+}));
 
 const nameById = new Map(
   (allProfiles ?? []).map((p: any) => [p.id, p.username as string]),
@@ -71,11 +89,14 @@ const sanctions = (allSanctions ?? []).map((s: any) => ({
   ...s,
   username: nameById.get(s.user_id) ?? '—',
   byName: s.created_by ? (nameById.get(s.created_by) ?? null) : null,
-  dia: fmtFecha(boliviaDayStart(new Date(s.created_at).getTime()), {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }),
+  dia: fmtFecha(
+    boliviaDayStart(new Date(s.game_day ?? s.created_at).getTime()),
+    {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    },
+  ),
   hora: fmtFecha(s.created_at, {
     day: '2-digit',
     month: 'short',
@@ -222,6 +243,45 @@ const err = Astro.url.searchParams.get('err');
                 d="M19 9l-7 7-7-7"></path></svg
             >
           </div>
+        </div>
+
+        <!-- Día de juego -->
+        <div class="space-y-1.5">
+          <label
+            for="sel-dia"
+            class="text-xs font-semibold text-slate-400 uppercase tracking-wide"
+            >Día de juego</label
+          >
+          <div class="relative">
+            <select
+              id="sel-dia"
+              name="gameDay"
+              class="w-full appearance-none bg-brand-800 border border-brand-700 rounded-xl pl-4 pr-10 py-3.5 text-base text-white focus:outline-none focus:border-gold transition"
+            >
+              {
+                dayOptions.map((d) => (
+                  <option value={d.ms} selected={d.isToday}>
+                    {d.label}
+                    {d.isToday ? ' · hoy' : ''}
+                  </option>
+                ))
+              }
+            </select>
+            <svg
+              class="w-4 h-4 text-slate-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              ><path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M19 9l-7 7-7-7"></path></svg
+            >
+          </div>
+          <p class="text-[11px] text-slate-500 leading-snug">
+            La roja anula los puntos de <em>este</em> día. Por defecto, hoy.
+          </p>
         </div>
 
         <!-- Tipo de tarjeta -->
@@ -507,7 +567,14 @@ const err = Astro.url.searchParams.get('err');
         notify && notify.checked
           ? '\n\nSe anunciará en el grupo de WhatsApp.'
           : '';
-      if (!confirm('¿Aplicar tarjeta ' + label + ' a ' + name + '?' + extra))
+      var diaSel = document.getElementById('sel-dia');
+      var dia =
+        diaSel && diaSel.selectedIndex >= 0
+          ? '\nDía: ' + diaSel.options[diaSel.selectedIndex].text
+          : '';
+      if (
+        !confirm('¿Aplicar tarjeta ' + label + ' a ' + name + '?' + dia + extra)
+      )
         e.preventDefault();
     });
   }

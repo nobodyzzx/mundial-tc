@@ -29,6 +29,17 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   if (rawReason.length > MAX_REASON_LENGTH)
     return redirect(`${back}?err=El+motivo+no+puede+superar+2000+caracteres`);
 
+  // Día de juego al que se imputa la tarjeta. Por defecto HOY (comportamiento de
+  // siempre); el réferi puede elegir un día anterior. Se normaliza a la frontera
+  // 03:00 BOT y se rechaza un día futuro (sus puntos aún no existen).
+  const todayStart = boliviaDayStart(Date.now());
+  const rawGameDay = parseInt(form.get('gameDay')?.toString() ?? '');
+  const gameDay = Number.isFinite(rawGameDay)
+    ? boliviaDayStart(rawGameDay)
+    : todayStart;
+  if (gameDay.getTime() > todayStart.getTime())
+    return redirect(`${back}?err=No+se+puede+sancionar+un+día+futuro`);
+
   // Prevenir doble sanción roja activa
   if (type === 'red' || type === 'double_red') {
     const { data: existing } = await supabaseAdmin
@@ -49,19 +60,20 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     }
   }
 
-  // Registrar sanción
+  // Registrar sanción (game_day = día de juego imputado, hoy o uno anterior).
   await supabaseAdmin.from('sanctions').insert({
     user_id: userId,
     type,
     reason,
     created_by: admin.user.id,
     active: true,
+    game_day: gameDay.toISOString(),
   });
 
-  // ROJA o DOBLE ROJA: anular puntos del DÍA de juego activo (frontera 03:00 BOT,
-  // igual que calculate_match_points y el cierre de jornada).
+  // ROJA o DOBLE ROJA: anular puntos del DÍA de juego imputado (frontera 03:00
+  // BOT, igual que calculate_match_points y el cierre de jornada).
   if (type === 'red' || type === 'double_red') {
-    const dayStart = boliviaDayStart(Date.now());
+    const dayStart = gameDay;
     const dayEnd = new Date(dayStart.getTime() + 24 * 3600 * 1000);
 
     const { data: dayMatches } = await supabaseAdmin
