@@ -67,6 +67,16 @@ export const GET: APIRoute = async ({ url, request }) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
+  // [DIAGNÓSTICO TEMPORAL] Identificar quién llama a sync (hay un caller extra
+  // cada 5 min que no es n8n). Borrar tras encontrarlo.
+  await logEvent({
+    category: 'debug',
+    event: 'sync-caller',
+    actor: (request.headers.get('user-agent') ?? '?').slice(0, 80),
+    summary: `via=${bearer ? 'bearer' : 'query'} ip=${request.headers.get('x-forwarded-for') ?? '?'}`,
+    detail: `vercel-id=${request.headers.get('x-vercel-id') ?? '?'}`,
+  }).catch(() => {});
+
   // ?preview=1 → solo eventos en vivo en modo dry-run: arma los avisos que se
   // mandarían AHORA y los devuelve, sin enviar ni escribir nada. Saltea el gate.
   const preview = url.searchParams.get('preview') === '1';
