@@ -98,7 +98,13 @@ export const GET: APIRoute = async ({ url, request }) => {
       .lte('match_date', nowIso)
       .limit(1);
     if (!active?.length) {
-      await logSync('skipped:no-window', { t0 });
+      // Fuera de ventana corremos cada minuto 24/7: escribir un heartbeat cada vez
+      // son ~1.440 inserts/día de puro ruido que gastan Disk IO sin aportar. Dejamos
+      // solo un pulso cada 30 min (minutos 0 y 30) — suficiente para detectar un cron
+      // muerto, sin el churn de WAL constante.
+      if (new Date().getUTCMinutes() % 30 === 0) {
+        await logSync('skipped:no-window', { t0 });
+      }
       return json({ ok: true, provider: PROVIDER, skipped: true, reason: 'Sin partido en ventana de juego', namesUpdated: 0, scoresUpdated: 0 });
     }
   }
