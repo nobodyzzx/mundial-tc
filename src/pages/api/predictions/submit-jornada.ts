@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { createRequestClient } from '@/lib/supabase';
+import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
 import { boliviaDayStart, jornadaLockState } from '@/lib/jornada';
 import { logEvent } from '@/lib/system-log';
@@ -208,6 +208,24 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     // (sin scores, para no revelar el pronóstico) y al jugador se le dice que
     // reenvíe — sus marcadores siguen cargados en el navegador (borrador local).
     attemptDetail = `${attemptDetail} || db:${error.code ?? ''} ${error.message ?? ''}`.slice(0, 500);
+    // Guarda el intento ESTRUCTURADO (user_id + marcadores) para que el réferi lo
+    // valide de un toque desde el panel. Best-effort: si esto también falla, queda
+    // el respaldo de texto en system_log (vía reject). Service-role: la tabla tiene
+    // RLS sin políticas.
+    try {
+      await supabaseAdmin.from('pending_predictions').insert({
+        user_id: user.id,
+        entries: entries.map(e => ({
+          match_id: e.matchId,
+          user_home: e.userHome,
+          user_away: e.userAway,
+          user_home_pen: e.userHomePen,
+          user_away_pen: e.userAwayPen,
+          user_winner_penalties: e.userWinnerPenalties,
+        })),
+        reason: `${error.code ?? ''} ${error.message ?? ''}`.trim().slice(0, 300) || null,
+      });
+    } catch { /* respaldo en system_log; no romper el flujo */ }
     await alertReferiPredictionFail(profile?.username ?? '—');
     return reject('error-db', '/predictions?error=db_open');
   }
