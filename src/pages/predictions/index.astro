@@ -974,6 +974,17 @@ let globalFormIdx = 0;
   function initResultModal() {
     const m = document.getElementById('result-modal');
     if (!m) return;
+    // Limpiar de la URL los parámetros de resultado para que, al volver a la app
+    // (p.ej. tras compartir por WhatsApp y reactivar la pestaña, que recarga la
+    // página), NO reaparezca el popup. El modal ya está en el DOM: quitar los
+    // parámetros no lo cierra, solo evita que el servidor lo vuelva a pintar.
+    const url = new URL(location.href);
+    let dirty = false;
+    ['ok', 'code', 'error', 'info'].forEach((p) => {
+      if (url.searchParams.has(p)) { url.searchParams.delete(p); dirty = true; }
+    });
+    if (dirty) history.replaceState({}, '', url.pathname + url.search);
+
     const close = () => m.remove();
     m.querySelectorAll<HTMLButtonElement>('[data-close-modal]').forEach(b => b.addEventListener('click', close));
     m.querySelectorAll<HTMLButtonElement>('[data-retry]').forEach(b => b.addEventListener('click', () => {
