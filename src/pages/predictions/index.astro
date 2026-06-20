@@ -297,6 +297,20 @@ let globalFormIdx = 0;
       </div>
     )}
 
+    {/* ── POPUP DE CIERRE EN VIVO ──────────────────────────────────────────
+         Si la jornada cierra mientras el jugador está en la página con el
+         formulario abierto, este modal lo bloquea: deja claro que ya no hay
+         tiempo (lo activa initCountdown al llegar el contador a 0). */}
+    <div id="cierre-modal" class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4 bg-brand-950/95 backdrop-blur-md">
+      <div class="relative w-full max-w-md rounded-3xl border-2 border-fifared/60 bg-fifared/10 p-7 text-center space-y-4 shadow-2xl">
+        <div class="text-7xl">🔒</div>
+        <h2 class="font-display text-3xl tracking-wide text-fifared">JORNADA CERRADA</h2>
+        <p class="text-red-100 text-base">Se acabó el tiempo para esta jornada. Ya <strong>no se aceptan pronósticos</strong>.</p>
+        <p class="text-red-200/80 text-sm">Si tenías marcadores sin enviar, <strong>no quedaron registrados</strong>.</p>
+        <button type="button" id="cierre-ok" class="w-full bg-fifared text-white font-bold py-3.5 rounded-2xl active:opacity-90 transition text-base min-h-[52px]">Entendido</button>
+      </div>
+    </div>
+
     {errorParam === 'incompleto' && (
       <div class="bg-fifared/15 border border-fifared/40 rounded-xl px-4 py-3 text-sm text-red-300 text-center">
         ⚠️ Completa el marcador de todos los partidos antes de enviar.
@@ -763,6 +777,14 @@ let globalFormIdx = 0;
     const URGENT = ['bg-fifared/90', 'border-fifared', 'animate-pulse'];
     const buzz = (pattern: number | number[]) => { try { (navigator as any).vibrate?.(pattern); } catch { /* sin soporte */ } };
 
+    // Botón del popup de cierre en vivo: recarga para mostrar el estado real
+    // (jornada ya en solo-lectura desde el servidor).
+    const cierreOk = document.getElementById('cierre-ok');
+    if (cierreOk && !cierreOk.dataset.bound) {
+      cierreOk.dataset.bound = '1';
+      cierreOk.addEventListener('click', () => location.reload());
+    }
+
     const tick = () => {
       // Encabezados por jornada (texto chico) — comportamiento existente.
       els.forEach(cd => {
@@ -793,9 +815,14 @@ let globalFormIdx = 0;
           stickyTime.textContent = '🔒 CERRADA';
           stickyTime.style.color = '#fff';
           if (stickyIco) stickyIco.textContent = '🔒';
-          if (stickyLabelEl) { stickyLabelEl.style.textTransform = 'none'; stickyLabelEl.textContent = 'Reenvía si te falta — o avisa al Réferi'; }
+          if (stickyLabelEl) { stickyLabelEl.style.textTransform = 'none'; stickyLabelEl.textContent = 'Jornada cerrada'; }
           sticky.classList.remove(...URGENT);
           sticky.classList.add('bg-fifared/80');
+          // Cerró EN VIVO con el formulario aún abierto → bloquear con popup a
+          // pantalla completa para que no quede la falsa impresión de que hay tiempo.
+          const openForm = document.querySelector('form[action="/api/predictions/submit-jornada"]');
+          const cierre = document.getElementById('cierre-modal');
+          if (openForm && cierre && cierre.classList.contains('hidden')) cierre.classList.remove('hidden');
           return;
         }
         stickyTime.textContent = fmtRemaining(rem);
