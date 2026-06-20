@@ -19,7 +19,7 @@ if (sessionErr || !user) return Astro.redirect('/login');
 const [{ data: profile }, { data: predHistory }, { data: sanctions }, { data: ranking }] = await Promise.all([
   supabaseAdmin
     .from('profiles')
-    .select('username, puntos_totales, es_referi, pago_70, pago_50, expulsado')
+    .select('username, puntos_totales, es_referi, pago_70, pago_50, expulsado, apodo_cambiado')
     .eq('id', user.id)
     .single(),
   supabaseAdmin
@@ -354,26 +354,40 @@ const firstOpenIdx = jornadaHistory.findIndex((j) => !j.anulada); // abrir la 1�
     <!-- Ajustes (2 columnas en desktop) -->
     <div class="grid gap-5 md:grid-cols-2 items-start">
 
-      <!-- Cambiar nombre -->
+      <!-- Cambiar apodo (UNA SOLA VEZ) -->
       <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Cambiar nombre</h2>
-        <form method="POST" action="/api/profile/update" class="space-y-3">
-          <input type="hidden" name="field" value="username" />
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between">
-              <label class="text-sm text-slate-300">Nombre de usuario</label>
-              <span id="username-counter" class="text-xs text-slate-600">0/30</span>
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">Cambiar apodo</h2>
+        {profile?.apodo_cambiado ? (
+          <div class="space-y-2">
+            <div class="flex items-center gap-2 text-slate-300">
+              <span class="text-lg">🔒</span>
+              <p class="text-base font-semibold text-white">{profile?.username}</p>
             </div>
-            <input id="username-input" name="username" type="text" required
-              value={profile?.username ?? ''}
-              maxlength="30"
-              class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 text-base text-white focus:outline-none focus:border-gold transition" />
+            <p class="text-xs text-slate-500">Ya usaste tu único cambio de apodo. Es <strong class="text-slate-300">definitivo</strong> para toda la polla. Si hubo un error, contacta al Réferi.</p>
           </div>
-          <button type="submit"
-            class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
-            Actualizar nombre
-          </button>
-        </form>
+        ) : (
+          <form method="POST" action="/api/profile/update" class="space-y-3"
+            onsubmit="return confirm('Tu apodo quedará DEFINITIVO para toda la polla. ¿Confirmas el cambio?')">
+            <input type="hidden" name="field" value="username" />
+            <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+              <p class="text-xs text-amber-300">⚠️ Solo puedes cambiar tu apodo <strong>una vez</strong>. Jugarás con ese toda la polla — elige con cuidado.</p>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="text-sm text-slate-300">Nombre de usuario</label>
+                <span id="username-counter" class="text-xs text-slate-600">0/30</span>
+              </div>
+              <input id="username-input" name="username" type="text" required
+                value={profile?.username ?? ''}
+                maxlength="30"
+                class="w-full bg-brand-800 border border-brand-700 rounded-xl px-4 py-3.5 text-base text-white focus:outline-none focus:border-gold transition" />
+            </div>
+            <button type="submit"
+              class="w-full bg-gold text-brand-950 font-bold py-3 rounded-xl transition active:opacity-80 min-h-[48px]">
+              Guardar apodo (definitivo)
+            </button>
+          </form>
+        )}
       </div>
 
       <!-- Cambiar contraseña -->
