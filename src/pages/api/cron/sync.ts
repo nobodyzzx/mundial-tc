@@ -124,7 +124,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   // DB: partidos no terminados (candidatos para nombres y resultados).
   const { data: dbMatchesRaw } = await supabaseAdmin
     .from('matches')
-    .select('id, external_id, match_date, home_team, away_team')
+    .select('id, external_id, match_date, home_team, away_team, stage')
     .eq('is_finished', false);
   const dbRows = dbMatchesRaw ?? [];
   const dbById = new Map(dbRows.map(d => [d.id, d]));

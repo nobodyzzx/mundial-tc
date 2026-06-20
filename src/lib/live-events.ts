@@ -81,6 +81,82 @@ function goalText(homeName: string, awayName: string, h: number, a: number, g: P
   ].join('\n');
 }
 
+/** Máximo de nombres listados por bando antes de pasar a "+N". */
+const MAX_NOMBRES = 3;
+
+/** Lista de apodos en negrita: 1-3 con "y" final, más → "*A*, *B*, *C* +N". */
+function listaNombres(nombres: string[]): string {
+  if (nombres.length <= MAX_NOMBRES) {
+    const neg = nombres.map((n) => `*${n}*`);
+    if (neg.length === 1) return neg[0];
+    return `${neg.slice(0, -1).join(', ')} y ${neg[neg.length - 1]}`;
+  }
+  return `${nombres.slice(0, MAX_NOMBRES).map((n) => `*${n}*`).join(', ')} +${nombres.length - MAX_NOMBRES}`;
+}
+
+const verbo = (n: number, sing: string, plur: string): string => (n === 1 ? sing : plur);
+
+/**
+ * Línea-teaser de puntaje en vivo: con el marcador que dejó este gol, ¿quiénes
+ * "clavan" el exacto (se alegran) y quiénes tenían el marcador anterior y lo
+ * pierden (lloran)? Conteo BRUTO: no descuenta sanciones ni jornadas incompletas
+ * (eso recién se resuelve al cerrar) — es un teaser, no el marcador oficial.
+ *
+ * En GRUPOS el exacto vale +3, así que lo decimos. En ELIMINATORIA el puntaje
+ * depende del final (penales), así que solo decimos "lo tienen clavado" y, si va
+ * empatado, avisamos que puede cambiar todo. Una sola lectura a `predictions`
+ * (índice por match_id, 100% caché). Nunca rompe: ante cualquier error, sin línea.
+ */
+async function teaserPuntaje(
+  matchId: string,
+  prevH: number,
+  prevA: number,
+  h: number,
+  a: number,
+  stage: string,
+): Promise<string> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('predictions')
+      .select('user_home, user_away, profiles(username)')
+      .eq('match_id', matchId)
+      .or(`and(user_home.eq.${h},user_away.eq.${a}),and(user_home.eq.${prevH},user_away.eq.${prevA})`);
+    if (!data?.length) return '';
+
+    const nombre = (r: any): string => r.profiles?.username ?? 'Alguien';
+    const alegres = data.filter((r: any) => r.user_home === h && r.user_away === a).map(nombre);
+    const llorones = data.filter((r: any) => r.user_home === prevH && r.user_away === prevA).map(nombre);
+    if (!alegres.length && !llorones.length) return '';
+
+    const isGroup = stage === 'group';
+    const segs: string[] = [];
+
+    if (alegres.length) {
+      segs.push(
+        isGroup
+          ? `${listaNombres(alegres)} ${verbo(alegres.length, 'se alegra', 'se alegran')} con el ${h}-${a} (clavan el exacto, +3)`
+          : `${listaNombres(alegres)} ${verbo(alegres.length, 'tiene', 'tienen')} el ${h}-${a} clavado`,
+      );
+    } else {
+      segs.push(`Nadie clavó el ${h}-${a}`);
+    }
+
+    if (llorones.length) {
+      segs.push(
+        isGroup
+          ? `${listaNombres(llorones)} ${verbo(llorones.length, 'llora', 'lloran')} su ${prevH}-${prevA} 😭`
+          : `${listaNombres(llorones)} lo ${verbo(llorones.length, 'perdió', 'perdieron')} 😭`,
+      );
+    }
+
+    let line = `🎯 ${segs.join(' · ')}`;
+    if (!isGroup && h === a) line += '\n   ⚠️ Si se va a penales, cambia todo 👀';
+    return line;
+  } catch {
+    return '';
+  }
+}
+
 export async function emitLiveEvents(
   fixtures: ApiMatch[],
   dbRows: DbMatchRow[],
@@ -118,6 +194,7 @@ export async function emitLiveEvents(
       const db = dbRows.find(d => d.id === matchId);
       const home = db?.home_team ?? f.homeTeam.name;
       const away = db?.away_team ?? f.awayTeam.name;
+      const stage = db?.stage ?? 'group';
       const curH = f.score.fullTime.home ?? 0;
       const curA = f.score.fullTime.away ?? 0;
 
@@ -137,9 +214,12 @@ export async function emitLiveEvents(
         // Camino preferido (ESPN): cada gol con su goleador y marcador acumulado.
         let h = 0, a = 0;
         for (const g of f.goals) {
+          const prevH = h, prevA = a;
           if (g.side === 'home') h++; else a++;
           if (await exists(matchId, 'goal', h, a)) continue;
-          await emit(goalText(home, away, h, a, g), 'live-goal', {
+          const teaser = await teaserPuntaje(matchId, prevH, prevA, h, a, stage);
+          const text = teaser ? `${goalText(home, away, h, a, g)}\n${teaser}` : goalText(home, away, h, a, g);
+          await emit(text, 'live-goal', {
             match_id: matchId, type: 'goal', home_score: h, away_score: a,
             scorer: g.scorer, minute: g.minute, penalty: g.penalty, own_goal: g.ownGoal,
           });
@@ -150,7 +230,9 @@ export async function emitLiveEvents(
         const side = curH > prev.h && curA === prev.a ? 'home'
           : curA > prev.a && curH === prev.h ? 'away' : null;
         const scorer = side === 'home' ? spanishName(home) : side === 'away' ? spanishName(away) : null;
-        await emit(goalText(home, away, curH, curA, { scorer }), 'live-goal', {
+        const teaser = await teaserPuntaje(matchId, prev.h, prev.a, curH, curA, stage);
+        const text = teaser ? `${goalText(home, away, curH, curA, { scorer })}\n${teaser}` : goalText(home, away, curH, curA, { scorer });
+        await emit(text, 'live-goal', {
           match_id: matchId, type: 'goal', home_score: curH, away_score: curA,
         });
       }

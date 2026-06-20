@@ -15,6 +15,7 @@ export interface DbMatchRow {
   match_date: string;
   home_team: string;
   away_team: string;
+  stage?: string | null;
 }
 
 // Nombres difieren entre proveedores; se mapean a una forma canónica.
