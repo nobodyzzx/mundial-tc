@@ -3,6 +3,7 @@ import Layout from '@/layouts/Layout.astro';
 import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
 import { spanishName } from '@/lib/isoFlags';
+import { pendingCode } from '@/lib/pendingCode';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -114,7 +115,7 @@ const { data: pendingRaw } = await supabaseAdmin
   .order('created_at', { ascending: true });
 
 type PendingView = {
-  id: string; username: string; createdAt: string; reason: string | null;
+  id: string; code: string; username: string; createdAt: string; reason: string | null;
   items: { home: string; away: string; score: string }[];
 };
 let pendingView: PendingView[] = [];
@@ -129,6 +130,7 @@ if (pendingRaw?.length) {
   const mMap = new Map((ms ?? []).map((m: any) => [m.id, m]));
   pendingView = pendingRaw.map((p: any) => ({
     id: p.id,
+    code: pendingCode(p.id),
     username: uMap.get(p.user_id) ?? '—',
     createdAt: formatDate(p.created_at),
     reason: p.reason ?? null,
@@ -213,6 +215,10 @@ const err = Astro.url.searchParams.get('err');
             <div class="flex items-center justify-between gap-2">
               <span class="text-white font-semibold text-sm">{p.username}</span>
               <span class="text-[11px] text-slate-500">{p.createdAt}</span>
+            </div>
+            <div class="flex items-center justify-center gap-2 bg-brand-950/50 border border-amarilla/30 rounded-lg py-1.5">
+              <span class="text-[10px] uppercase tracking-widest text-amber-200/60">Código</span>
+              <span class="font-display text-lg tracking-[0.15em] text-amarilla">{p.code}</span>
             </div>
             <div class="space-y-1">
               {p.items.map((it) => (

@@ -182,6 +182,23 @@ function savedTime(iso: string | null | undefined): string | null {
   return iso ? fmtFecha(iso, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
 }
 
+// ── Popup de resultado a pantalla completa ─────────────────────────────────────
+// El feedback del envío (guardado / no guardado / fallo de BD) se muestra como un
+// modal que ocupa toda la pantalla: imposible de ignorar. db_open trae un CÓDIGO
+// DE VALIDACIÓN grande, espejado en el panel del Réferi, para cruzar la captura.
+const codeParam = Astro.url.searchParams.get('code');
+type ModalState = 'ok' | 'partial' | 'db_open' | 'error' | null;
+const modalState: ModalState =
+  okIds.length > 0 && okAllSaved ? 'ok'
+  : okIds.length > 0 ? 'partial'
+  : errorParam === 'db_open' ? 'db_open'
+  : (errorParam && errorParam !== 'incompleto') ? 'error'
+  : null;
+const errorText =
+  errorParam === 'cerrado' ? '🔒 La jornada ya está cerrada.'
+  : errorParam === 'en_curso' ? '⏳ El partido ya empezó. Las apuestas para esta jornada están cerradas.'
+  : errorParam ? decodeURIComponent(errorParam) : '';
+
 // Contador global de inputs — evita colisiones de nombre entre jornadas distintas
 let globalFormIdx = 0;
 ---
@@ -217,35 +234,69 @@ let globalFormIdx = 0;
       </div>
     )}
 
-    {/* ── Fallo de BD DENTRO de la ventana: el pronóstico NO se pierde ── */}
-    {errorParam === 'db_open' && (
-      <div class="bg-amarilla/15 border-2 border-amarilla/60 rounded-2xl px-4 py-4 text-center space-y-2">
-        <div class="text-3xl">🛟</div>
-        <p class="text-amber-200 font-bold text-base">La base falló — pero tus marcadores están a salvo</p>
-        <p class="text-amber-100/90 text-sm">
-          Tu envío quedó <strong>registrado para validación</strong> y el Réferi ya fue avisado.
-          Tus marcadores <strong>siguen cargados abajo</strong>: revísalos y pulsa
-          <strong> Enviar</strong> otra vez mientras la jornada siga abierta.
-        </p>
-        <p class="text-xs text-amber-200/70">Si no alcanzas a reenviar, el Réferi los valida a mano. No perdiste nada.</p>
+    {/* ── POPUP DE RESULTADO A PANTALLA COMPLETA ──────────────────────────
+         Guardado / no-guardado / fallo de BD. Imposible de ignorar. El
+         estado db_open trae el código de validación grande para capturar. */}
+    {modalState && (
+      <div id="result-modal" class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-brand-950/95 backdrop-blur-md">
+        <div class={`relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-3xl border-2 p-7 text-center space-y-4 shadow-2xl ${
+          modalState === 'ok' ? 'border-gol/60 bg-gol/10' :
+          modalState === 'db_open' ? 'border-amarilla/60 bg-amarilla/10' :
+          'border-fifared/60 bg-fifared/10'
+        }`}>
+
+          {modalState === 'ok' && (
+            <Fragment>
+              <div class="text-7xl">✅</div>
+              <h2 class="font-display text-3xl tracking-wide text-gol">¡PRONÓSTICOS GUARDADOS!</h2>
+              <p class="text-green-200 text-lg">{okVerified.length} de {okIds.length} verificado{okIds.length !== 1 ? 's' : ''} en la base ✓</p>
+              {okSavedAt && <p class="text-green-300/80 text-sm">🕒 Registrado el {okSavedAt}</p>}
+              <button type="button" data-close-modal class="w-full bg-gol text-brand-950 font-bold py-3.5 rounded-2xl active:bg-green-600 transition text-base min-h-[52px]">Entendido</button>
+            </Fragment>
+          )}
+
+          {modalState === 'partial' && (
+            <Fragment>
+              <div class="text-7xl">⚠️</div>
+              <h2 class="font-display text-3xl tracking-wide text-fifared">NO SE GUARDÓ TODO</h2>
+              <p class="text-red-200 text-base">Solo <strong>{okVerified.length} de {okIds.length}</strong> quedaron en la base. Cierra y reenvía los que falten — tus marcadores siguen cargados.</p>
+              <button type="button" data-retry class="w-full bg-gold text-brand-950 font-bold py-3.5 rounded-2xl active:bg-gold-dark transition text-base min-h-[52px]">Revisar y reenviar</button>
+            </Fragment>
+          )}
+
+          {modalState === 'error' && (
+            <Fragment>
+              <div class="text-7xl">⚠️</div>
+              <h2 class="font-display text-3xl tracking-wide text-fifared">NO SE GUARDÓ</h2>
+              <p class="text-red-200 text-base">{errorText}</p>
+              <p class="text-red-300/70 text-xs">Verifica abajo: si no ves "✓ Guardado", no quedó registrado.</p>
+              <button type="button" data-close-modal class="w-full bg-fifared text-white font-bold py-3.5 rounded-2xl active:opacity-90 transition text-base min-h-[52px]">Entendido</button>
+            </Fragment>
+          )}
+
+          {modalState === 'db_open' && (
+            <Fragment>
+              <div class="text-7xl">🛟</div>
+              <h2 class="font-display text-2xl tracking-wide text-amarilla leading-tight">LA BASE FALLÓ AL GUARDAR</h2>
+              <p class="text-amber-100 text-base">Tranquilo: tu pronóstico se enviará <strong>automáticamente</strong> al Réferi para que lo valide. <strong>No perdiste nada.</strong></p>
+              {codeParam && (
+                <div class="bg-brand-950/60 border border-amarilla/40 rounded-2xl py-4 px-3 space-y-1">
+                  <p class="text-[11px] uppercase tracking-[0.25em] text-amber-200/70">Código de validación</p>
+                  <p class="font-display text-5xl tracking-[0.15em] text-white">{codeParam}</p>
+                </div>
+              )}
+              <p class="text-amber-100/90 text-sm font-semibold">📸 Toma una captura de esta pantalla y mándala al grupo.</p>
+              <div class="flex gap-2 pt-1">
+                <button type="button" data-retry class="flex-1 bg-gold text-brand-950 font-bold py-3.5 rounded-2xl active:bg-gold-dark transition min-h-[52px]">Reintentar</button>
+                <button type="button" data-close-modal class="flex-1 bg-brand-800 border border-brand-700 text-slate-300 font-semibold py-3.5 rounded-2xl active:bg-brand-700 transition min-h-[52px]">Cerrar</button>
+              </div>
+            </Fragment>
+          )}
+
+        </div>
       </div>
     )}
 
-    {/* ── Rechazos: NO SE GUARDÓ (prominente, imposible de ignorar) ── */}
-    {errorParam && errorParam !== 'incompleto' && errorParam !== 'db_open' && (
-      <div class="bg-fifared/20 border-2 border-fifared/60 rounded-2xl px-4 py-4 text-center space-y-1">
-        <div class="text-3xl">⚠️</div>
-        <p class="text-red-200 font-bold text-base">Tus pronósticos NO se guardaron</p>
-        <p class="text-red-300/90 text-sm">
-          {errorParam === 'cerrado'
-            ? '🔒 La jornada ya está cerrada.'
-            : errorParam === 'en_curso'
-            ? '⏳ El partido ya empezó. Las apuestas para esta jornada están cerradas.'
-            : decodeURIComponent(errorParam)}
-        </p>
-        <p class="text-xs text-red-300/70">Verifica abajo: si no ves "✓ Guardado", no quedó registrado.</p>
-      </div>
-    )}
     {errorParam === 'incompleto' && (
       <div class="bg-fifared/15 border border-fifared/40 rounded-xl px-4 py-3 text-sm text-red-300 text-center">
         ⚠️ Completa el marcador de todos los partidos antes de enviar.
@@ -257,22 +308,6 @@ let globalFormIdx = 0;
       </div>
     )}
 
-    {/* ── Verificación activa contra la BD ── */}
-    {okIds.length > 0 && okAllSaved && (
-      <div class="bg-gol/15 border-2 border-gol/50 rounded-2xl px-4 py-4 text-center space-y-1">
-        <div class="text-3xl">✅</div>
-        <p class="text-green-200 font-bold text-base">Verificado en la base de datos</p>
-        <p class="text-green-300/90 text-sm">{okVerified.length} de {okIds.length} pronóstico{okIds.length !== 1 ? 's' : ''} guardado{okIds.length !== 1 ? 's' : ''} ✓</p>
-        {okSavedAt && <p class="text-green-300/70 text-xs">🕒 Registrado el {okSavedAt}</p>}
-      </div>
-    )}
-    {okIds.length > 0 && !okAllSaved && (
-      <div class="bg-fifared/20 border-2 border-fifared/60 rounded-2xl px-4 py-4 text-center space-y-1">
-        <div class="text-3xl">⚠️</div>
-        <p class="text-red-200 font-bold text-base">¡Atención! No se guardó todo</p>
-        <p class="text-red-300/90 text-sm">Solo {okVerified.length} de {okIds.length} quedaron en la base. <strong>Reintenta los que falten.</strong></p>
-      </div>
-    )}
     {okParam === '1' && (
       <div class="bg-gol/10 border border-gol/30 rounded-xl px-4 py-3 text-sm text-green-300 text-center">
         ✅ Pronósticos enviados correctamente.
@@ -908,6 +943,20 @@ let globalFormIdx = 0;
     });
   }
 
+  // ── Popup de resultado: cerrar / reintentar ──────────────────────────────
+  function initResultModal() {
+    const m = document.getElementById('result-modal');
+    if (!m) return;
+    const close = () => m.remove();
+    m.querySelectorAll<HTMLButtonElement>('[data-close-modal]').forEach(b => b.addEventListener('click', close));
+    m.querySelectorAll<HTMLButtonElement>('[data-retry]').forEach(b => b.addEventListener('click', () => {
+      close();
+      // El borrador ya dejó los marcadores cargados; bajar al primer form abierto.
+      document.querySelector('form[action="/api/predictions/submit-jornada"]')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+  }
+
   function init() {
     // Guard anti doble-binding: init() corre por la llamada directa Y por
     // astro:page-load (ambos sobre el MISMO DOM en la carga inicial). Marca el
@@ -925,6 +974,7 @@ let globalFormIdx = 0;
     initConfirmSubmit();
     initCountdown();
     initDraft();
+    initResultModal();
   }
 
   init();

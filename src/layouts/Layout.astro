@@ -235,7 +235,9 @@ if (!isAuthed) {
       const err = params.get('err') || params.get('error');
 
       if (msg) showToast(decodeURIComponent(msg), 'msg');
-      if (err) showToast(decodeURIComponent(err), 'err');
+      // 'db_open' es un token interno que /predictions muestra como popup propio
+      // (con código de validación); no se debe toastear el valor crudo.
+      if (err && err !== 'db_open') showToast(decodeURIComponent(err), 'err');
 
       if (msg || err) {
         const url = new URL(window.location.href);

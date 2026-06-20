@@ -4,6 +4,7 @@ import { isValidUUID } from '@/lib/auth-helpers';
 import { boliviaDayStart, jornadaLockState } from '@/lib/jornada';
 import { logEvent } from '@/lib/system-log';
 import { alertReferiPredictionFail } from '@/lib/whatsapp';
+import { pendingCode } from '@/lib/pendingCode';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   // Cliente POR PETICIÓN: aísla la sesión para que envíos concurrentes (varios
@@ -211,9 +212,11 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     // Guarda el intento ESTRUCTURADO (user_id + marcadores) para que el réferi lo
     // valide de un toque desde el panel. Best-effort: si esto también falla, queda
     // el respaldo de texto en system_log (vía reject). Service-role: la tabla tiene
-    // RLS sin políticas.
+    // RLS sin políticas. Del id se deriva el CÓDIGO de validación que ve el jugador
+    // (captura) y el réferi (tarjeta), para cruzarlos.
+    let code = '';
     try {
-      await supabaseAdmin.from('pending_predictions').insert({
+      const { data: pend } = await supabaseAdmin.from('pending_predictions').insert({
         user_id: user.id,
         entries: entries.map(e => ({
           match_id: e.matchId,
@@ -224,10 +227,11 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
           user_winner_penalties: e.userWinnerPenalties,
         })),
         reason: `${error.code ?? ''} ${error.message ?? ''}`.trim().slice(0, 300) || null,
-      });
+      }).select('id').single();
+      if (pend?.id) code = pendingCode(pend.id);
     } catch { /* respaldo en system_log; no romper el flujo */ }
     await alertReferiPredictionFail(profile?.username ?? '—');
-    return reject('error-db', '/predictions?error=db_open');
+    return reject('error-db', `/predictions?error=db_open${code ? `&code=${code}` : ''}`);
   }
 
   // Devuelve los match_id insertados; la página los RE-VERIFICA contra la BD.
