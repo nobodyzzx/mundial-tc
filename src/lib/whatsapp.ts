@@ -89,3 +89,48 @@ export async function alertGroupError(opts: {
     }
   } catch { /* avisar nunca debe romper el cron que llama */ }
 }
+
+/**
+ * Avisa al grupo (donde está la referí) que la BD falló al guardar el pronóstico
+ * de un jugador DENTRO de la ventana, para que se valide a mano. NO incluye los
+ * marcadores: el pronóstico es secreto hasta el cierre y filtrarlo al grupo lo
+ * revelaría. Los marcadores sí quedan en system_log (privado, panel admin), que
+ * es de donde la referí los valida. Deduplicado por jugador y día para no spamear
+ * si la BD tiene un bache que afecta a varios. Best-effort: nunca rompe el envío.
+ */
+export async function alertReferiPredictionFail(username: string): Promise<void> {
+  try {
+    const dedupeKey = `predfail:${username}:${fmtDiaKey(Date.now())}`;
+    const { data: already } = await supabaseAdmin
+      .from('sync_logs')
+      .select('id')
+      .eq('source', 'alert')
+      .eq('endpoint', dedupeKey)
+      .is('error', null)
+      .limit(1);
+    if (already?.length) return;
+
+    const hora = new Date().toLocaleTimeString('es-BO', {
+      timeZone: 'America/La_Paz', hour12: false,
+    });
+    const text = [
+      '⚠️ *Fallo al guardar un pronóstico*',
+      `La base falló al registrar el pronóstico de *${username}* dentro de la ventana (${hora}).`,
+      'Sus marcadores quedaron registrados para validación.',
+      '',
+      '⚖️ Referí: valídalo / ingrésalo a mano desde el panel.',
+      '👉 mundial.tecnocondor.dev/admin',
+    ].join('\n');
+
+    const res = await sendWhatsApp(text, 'alert');
+    if (res.ok) {
+      await supabaseAdmin.from('sync_logs').insert({
+        source: 'alert',
+        endpoint: dedupeKey,
+        response_status: 200,
+        matches_updated: 0,
+        error: null,
+      });
+    }
+  } catch { /* avisar nunca debe romper el envío del pronóstico */ }
+}

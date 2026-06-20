@@ -3,6 +3,7 @@ import { createRequestClient } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
 import { boliviaDayStart, jornadaLockState } from '@/lib/jornada';
 import { logEvent } from '@/lib/system-log';
+import { alertReferiPredictionFail } from '@/lib/whatsapp';
 
 export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   // Cliente POR PETICIÓN: aísla la sesión para que envíos concurrentes (varios
@@ -181,22 +182,34 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   }
 
   // Insertar todos los pronósticos de una vez
-  const { error } = await supabase.from('predictions').insert(
-    entries.map(e => ({
-      user_id: user.id,
-      match_id: e.matchId,
-      user_home: e.userHome,
-      user_away: e.userAway,
-      user_home_pen: e.userHomePen,
-      user_away_pen: e.userAwayPen,
-      user_winner_penalties: e.userWinnerPenalties,
-    }))
-  );
+  const payload = entries.map(e => ({
+    user_id: user.id,
+    match_id: e.matchId,
+    user_home: e.userHome,
+    user_away: e.userAway,
+    user_home_pen: e.userHomePen,
+    user_away_pen: e.userAwayPen,
+    user_winner_penalties: e.userWinnerPenalties,
+  }));
+
+  let { error } = await supabase.from('predictions').insert(payload);
+  // Reintento único: un bache transitorio de la BD no debe costarle el pronóstico
+  // a alguien que llegó a tiempo. No reintenta un duplicado (ya está guardado).
+  if (error && error.code !== '23505') {
+    await new Promise(r => setTimeout(r, 350));
+    ({ error } = await supabase.from('predictions').insert(payload));
+  }
 
   if (error) {
     if (error.code === '23505') return reject('ya-pronosticado', '/predictions?info=ya_pronosticado');
+    // Falló la BD DENTRO de la ventana (lockState ya se validó === 'open' arriba):
+    // el pronóstico NO se pierde. Los marcadores quedan en system_log vía reject()
+    // (privado, panel admin) para que el Réferi los valide; se le avisa al grupo
+    // (sin scores, para no revelar el pronóstico) y al jugador se le dice que
+    // reenvíe — sus marcadores siguen cargados en el navegador (borrador local).
     attemptDetail = `${attemptDetail} || db:${error.code ?? ''} ${error.message ?? ''}`.slice(0, 500);
-    return reject('error-db', '/predictions?error=' + encodeURIComponent('Error al guardar los pronósticos'));
+    await alertReferiPredictionFail(profile?.username ?? '—');
+    return reject('error-db', '/predictions?error=db_open');
   }
 
   // Devuelve los match_id insertados; la página los RE-VERIFICA contra la BD.

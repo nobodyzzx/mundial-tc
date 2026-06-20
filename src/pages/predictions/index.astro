@@ -29,7 +29,7 @@ const [
 ] = await Promise.all([
   supabase.from('matches').select('*').eq('is_finished', false).not('home_team', 'ilike', 'TBD%').not('away_team', 'ilike', 'TBD%').not('home_team', 'ilike', 'Winner%').not('away_team', 'ilike', 'Winner%').order('match_date', { ascending: true }),
   supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50, expulsado').eq('id', user.id).single(),
-  supabase.from('predictions').select('match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties').eq('user_id', user.id),
+  supabase.from('predictions').select('match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, created_at').eq('user_id', user.id),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', new Date(nowMs).toISOString()),
   supabase.from('sanctions').select('type, created_at').eq('user_id', user.id).in('type', ['red', 'double_red']).eq('active', true),
 ]);
@@ -157,6 +157,21 @@ const okIds = (okParam && okParam !== '1') ? okParam.split(',').filter(Boolean) 
 const okVerified = okIds.filter((id) => predMap.has(id));
 const okAllSaved = okIds.length > 0 && okVerified.length === okIds.length;
 
+// Hora de registro (created_at real) del envío recién verificado: deja constancia
+// de "a qué hora quedó guardado" para zanjar disputas de "yo mandé en hora".
+const okSavedAtIso = okVerified
+  .map((id) => predMap.get(id)?.created_at)
+  .filter(Boolean)
+  .sort()
+  .at(-1) as string | undefined;
+const okSavedAt = okSavedAtIso
+  ? fmtFecha(okSavedAtIso, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  : null;
+// Hora corta (solo HH:MM:SS) para mostrar junto a cada pick guardado.
+function savedTime(iso: string | null | undefined): string | null {
+  return iso ? fmtFecha(iso, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+}
+
 // Contador global de inputs — evita colisiones de nombre entre jornadas distintas
 let globalFormIdx = 0;
 ---
@@ -181,8 +196,22 @@ let globalFormIdx = 0;
       </div>
     )}
 
+    {/* ── Fallo de BD DENTRO de la ventana: el pronóstico NO se pierde ── */}
+    {errorParam === 'db_open' && (
+      <div class="bg-amarilla/15 border-2 border-amarilla/60 rounded-2xl px-4 py-4 text-center space-y-2">
+        <div class="text-3xl">🛟</div>
+        <p class="text-amber-200 font-bold text-base">La base falló — pero tus marcadores están a salvo</p>
+        <p class="text-amber-100/90 text-sm">
+          Tu envío quedó <strong>registrado para validación</strong> y el Réferi ya fue avisado.
+          Tus marcadores <strong>siguen cargados abajo</strong>: revísalos y pulsa
+          <strong> Enviar</strong> otra vez mientras la jornada siga abierta.
+        </p>
+        <p class="text-xs text-amber-200/70">Si no alcanzas a reenviar, el Réferi los valida a mano. No perdiste nada.</p>
+      </div>
+    )}
+
     {/* ── Rechazos: NO SE GUARDÓ (prominente, imposible de ignorar) ── */}
-    {errorParam && errorParam !== 'incompleto' && (
+    {errorParam && errorParam !== 'incompleto' && errorParam !== 'db_open' && (
       <div class="bg-fifared/20 border-2 border-fifared/60 rounded-2xl px-4 py-4 text-center space-y-1">
         <div class="text-3xl">⚠️</div>
         <p class="text-red-200 font-bold text-base">Tus pronósticos NO se guardaron</p>
@@ -213,6 +242,7 @@ let globalFormIdx = 0;
         <div class="text-3xl">✅</div>
         <p class="text-green-200 font-bold text-base">Verificado en la base de datos</p>
         <p class="text-green-300/90 text-sm">{okVerified.length} de {okIds.length} pronóstico{okIds.length !== 1 ? 's' : ''} guardado{okIds.length !== 1 ? 's' : ''} ✓</p>
+        {okSavedAt && <p class="text-green-300/70 text-xs">🕒 Registrado el {okSavedAt}</p>}
       </div>
     )}
     {okIds.length > 0 && !okAllSaved && (
@@ -330,7 +360,7 @@ let globalFormIdx = 0;
                     {existing ? (
                       /* Ya pronosticado: layout horizontal clásico */
                       <Fragment>
-                      <div class="flex items-center gap-2">
+                      <div class="flex items-center gap-2" data-saved-match={m.id}>
                         <div class="flex-1 min-w-0">
                           <TeamName team={m.home_team} side="home" class="text-white font-semibold text-base" />
                         </div>
@@ -342,7 +372,9 @@ let globalFormIdx = 0;
                         </div>
                       </div>
                       <p class="text-center mt-2.5">
-                        <span class="text-[11px] font-semibold text-gol bg-gol/10 border border-gol/30 rounded-full px-2.5 py-1">✓ Guardado {existing.user_home}–{existing.user_away}</span>
+                        <span class="text-[11px] font-semibold text-gol bg-gol/10 border border-gol/30 rounded-full px-2.5 py-1">
+                          ✓ Guardado {existing.user_home}–{existing.user_away}{savedTime(existing.created_at) && <span class="text-gol/70 font-normal"> · {savedTime(existing.created_at)}</span>}
+                        </span>
                       </p>
                       </Fragment>
                     ) : (
@@ -464,7 +496,7 @@ let globalFormIdx = 0;
               {jornadaMatches.map((m) => {
                 const existing = predMap.get(m.id);
                 return (
-                  <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : prevPending ? 'border-brand-700/40 bg-brand-800/30' : 'border-fifared/30 bg-fifared/5'}`}>
+                  <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : prevPending ? 'border-brand-700/40 bg-brand-800/30' : 'border-fifared/30 bg-fifared/5'}`} data-saved-match={existing ? m.id : undefined}>
                     <div class="flex items-center justify-between mb-2">
                       <span class="text-slate-400 font-medium text-xs">
                         {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
@@ -759,6 +791,62 @@ let globalFormIdx = 0;
     });
   }
 
+  // ── Borrador local: nunca perder lo tecleado ──────────────────────────────
+  // Guarda cada marcador en localStorage al instante (keyed por match_id, estable
+  // entre recargas). Si el envío falla, la BD cae, o el jugador navega y vuelve,
+  // el formulario reaparece pre-llenado. Cuando un pick ya está en la BD (tarjeta
+  // "✓ Guardado", marcada con data-saved-match) se borra del borrador. Es local al
+  // dispositivo: justo lo que se quiere para "no perdí mis marcadores".
+  const DRAFT_KEY = 'polla:pred-draft:v1';
+  function loadDraft(): Record<string, any> {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}') || {}; } catch { return {}; }
+  }
+  function saveDraft(d: Record<string, any>) {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* sin almacenamiento: no rompe */ }
+  }
+
+  function initDraft() {
+    // 1. Limpiar del borrador los picks que YA están en la BD (leídos fresh al cargar).
+    let draft = loadDraft();
+    let changed = false;
+    document.querySelectorAll<HTMLElement>('[data-saved-match]').forEach(el => {
+      const id = el.dataset.savedMatch;
+      if (id && draft[id]) { delete draft[id]; changed = true; }
+    });
+    if (changed) saveDraft(draft);
+
+    const forms = document.querySelectorAll<HTMLFormElement>('form[action="/api/predictions/submit-jornada"]');
+    forms.forEach(form => {
+      const hiddens = form.querySelectorAll<HTMLInputElement>('input[name^="matchId_"]');
+
+      // 2. Repoblar inputs vacíos (default "0") con lo que hubiera en el borrador.
+      hiddens.forEach(h => {
+        const idx = h.name.slice('matchId_'.length);
+        const d = draft[h.value];
+        if (!d) return;
+        const set = (n: string, v: any) => {
+          if (v == null || v === '') return;
+          const el = form.querySelector<HTMLInputElement>(`input[name="${n}_${idx}"]`);
+          if (el) { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); }
+        };
+        set('home', d.h); set('away', d.a); set('pen_home', d.ph); set('pen_away', d.pa);
+      });
+
+      // 3. Guardar en cada cambio del formulario.
+      if (form.dataset.draftBound) return;
+      form.dataset.draftBound = '1';
+      form.addEventListener('input', () => {
+        const cur = loadDraft();
+        form.querySelectorAll<HTMLInputElement>('input[name^="matchId_"]').forEach(h => {
+          const idx = h.name.slice('matchId_'.length);
+          const g = (n: string) => form.querySelector<HTMLInputElement>(`input[name="${n}_${idx}"]`)?.value ?? '';
+          cur[h.value] = { h: g('home'), a: g('away'), ph: g('pen_home'), pa: g('pen_away') };
+        });
+        saveDraft(cur);
+      });
+    });
+  }
+
   function init() {
     // Guard anti doble-binding: init() corre por la llamada directa Y por
     // astro:page-load (ambos sobre el MISMO DOM en la carga inicial). Marca el
@@ -775,6 +863,7 @@ let globalFormIdx = 0;
     initShareButtons();
     initConfirmSubmit();
     initCountdown();
+    initDraft();
   }
 
   init();
