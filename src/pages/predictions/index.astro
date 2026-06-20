@@ -124,6 +124,16 @@ const siguiente =
 if (siguiente) openKeys.add(siguiente);
 if (openKeys.size === 0 && jornadaList[0]) openKeys.add(jornadaList[0][0]);
 
+// Barra fija de cuenta regresiva (C/D): la jornada ACCIONABLE más próxima
+// (abierta, sin sanción, con algo por pronosticar). Su cierre alimenta la barra
+// sticky; el contador en vivo y el estado "al filo" se manejan en el cliente.
+const stickyEntry = jornadaList
+  .filter(([, ms]) => !isSanctioned(ms) && lockStateFor(ms) === 'open' && !ms.every(m => predMap.has(m.id)))
+  .map(([key, ms]) => ({ key, firstMs: Math.min(...ms.map(m => new Date(m.match_date).getTime())) }))
+  .sort((a, b) => a.firstMs - b.firstMs)[0];
+const stickyCutoff = stickyEntry ? stickyEntry.firstMs - 2 * 3600 * 1000 : null;
+const stickyLabel = stickyEntry?.key ?? null;
+
 function buildShareData(dayMatches: MatchRow[], username: string) {
   const firstMatch = dayMatches[0];
   const cutoff = new Date(new Date(firstMatch.match_date).getTime() - 2 * 3600 * 1000);
@@ -178,6 +188,17 @@ let globalFormIdx = 0;
 
 <Layout title="Pronósticos" navProfile={navProfile} isAuthed={true}>
   <div class="space-y-6" data-pred-root>
+
+    {/* ── Barra fija de cuenta regresiva (C) + aviso al filo (D) ── */}
+    {stickyCutoff && (
+      <div id="sticky-cd" data-cutoff={stickyCutoff} class="sticky top-0 z-40 -mt-2 py-2.5 px-4 bg-brand-950/95 backdrop-blur border-b border-brand-700/60 rounded-b-2xl flex items-center justify-center gap-3 transition-colors">
+        <span class="sticky-cd-ico text-2xl">⏰</span>
+        <div class="text-center leading-tight">
+          <p class="sticky-cd-time font-display text-2xl tracking-wide" style="color:#4ade80">—</p>
+          <p class="sticky-cd-label text-[11px] text-slate-300 capitalize" data-label={stickyLabel}>{stickyLabel}</p>
+        </div>
+      </div>
+    )}
 
     <div class="flex items-center justify-between gap-2">
       <h1 class="font-display text-4xl text-white tracking-wide">MIS PRONÓSTICOS</h1>
@@ -698,8 +719,17 @@ let globalFormIdx = 0;
   function initCountdown() {
     if ((window as any).__cdInterval) clearInterval((window as any).__cdInterval);
     const els = Array.from(document.querySelectorAll<HTMLElement>('.cutoff-cd'));
-    if (!els.length) return;
+    const sticky = document.getElementById('sticky-cd');
+    const stickyTime = sticky?.querySelector<HTMLElement>('.sticky-cd-time') ?? null;
+    const stickyLabelEl = sticky?.querySelector<HTMLElement>('.sticky-cd-label') ?? null;
+    const stickyIco = sticky?.querySelector<HTMLElement>('.sticky-cd-ico') ?? null;
+    if (!els.length && !sticky) return;
+
+    const URGENT = ['bg-fifared/90', 'border-fifared', 'animate-pulse'];
+    const buzz = (pattern: number | number[]) => { try { (navigator as any).vibrate?.(pattern); } catch { /* sin soporte */ } };
+
     const tick = () => {
+      // Encabezados por jornada (texto chico) — comportamiento existente.
       els.forEach(cd => {
         const cutoff = parseInt(cd.dataset.cutoff || '0', 10);
         const rem = cutoff - Date.now();
@@ -718,6 +748,37 @@ let globalFormIdx = 0;
         cd.textContent = '⏰ Cierra en ' + fmtRemaining(rem);
         cd.style.color = rem > 3600000 ? '#4ade80' : rem > 600000 ? '#fbbf24' : '#f87171';
       });
+
+      // Barra fija grande (C) con estado "al filo" (D): <5 min se pone roja,
+      // pulsa y vibra una vez; <1 min vibra de nuevo más fuerte.
+      if (sticky && stickyTime) {
+        const cutoff = parseInt(sticky.dataset.cutoff || '0', 10);
+        const rem = cutoff - Date.now();
+        if (rem <= 0) {
+          stickyTime.textContent = '🔒 CERRADA';
+          stickyTime.style.color = '#fff';
+          if (stickyIco) stickyIco.textContent = '🔒';
+          if (stickyLabelEl) { stickyLabelEl.style.textTransform = 'none'; stickyLabelEl.textContent = 'Reenvía si te falta — o avisa al Réferi'; }
+          sticky.classList.remove(...URGENT);
+          sticky.classList.add('bg-fifared/80');
+          return;
+        }
+        stickyTime.textContent = fmtRemaining(rem);
+        if (rem <= 300000) {
+          // < 5 min → URGENTE (D)
+          stickyTime.style.color = '#fff';
+          if (stickyIco) stickyIco.textContent = '⚠️';
+          if (stickyLabelEl) { stickyLabelEl.style.textTransform = 'none'; stickyLabelEl.textContent = '¡Envía YA antes del cierre!'; }
+          sticky.classList.add(...URGENT);
+          if (!sticky.dataset.buzz5) { sticky.dataset.buzz5 = '1'; buzz([120, 60, 120]); }
+          if (rem <= 60000 && !sticky.dataset.buzz1) { sticky.dataset.buzz1 = '1'; buzz([200, 80, 200, 80, 200]); }
+        } else {
+          sticky.classList.remove(...URGENT);
+          if (stickyIco) stickyIco.textContent = '⏰';
+          if (stickyLabelEl) { stickyLabelEl.style.textTransform = ''; stickyLabelEl.textContent = stickyLabelEl.dataset.label ?? ''; }
+          stickyTime.style.color = rem > 3600000 ? '#4ade80' : '#fbbf24';
+        }
+      }
     };
     tick();
     (window as any).__cdInterval = setInterval(tick, 1000);
