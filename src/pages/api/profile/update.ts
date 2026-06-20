@@ -32,10 +32,10 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     .single();
 
   if (current && username === current.username)
-    return redirect('/perfil?msg=' + encodeURIComponent('Tu apodo no cambió'));
+    return redirect('/perfil?msg=' + encodeURIComponent('Tu nickname no cambió'));
 
   if (current?.apodo_cambiado)
-    return redirect('/perfil?err=' + encodeURIComponent('Ya usaste tu único cambio de apodo. Es definitivo; si hay un error, contacta al Réferi.'));
+    return redirect('/perfil?err=' + encodeURIComponent('Ya usaste tu único cambio de nickname. Es definitivo; si hay un error, contacta al Réferi.'));
 
   const { error } = await supabaseAdmin
     .from('profiles')
@@ -49,5 +49,5 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     return redirect('/perfil?err=' + encodeURIComponent(msg));
   }
 
-  return redirect('/perfil?msg=' + encodeURIComponent('Apodo actualizado. Recuerda: era tu único cambio, ahora es definitivo.'));
+  return redirect('/perfil?msg=' + encodeURIComponent('Nickname actualizado. Recuerda: era tu único cambio, ahora es definitivo.'));
 };
