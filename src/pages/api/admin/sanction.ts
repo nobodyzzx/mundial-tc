@@ -40,23 +40,33 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   if (gameDay.getTime() > todayStart.getTime())
     return redirect(`${back}?err=No+se+puede+sancionar+un+día+futuro`);
 
-  // Prevenir doble sanción roja activa
+  // Prevenir sanciones redundantes. Una expulsión (doble roja) activa cierra todo.
+  // Para una ROJA solo se bloquea si ya hay otra roja activa PARA EL MISMO DÍA de
+  // juego (anular dos veces la misma jornada no tiene sentido); rojas de días
+  // DISTINTOS sí se permiten — sanciones atrasadas en jornadas diferentes.
   if (type === 'red' || type === 'double_red') {
-    const { data: existing } = await supabaseAdmin
+    const { data: activeRed } = await supabaseAdmin
       .from('sanctions')
-      .select('id, type')
+      .select('id, type, game_day, created_at')
       .eq('user_id', userId)
       .in('type', ['red', 'double_red'])
       .eq('active', true);
 
-    if (existing && existing.length > 0) {
-      const label =
-        existing[0].type === 'double_red'
-          ? 'ya está expulsado'
-          : 'ya tiene tarjeta roja activa';
-      return redirect(
-        `${back}?err=${encodeURIComponent('El usuario ' + label)}`,
-      );
+    const expelled = (activeRed ?? []).some((s) => s.type === 'double_red');
+    if (expelled)
+      return redirect(`${back}?err=${encodeURIComponent('El usuario ya está expulsado')}`);
+
+    if (type === 'red') {
+      // Día imputado de cada roja activa: game_day si existe; si no (tarjetas
+      // viejas), se deriva de created_at con la misma frontera 03:00 BOT.
+      const sameDay = (activeRed ?? []).some((s) => {
+        const ref = s.game_day
+          ? boliviaDayStart(new Date(s.game_day).getTime()).getTime()
+          : boliviaDayStart(new Date(s.created_at).getTime()).getTime();
+        return ref === gameDay.getTime();
+      });
+      if (sameDay)
+        return redirect(`${back}?err=${encodeURIComponent('El usuario ya tiene una roja activa para ese día')}`);
     }
   }
 
