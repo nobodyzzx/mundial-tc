@@ -395,8 +395,8 @@ let globalFormIdx = 0;
               <div class="min-w-0">
                 <h2 class={`font-display text-xl tracking-wide capitalize leading-tight ${prevPending ? 'text-slate-400' : 'text-white'}`}>{jornadaKey}</h2>
                 <p class="text-xs mt-0.5 flex items-center gap-1.5 flex-wrap leading-tight">
-                  {showProgress && <span class={`font-semibold ${progressColor}`}>{progressLabel}</span>}
-                  {showProgress && <span class="text-slate-700">·</span>}
+                  {showProgress && <span data-progress class={`font-semibold ${progressColor}`}>{progressLabel}</span>}
+                  {showProgress && <span data-progress class="text-slate-700">·</span>}
                   <span class={sanctioned ? 'text-fifared' : prevPending ? 'text-slate-500' : ongoingLock ? 'text-amber-400' : closed ? 'text-fifared/90' : 'text-slate-500'}>
                     {sanctioned
                       ? (isExpulsado ? '🟥🟥 Expulsado — no puedes pronosticar' : '🟥 Anulada por tarjeta roja')
@@ -840,6 +840,14 @@ let globalFormIdx = 0;
     form.dataset.locked = '1';
     form.style.display = 'none';
     form.parentElement?.querySelector('[data-cerrada-view]')?.classList.remove('hidden');
+    // Encabezado igual al de una jornada cerrada (caso 3): fondo rojizo y sin el
+    // contador de progreso "X/Y".
+    const summary = form.closest('[data-jornada]')?.querySelector('summary');
+    if (summary) {
+      summary.classList.remove('bg-brand-800/60', 'border-brand-700/60', 'bg-gol/8', 'border-gol/30');
+      summary.classList.add('bg-fifared/8', 'border-fifared/30');
+      summary.querySelectorAll('[data-progress]').forEach(el => { (el as HTMLElement).style.display = 'none'; });
+    }
   }
 
   function initCountdown() {
@@ -860,7 +868,7 @@ let globalFormIdx = 0;
         const cutoff = parseInt(cd.dataset.cutoff || '0', 10);
         const rem = cutoff - Date.now();
         if (rem <= 0) {
-          cd.textContent = '🔒 CERRADA';
+          cd.textContent = '🔒 Cerrada'; // mismo texto que la jornada cerrada del caso 3
           cd.style.color = '#f87171';
           const wrap = cd.closest('[data-jornada]');
           const form = wrap?.querySelector<HTMLFormElement>('form[action="/api/predictions/submit-jornada"]');
