@@ -1,0 +1,30 @@
+---
+/**
+ * Barra fija "🔒 CERRADA" para /predictions. Se usa en dos casos, con la MISMA
+ * marca para mantener coherencia:
+ *   - Caso 3 (entró tarde, sin jornada abierta): visible desde el servidor.
+ *   - Caso 4 (cierre en vivo): renderizada oculta junto a la cuenta regresiva;
+ *     initCountdown oculta el contador y muestra ÉSTA al llegar a 0.
+ */
+interface Props {
+  /** Nombre/fecha de la jornada (p. ej. "sábado, 20 de junio"). */
+  label: string | null;
+  /** Oculta por defecto (caso 4, hasta que cierre en vivo). */
+  hidden?: boolean;
+}
+const { label, hidden = false } = Astro.props;
+---
+
+<div
+  data-cerrada-bar
+  class:list={[
+    'sticky top-[58px] z-40 py-2.5 px-4 bg-fifared/80 backdrop-blur border border-fifared/50 rounded-2xl flex items-center justify-center gap-3 shadow-lg',
+    { hidden },
+  ]}
+>
+  <span class="text-2xl">🔒</span>
+  <div class="text-center leading-tight">
+    <p class="font-display text-2xl tracking-wide text-white">CERRADA</p>
+    <p class="text-[11px] text-red-100/80 capitalize">{label}</p>
+  </div>
+</div>
