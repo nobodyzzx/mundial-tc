@@ -221,7 +221,7 @@ let globalFormIdx = 0;
 
     {/* ── Barra fija de cuenta regresiva (C) + aviso al filo (D) ── */}
     {stickyCutoff && (
-      <div id="sticky-cd" data-cutoff={stickyCutoff} data-sticky-key={stickyKey ?? undefined} class="sticky top-0 z-40 -mt-2 py-2.5 px-4 bg-brand-950/95 backdrop-blur border-b border-brand-700/60 rounded-b-2xl flex items-center justify-center gap-3 transition-colors">
+      <div id="sticky-cd" data-cutoff={stickyCutoff} data-sticky-key={stickyKey ?? undefined} class="sticky top-[58px] z-40 py-2.5 px-4 bg-brand-950/95 backdrop-blur border border-brand-700/60 rounded-2xl flex items-center justify-center gap-3 transition-colors shadow-lg">
         <span class="sticky-cd-ico text-2xl">⏰</span>
         <div class="text-center leading-tight">
           <p class="sticky-cd-time font-display text-2xl tracking-wide" style="color:#4ade80">—</p>
@@ -869,7 +869,7 @@ let globalFormIdx = 0;
         const cutoff = parseInt(sticky.dataset.cutoff || '0', 10);
         const rem = cutoff - Date.now();
         if (rem <= 0) {
-          stickyTime.textContent = '🔒 CERRADA';
+          stickyTime.textContent = 'CERRADA'; // sin candado: el ícono de la barra ya lo muestra
           stickyTime.style.color = '#fff';
           if (stickyIco) stickyIco.textContent = '🔒';
           if (stickyLabelEl) { stickyLabelEl.style.textTransform = 'none'; stickyLabelEl.textContent = 'Jornada cerrada'; }
