@@ -885,7 +885,13 @@ let globalFormIdx = 0;
           stickyTime.textContent = 'CERRADA'; // sin candado: el ícono de la barra ya lo muestra
           stickyTime.style.color = '#fff';
           if (stickyIco) stickyIco.textContent = '🔒';
-          if (stickyLabelEl) { stickyLabelEl.style.textTransform = 'none'; stickyLabelEl.textContent = 'Jornada cerrada'; }
+          // Mantener la FECHA (no "Jornada cerrada") y en rojo claro, igual que la
+          // barra de cierre del caso 3 — coherencia visual.
+          if (stickyLabelEl) {
+            stickyLabelEl.style.textTransform = '';
+            stickyLabelEl.textContent = stickyLabelEl.dataset.label || 'Jornada cerrada';
+            stickyLabelEl.style.color = '#fecaca';
+          }
           sticky.classList.remove(...URGENT);
           sticky.classList.add('bg-fifared/80');
           // Cerró EN VIVO con el formulario aún abierto → bloquear con popup a
