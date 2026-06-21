@@ -176,8 +176,8 @@ export const GET: APIRoute = async ({ url, request }) => {
   );
 
   const text = [
-    `🟢 *JORNADA ABIERTA · ${dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1)}*`,
-    '_Ya puedes cargar tus pronósticos_ ✍️',
+    `✍️ *¡NO OLVIDES TUS PRONÓSTICOS! · ${dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1)}*`,
+    '_La jornada de hoy ya está abierta — carga tus scores_',
     '',
     '📋 *Partidos de la jornada:*',
     ...matchLines,
