@@ -104,10 +104,23 @@ export const GET: APIRoute = async ({ url, request }) => {
     hasEarlierUnfinished,
   });
 
+  // Piso matutino: aunque la jornada ya esté 'open', no anunciar de madrugada.
+  // Si el día anterior terminó tarde, la cascada cierre→apertura caía ~2 AM BOT
+  // y el aviso quedaba sepultado mientras todos dormían. Espera al primer tick
+  // del cron desde las 07:00 BOT (Bolivia = UTC-4 fijo, sin horario de verano).
+  // La idempotencia por dayKey garantiza un único envío: solo se retrasa.
+  const MORNING_FLOOR_BOT = 7;
+  const botHour = new Date(nowMs - 4 * 3600 * 1000).getUTCHours();
+
   if (!preview) {
     // 4. Solo se anuncia si la jornada está REALMENTE abierta.
     if (state !== 'open') {
       return json({ skipped: true, reason: `Jornada no abierta (${state})`, dayKey });
+    }
+
+    // 4.b Antes de las 07:00 BOT no se manda: nadie lee a esa hora.
+    if (botHour < MORNING_FLOOR_BOT) {
+      return json({ skipped: true, reason: `Espera la mañana (${botHour}h BOT < ${MORNING_FLOOR_BOT}h)`, dayKey });
     }
 
     // 5. Orden de mensajes: la apertura va DESPUÉS del cierre del día anterior.
