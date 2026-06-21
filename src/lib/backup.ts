@@ -19,7 +19,9 @@
 import { supabaseAdmin } from './supabase';
 import { boliviaDayKey } from './jornada';
 
-const WEBHOOK = import.meta.env.N8N_BACKUP_WEBHOOK_URL;
+const GH_TOKEN = import.meta.env.GH_BACKUP_TOKEN;
+const GH_REPO = import.meta.env.GH_BACKUP_REPO;          // owner/repo (privado)
+const GH_BRANCH = import.meta.env.GH_BACKUP_BRANCH || 'main';
 const DIAS = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
 
 // Tablas de ESTADO de la polla a respaldar (en orden de dependencia de FKs).
@@ -65,9 +67,35 @@ async function yaRespaldado(key: string): Promise<boolean> {
   return !!data?.length;
 }
 
-/** Genera el dump y lo manda al webhook de n8n. Deduplicado por (motivo, día). */
+/** Crea o actualiza un archivo en el repo de GitHub (API Contents, upsert con sha). */
+export async function commitToGitHub(path: string, content: string, message: string): Promise<boolean> {
+  if (!GH_TOKEN || !GH_REPO) return false;
+  const base = `https://api.github.com/repos/${GH_REPO}/contents/${path}`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${GH_TOKEN}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'polla-app-backup',
+  };
+  // sha del archivo existente (para sobrescribir); 404 si es la primera vez.
+  let sha: string | undefined;
+  const getRes = await fetch(`${base}?ref=${GH_BRANCH}`, { headers });
+  if (getRes.ok) sha = (await getRes.json())?.sha;
+  const putRes = await fetch(base, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message,
+      content: Buffer.from(content, 'utf8').toString('base64'),
+      branch: GH_BRANCH,
+      ...(sha ? { sha } : {}),
+    }),
+  });
+  return putRes.ok;
+}
+
+/** Genera el dump y lo commitea al repo privado de GitHub. Dedup por (motivo, día). */
 export async function sendBackup(reason: 'pre' | 'fin', gameDayMs: number): Promise<void> {
-  if (!WEBHOOK) return;
+  if (!GH_TOKEN || !GH_REPO) return;
   try {
     const dayKey = boliviaDayKey(gameDayMs);
     const dedup = `${reason}:${dayKey}`;
@@ -75,13 +103,9 @@ export async function sendBackup(reason: 'pre' | 'fin', gameDayMs: number): Prom
 
     const dump = await buildDump(reason);
     const path = `backups/${DIAS[new Date(dayKey).getUTCDay()]}-${reason}.sql`;
-    const res = await fetch(WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, reason, content: dump }),
-    });
-    // Sella el dedupe solo si se envió bien (si falla, reintenta en la próxima corrida).
-    if (res.ok) {
+    const ok = await commitToGitHub(path, dump, `backup ${reason} ${new Date().toISOString()}`);
+    // Sella el dedupe solo si se guardó bien (si falla, reintenta en la próxima corrida).
+    if (ok) {
       await supabaseAdmin.from('sync_logs').insert({
         source: 'backup', endpoint: dedup, response_status: 200, matches_updated: 0, error: null,
       });
@@ -95,7 +119,7 @@ export async function sendBackup(reason: 'pre' | 'fin', gameDayMs: number): Prom
  * hace <12h). El dedupe asegura una sola copia por motivo y día.
  */
 export async function runBackupChecks(): Promise<void> {
-  if (!WEBHOOK) return;
+  if (!GH_TOKEN || !GH_REPO) return;
   try {
     const { data: ms } = await supabaseAdmin.from('matches').select('match_date, is_finished');
     if (!ms?.length) return;
