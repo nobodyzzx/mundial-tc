@@ -140,9 +140,11 @@ const stickyKey = stickyEntry ? String(boliviaDayKey(stickyEntry.firstMs)) : nul
 // el cliente, con registro en el log al pulsar Entendido). La clave del día evita
 // que se repita por jornada (localStorage).
 let lateCierreKey: string | null = null;
-for (const [, jms] of jornadaList) {
+let lateCierreLabel: string | null = null;
+for (const [jkey, jms] of jornadaList) {
   if (!isSanctioned(jms) && lockStateFor(jms) === 'closed' && jms.some((m) => !predMap.has(m.id))) {
     lateCierreKey = String(boliviaDayKey(Math.min(...jms.map((m) => new Date(m.match_date).getTime()))));
+    lateCierreLabel = jkey;
     break;
   }
 }
@@ -226,6 +228,17 @@ let globalFormIdx = 0;
         <div class="text-center leading-tight">
           <p class="sticky-cd-time font-display text-2xl tracking-wide" style="color:#4ade80">—</p>
           <p class="sticky-cd-label text-[11px] text-slate-300 capitalize" data-label={stickyLabel}>{stickyLabel}</p>
+        </div>
+      </div>
+    )}
+
+    {/* ── Barra fija "Cerrada" (caso 3: entró tarde, sin jornada abierta) ── */}
+    {!stickyCutoff && lateCierreLabel && (
+      <div class="sticky top-[58px] z-40 py-2.5 px-4 bg-fifared/80 backdrop-blur border border-fifared/50 rounded-2xl flex items-center justify-center gap-3 shadow-lg">
+        <span class="text-2xl">🔒</span>
+        <div class="text-center leading-tight">
+          <p class="font-display text-2xl tracking-wide text-white">CERRADA</p>
+          <p class="text-[11px] text-red-100/80 capitalize">{lateCierreLabel}</p>
         </div>
       </div>
     )}
