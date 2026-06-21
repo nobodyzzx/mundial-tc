@@ -879,8 +879,10 @@ let globalFormIdx = 0;
           // pantalla completa para que no quede la falsa impresión de que hay tiempo.
           const openForm = document.querySelector('form[action="/api/predictions/submit-jornada"]');
           const cierre = document.getElementById('cierre-modal');
-          if (openForm && cierre && cierre.classList.contains('hidden') && !cierre.dataset.dismissed) {
-            if (sticky.dataset.stickyKey) cierre.dataset.liveKey = sticky.dataset.stickyKey;
+          const k = sticky.dataset.stickyKey || '';
+          const yaVisto = k && localStorage.getItem('cierreSeen:' + k);
+          if (openForm && cierre && cierre.classList.contains('hidden') && !cierre.dataset.dismissed && !yaVisto) {
+            if (k) cierre.dataset.liveKey = k;
             cierre.classList.remove('hidden');
           }
           return;
@@ -1082,10 +1084,9 @@ let globalFormIdx = 0;
             body: new URLSearchParams({ key: k }),
           });
         } catch { /* el registro es best-effort */ }
-        // Solo la entrada tardía se recuerda por jornada (no re-mostrar al recargar).
-        if (m.dataset.lateKey) {
-          try { localStorage.setItem('cierreSeen:' + m.dataset.lateKey, '1'); } catch { /* sin almacenamiento */ }
-        }
+        // Recordar el "visto" por jornada (entrada tardía o cierre en vivo) para
+        // que NO reaparezca al recargar — clave en dev por el beta-time.
+        if (k) { try { localStorage.setItem('cierreSeen:' + k, '1'); } catch { /* sin almacenamiento */ } }
         m.dataset.dismissed = '1'; // evita que el tick del contador lo reabra
         m.classList.add('hidden');
       });
