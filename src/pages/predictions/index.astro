@@ -133,6 +133,7 @@ const stickyEntry = jornadaList
   .sort((a, b) => a.firstMs - b.firstMs)[0];
 const stickyCutoff = stickyEntry ? stickyEntry.firstMs - 2 * 3600 * 1000 : null;
 const stickyLabel = stickyEntry?.key ?? null;
+const stickyKey = stickyEntry ? String(boliviaDayKey(stickyEntry.firstMs)) : null;
 
 // Jornada CERRADA con partidos SIN pronosticar (el jugador llegó tarde): dispara
 // el popup "JORNADA CERRADA" una sola vez al entrar (lo maneja initCierreModal en
@@ -220,7 +221,7 @@ let globalFormIdx = 0;
 
     {/* ── Barra fija de cuenta regresiva (C) + aviso al filo (D) ── */}
     {stickyCutoff && (
-      <div id="sticky-cd" data-cutoff={stickyCutoff} class="sticky top-0 z-40 -mt-2 py-2.5 px-4 bg-brand-950/95 backdrop-blur border-b border-brand-700/60 rounded-b-2xl flex items-center justify-center gap-3 transition-colors">
+      <div id="sticky-cd" data-cutoff={stickyCutoff} data-sticky-key={stickyKey ?? undefined} class="sticky top-0 z-40 -mt-2 py-2.5 px-4 bg-brand-950/95 backdrop-blur border-b border-brand-700/60 rounded-b-2xl flex items-center justify-center gap-3 transition-colors">
         <span class="sticky-cd-ico text-2xl">⏰</span>
         <div class="text-center leading-tight">
           <p class="sticky-cd-time font-display text-2xl tracking-wide" style="color:#4ade80">—</p>
@@ -417,6 +418,7 @@ let globalFormIdx = 0;
           <div class="mt-3">
           {/* ── Si la jornada está abierta y hay partidos sin pronosticar: form inline ── */}
           {!sanctioned && !closed && !prevPending && !ongoingLock && !allDone ? (
+            <Fragment>
             <form method="POST" action="/api/predictions/submit-jornada" class="space-y-2">
 
               {jornadaMatches.map((m) => {
@@ -571,6 +573,48 @@ let globalFormIdx = 0;
                 Tolerancia Cero — una vez enviado no se puede modificar.
               </p>
             </form>
+
+            {/* Vista de solo-lectura para el CIERRE EN VIVO (oculta): misma marca
+                que una jornada cerrada normal. initCountdown oculta el form y la
+                muestra al llegar el contador a 0 → queda idéntica al solo-lectura. */}
+            <div data-cerrada-view class="hidden space-y-2">
+              {jornadaMatches.map((m) => {
+                const existing = predMap.get(m.id);
+                return (
+                  <div class={`bg-brand-900 border rounded-2xl p-4 ${existing ? 'border-gol/30 bg-gol/5' : 'border-fifared/30 bg-fifared/5'}`}>
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-slate-400 font-medium text-xs">
+                        {m.stage === 'group' ? (m.group_name ? `Grupo ${m.group_name}` : m.jornada) : m.round}
+                      </span>
+                      <div class="text-right">
+                        <p class="text-xs text-slate-500">{formatShortDate(m.match_date)}</p>
+                        <p class="font-display text-base font-bold text-gold leading-tight">{formatTime(m.match_date)}</p>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <div class="flex-1 min-w-0">
+                        <TeamName team={m.home_team} side="home" class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`} />
+                      </div>
+                      <div class="flex-shrink-0 px-2 text-center min-w-[60px]">
+                        {existing
+                          ? <span class="text-gol font-display text-2xl">{existing.user_home}–{existing.user_away}</span>
+                          : <span class="text-slate-700 font-bold text-xl">–</span>
+                        }
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <TeamName team={m.away_team} side="away" class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`} />
+                      </div>
+                    </div>
+                    {!existing && (
+                      <button disabled class="w-full mt-2 flex items-center justify-center gap-2 text-sm rounded-xl py-3 cursor-not-allowed opacity-75 text-slate-300 bg-brand-800/50 border border-brand-700/50">
+                        🔒 Jornada cerrada, sin pronóstico
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            </Fragment>
 
           ) : (
             /* ── Jornada cerrada o completa: solo lectura ── */
@@ -777,6 +821,16 @@ let globalFormIdx = 0;
     return `${s}s`;
   }
 
+  // Cierre EN VIVO: oculta el formulario editable y muestra la vista de solo-
+  // lectura [data-cerrada-view] que el servidor ya renderizó (oculta) con la
+  // MISMA marca que una jornada cerrada normal → queda idéntica, sin steppers.
+  function lockFormReadonly(form: HTMLFormElement) {
+    if (form.dataset.locked) return;
+    form.dataset.locked = '1';
+    form.style.display = 'none';
+    form.parentElement?.querySelector('[data-cerrada-view]')?.classList.remove('hidden');
+  }
+
   function initCountdown() {
     if ((window as any).__cdInterval) clearInterval((window as any).__cdInterval);
     const els = Array.from(document.querySelectorAll<HTMLElement>('.cutoff-cd'));
@@ -798,12 +852,11 @@ let globalFormIdx = 0;
           cd.textContent = '🔒 CERRADA';
           cd.style.color = '#f87171';
           const wrap = cd.closest('[data-jornada]');
-          const btn = wrap?.querySelector<HTMLButtonElement>('button[type="submit"]');
-          if (btn && !btn.disabled) {
-            btn.disabled = true;
-            btn.textContent = '🔒 Jornada cerrada';
-            btn.classList.add('opacity-60', 'cursor-not-allowed');
-          }
+          const form = wrap?.querySelector<HTMLFormElement>('form[action="/api/predictions/submit-jornada"]');
+          // Cierre EN VIVO: transformar el formulario al mismo solo-lectura que el
+          // servidor (sin steppers, "Jornada cerrada, sin pronóstico"), para que no
+          // confunda como si aún se pudiera pronosticar.
+          if (form) lockFormReadonly(form);
           return;
         }
         cd.textContent = '⏰ Cierra en ' + fmtRemaining(rem);
@@ -826,7 +879,10 @@ let globalFormIdx = 0;
           // pantalla completa para que no quede la falsa impresión de que hay tiempo.
           const openForm = document.querySelector('form[action="/api/predictions/submit-jornada"]');
           const cierre = document.getElementById('cierre-modal');
-          if (openForm && cierre && cierre.classList.contains('hidden')) cierre.classList.remove('hidden');
+          if (openForm && cierre && cierre.classList.contains('hidden') && !cierre.dataset.dismissed) {
+            if (sticky.dataset.stickyKey) cierre.dataset.liveKey = sticky.dataset.stickyKey;
+            cierre.classList.remove('hidden');
+          }
           return;
         }
         stickyTime.textContent = fmtRemaining(rem);
@@ -1015,20 +1071,23 @@ let globalFormIdx = 0;
     if (ok && !ok.dataset.bound) {
       ok.dataset.bound = '1';
       ok.addEventListener('click', async () => {
-        const k = m.dataset.lateKey || '';
-        if (k) {
-          try {
-            await fetch('/api/profile/ack-cierre', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: new URLSearchParams({ key: k }),
-            });
-          } catch { /* el registro es best-effort */ }
-          try { localStorage.setItem('cierreSeen:' + k, '1'); } catch { /* sin almacenamiento */ }
-          m.classList.add('hidden');
-        } else {
-          location.reload();
+        // Igual en entrada tardía y en cierre en vivo: registrar en el log, marcar
+        // como visto y CERRAR el popup (dejar navegar). Nunca recarga: en dev el
+        // beta-time mantiene la jornada "abierta" y la recarga reabría el popup.
+        const k = m.dataset.lateKey || m.dataset.liveKey || '';
+        try {
+          await fetch('/api/profile/ack-cierre', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ key: k }),
+          });
+        } catch { /* el registro es best-effort */ }
+        // Solo la entrada tardía se recuerda por jornada (no re-mostrar al recargar).
+        if (m.dataset.lateKey) {
+          try { localStorage.setItem('cierreSeen:' + m.dataset.lateKey, '1'); } catch { /* sin almacenamiento */ }
         }
+        m.dataset.dismissed = '1'; // evita que el tick del contador lo reabra
+        m.classList.add('hidden');
       });
     }
   }
