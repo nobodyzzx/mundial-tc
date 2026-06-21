@@ -897,7 +897,8 @@ let globalFormIdx = 0;
           const openForm = document.querySelector('form[action="/api/predictions/submit-jornada"]');
           const cierre = document.getElementById('cierre-modal');
           const k = sticky.dataset.stickyKey || '';
-          const yaVisto = k && localStorage.getItem('cierreSeen:' + k);
+          // En beta/dev nunca se suprime (siempre se muestra, para grabar sin incógnito).
+          const yaVisto = import.meta.env.PUBLIC_BETA !== 'true' && k && localStorage.getItem('cierreSeen:' + k);
           if (openForm && cierre && cierre.classList.contains('hidden') && !cierre.dataset.dismissed && !yaVisto) {
             if (k) cierre.dataset.liveKey = k;
             cierre.classList.remove('hidden');
@@ -1083,8 +1084,12 @@ let globalFormIdx = 0;
   function initCierreModal() {
     const m = document.getElementById('cierre-modal');
     if (!m) return;
+    // En beta/dev el popup se muestra SIEMPRE (para grabar el tutorial sin tener
+    // que usar incógnito, que en Android bloquea la grabación). En prod real
+    // (PUBLIC_BETA != true) respeta el "una sola vez" por navegador.
+    const siempreMostrar = import.meta.env.PUBLIC_BETA === 'true';
     const key = m.dataset.lateKey || '';
-    if (key && !localStorage.getItem('cierreSeen:' + key)) m.classList.remove('hidden');
+    if (key && (siempreMostrar || !localStorage.getItem('cierreSeen:' + key))) m.classList.remove('hidden');
 
     const ok = document.getElementById('cierre-ok');
     if (ok && !ok.dataset.bound) {
