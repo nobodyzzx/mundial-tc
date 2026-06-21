@@ -12,6 +12,7 @@ import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 import { logEvent } from '@/lib/system-log';
 import { alertGroupError } from '@/lib/whatsapp';
 import { emitLiveEvents } from '@/lib/live-events';
+import { runBackupChecks } from '@/lib/backup';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 
@@ -80,6 +81,10 @@ export const GET: APIRoute = async ({ url, request }) => {
     await alertGroupError({ source: 'sync', detail: 'Config faltante: TOURNAMENT_CODE/SEASON no configurados.' });
     return json({ error: 'TOURNAMENT_CODE o TOURNAMENT_SEASON no configurados' }, 500);
   }
+
+  // Respaldos (antes del gate, para que el 'pre' corra aunque no haya partido en
+  // ventana). Best-effort; no-op si N8N_BACKUP_WEBHOOK_URL no está configurada.
+  if (!preview) await runBackupChecks();
 
   // Gate (proveedores por fecha/en-vivo): solo se llama a la API si hay un partido
   // en ventana de juego (chequeo gratis en la BD). Sirve doble: ahorra cuota
