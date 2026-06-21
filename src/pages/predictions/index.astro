@@ -134,6 +134,18 @@ const stickyEntry = jornadaList
 const stickyCutoff = stickyEntry ? stickyEntry.firstMs - 2 * 3600 * 1000 : null;
 const stickyLabel = stickyEntry?.key ?? null;
 
+// Jornada CERRADA con partidos SIN pronosticar (el jugador llegó tarde): dispara
+// el popup "JORNADA CERRADA" una sola vez al entrar (lo maneja initCierreModal en
+// el cliente, con registro en el log al pulsar Entendido). La clave del día evita
+// que se repita por jornada (localStorage).
+let lateCierreKey: string | null = null;
+for (const [, jms] of jornadaList) {
+  if (!isSanctioned(jms) && lockStateFor(jms) === 'closed' && jms.some((m) => !predMap.has(m.id))) {
+    lateCierreKey = String(boliviaDayKey(Math.min(...jms.map((m) => new Date(m.match_date).getTime()))));
+    break;
+  }
+}
+
 function buildShareData(dayMatches: MatchRow[], username: string) {
   const firstMatch = dayMatches[0];
   const cutoff = new Date(new Date(firstMatch.match_date).getTime() - 2 * 3600 * 1000);
@@ -301,7 +313,7 @@ let globalFormIdx = 0;
          Si la jornada cierra mientras el jugador está en la página con el
          formulario abierto, este modal lo bloquea: deja claro que ya no hay
          tiempo (lo activa initCountdown al llegar el contador a 0). */}
-    <div id="cierre-modal" class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4 bg-brand-950/95 backdrop-blur-md">
+    <div id="cierre-modal" data-late-key={lateCierreKey ?? undefined} class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4 bg-brand-950/95 backdrop-blur-md">
       <div class="relative w-full max-w-md rounded-3xl border-2 border-fifared/60 bg-fifared/10 p-7 text-center space-y-4 shadow-2xl">
         <div class="text-7xl">🔒</div>
         <h2 class="font-display text-3xl tracking-wide text-fifared">JORNADA CERRADA</h2>
@@ -777,14 +789,6 @@ let globalFormIdx = 0;
     const URGENT = ['bg-fifared/90', 'border-fifared', 'animate-pulse'];
     const buzz = (pattern: number | number[]) => { try { (navigator as any).vibrate?.(pattern); } catch { /* sin soporte */ } };
 
-    // Botón del popup de cierre en vivo: recarga para mostrar el estado real
-    // (jornada ya en solo-lectura desde el servidor).
-    const cierreOk = document.getElementById('cierre-ok');
-    if (cierreOk && !cierreOk.dataset.bound) {
-      cierreOk.dataset.bound = '1';
-      cierreOk.addEventListener('click', () => location.reload());
-    }
-
     const tick = () => {
       // Encabezados por jornada (texto chico) — comportamiento existente.
       els.forEach(cd => {
@@ -995,6 +999,40 @@ let globalFormIdx = 0;
     }));
   }
 
+  // ── Popup de jornada cerrada (dos disparadores comparten el mismo modal) ──
+  //  1) ENTRADA TARDÍA (servidor marca data-late-key): el jugador entra y hay una
+  //     jornada cerrada que NO alcanzó a pronosticar → se muestra UNA sola vez
+  //     (localStorage por jornada) y al pulsar Entendido queda en el log.
+  //  2) CIERRE EN VIVO (lo dispara initCountdown): la jornada cierra mientras
+  //     teclea → al pulsar Entendido recarga para ver el estado real.
+  function initCierreModal() {
+    const m = document.getElementById('cierre-modal');
+    if (!m) return;
+    const key = m.dataset.lateKey || '';
+    if (key && !localStorage.getItem('cierreSeen:' + key)) m.classList.remove('hidden');
+
+    const ok = document.getElementById('cierre-ok');
+    if (ok && !ok.dataset.bound) {
+      ok.dataset.bound = '1';
+      ok.addEventListener('click', async () => {
+        const k = m.dataset.lateKey || '';
+        if (k) {
+          try {
+            await fetch('/api/profile/ack-cierre', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({ key: k }),
+            });
+          } catch { /* el registro es best-effort */ }
+          try { localStorage.setItem('cierreSeen:' + k, '1'); } catch { /* sin almacenamiento */ }
+          m.classList.add('hidden');
+        } else {
+          location.reload();
+        }
+      });
+    }
+  }
+
   function init() {
     // Guard anti doble-binding: init() corre por la llamada directa Y por
     // astro:page-load (ambos sobre el MISMO DOM en la carga inicial). Marca el
@@ -1013,6 +1051,7 @@ let globalFormIdx = 0;
     initCountdown();
     initDraft();
     initResultModal();
+    initCierreModal();
   }
 
   init();
