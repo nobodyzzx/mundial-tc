@@ -22,7 +22,7 @@ import { sendWhatsApp } from './whatsapp';
 
 type EventRow = {
   match_id: string;
-  type: 'kickoff' | 'goal';
+  type: 'kickoff' | 'goal' | 'halftime';
   home_score: number;
   away_score: number;
   scorer?: string | null;
@@ -72,11 +72,30 @@ async function prevGoalScore(matchId: string): Promise<{ h: number; a: number }>
   return r ? { h: r.home_score, a: r.away_score } : { h: 0, a: 0 };
 }
 
-function goalText(homeName: string, awayName: string, h: number, a: number, g: Partial<GoalEvent>): string {
+/**
+ * Contexto del gol según el marcador previo: abre / empata / rompe el empate /
+ * amplía / descuenta. Se deriva del marcador (no requiere datos extra). Cadena
+ * vacía si no aporta (no debería pasar con un gol que cambia el score en 1).
+ */
+function goalContext(prevH: number, prevA: number, h: number, a: number): string {
+  const homeScored = h > prevH;
+  const sFor = homeScored ? h : a;             // goles del que anotó (después)
+  const sAgainst = homeScored ? a : h;
+  const bFor = sFor - 1, bAgainst = sAgainst;  // marcador antes de este gol
+  if (bFor === 0 && bAgainst === 0) return 'abre el marcador';
+  if (sFor === sAgainst) return '¡empata el partido!';
+  if (bFor === bAgainst && sFor > sAgainst) return 'rompe el empate';
+  if (bFor > bAgainst) return 'amplía la ventaja';
+  if (sFor < sAgainst) return 'descuenta';
+  return '';
+}
+
+function goalText(homeName: string, awayName: string, h: number, a: number, g: Partial<GoalEvent>, ctx = ''): string {
   const tag = g.ownGoal ? ' _(en propia puerta)_' : g.penalty ? ' _(de penal)_' : '';
   const min = g.minute ? ` _${g.minute}_` : '';
+  const c = ctx ? ` — _${ctx}_` : '';
   return [
-    g.scorer ? `⚽ *¡GOOOL de ${g.scorer}!*${tag}` : `⚽ *¡GOOOL!*${tag}`,
+    (g.scorer ? `⚽ *¡GOOOL de ${g.scorer}!*${tag}` : `⚽ *¡GOOOL!*${tag}`) + c,
     `${teamFlag(homeName)} ${spanishName(homeName)} *${h} - ${a}* ${spanishName(awayName)} ${teamFlag(awayName)}${min}`,
   ].join('\n');
 }
@@ -185,6 +204,23 @@ async function teaserAnulado(matchId: string, ph: number, pa: number): Promise<s
   }
 }
 
+/** Quién tiene clavado el marcador al entretiempo (guiño, conteo bruto). */
+async function teaserMediotiempo(matchId: string, h: number, a: number): Promise<string> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('predictions')
+      .select('profiles(username)')
+      .eq('match_id', matchId)
+      .eq('user_home', h)
+      .eq('user_away', a);
+    if (!data?.length) return '';
+    const nombres = data.map((r: any) => r.profiles?.username ?? 'Alguien');
+    return `🎯 Al descanso, ${listaNombres(nombres)} ${verbo(nombres.length, 'tiene', 'tienen')} clavado el ${h}-${a}`;
+  } catch {
+    return '';
+  }
+}
+
 export async function emitLiveEvents(
   fixtures: ApiMatch[],
   dbRows: DbMatchRow[],
@@ -280,8 +316,10 @@ export async function emitLiveEvents(
           const prevH = h, prevA = a;
           if (g.side === 'home') h++; else a++;
           if (await exists(matchId, 'goal', h, a)) continue;
+          const ctx = goalContext(prevH, prevA, h, a);
           const teaser = await teaserPuntaje(matchId, prevH, prevA, h, a, stage);
-          const text = teaser ? `${goalText(home, away, h, a, g)}\n${teaser}` : goalText(home, away, h, a, g);
+          const base = goalText(home, away, h, a, g, ctx);
+          const text = teaser ? `${base}\n${teaser}` : base;
           await emit(text, 'live-goal', {
             match_id: matchId, type: 'goal', home_score: h, away_score: a,
             scorer: g.scorer, minute: g.minute, penalty: g.penalty, own_goal: g.ownGoal,
@@ -293,11 +331,25 @@ export async function emitLiveEvents(
         const side = curH > prev.h && curA === prev.a ? 'home'
           : curA > prev.a && curH === prev.h ? 'away' : null;
         const scorer = side === 'home' ? spanishName(home) : side === 'away' ? spanishName(away) : null;
+        const ctx = side ? goalContext(prev.h, prev.a, curH, curA) : '';
         const teaser = await teaserPuntaje(matchId, prev.h, prev.a, curH, curA, stage);
-        const text = teaser ? `${goalText(home, away, curH, curA, { scorer })}\n${teaser}` : goalText(home, away, curH, curA, { scorer });
+        const base = goalText(home, away, curH, curA, { scorer }, ctx);
+        const text = teaser ? `${base}\n${teaser}` : base;
         await emit(text, 'live-goal', {
           match_id: matchId, type: 'goal', home_score: curH, away_score: curA,
         });
+      }
+
+      // 3. Entretiempo: un aviso por partido cuando ESPN reporta el descanso
+      //    (status PAUSED = STATUS_HALFTIME). Idempotente por (match, halftime).
+      if (f.status === 'PAUSED' && !(await exists(matchId, 'halftime', curH, curA))) {
+        const teaser = await teaserMediotiempo(matchId, curH, curA);
+        const text = [
+          '⏸️ *ENTRETIEMPO*',
+          `${teamFlag(home)} ${spanishName(home)} *${curH} - ${curA}* ${spanishName(away)} ${teamFlag(away)}`,
+          ...(teaser ? ['', teaser] : []),
+        ].join('\n');
+        await emit(text, 'live-halftime', { match_id: matchId, type: 'halftime', home_score: curH, away_score: curA });
       }
     }
   } catch {

@@ -116,7 +116,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   const dayIds = dayMatches.map(m => m.id);
   const { data: dayPreds } = await supabaseAdmin
     .from('predictions')
-    .select('user_id, points_earned')
+    .select('user_id, match_id, user_home, user_away, points_earned')
     .in('match_id', dayIds);
 
   const dayPts = new Map<string, number>();
@@ -165,6 +165,62 @@ export const GET: APIRoute = async ({ url, request }) => {
     .limit(1);
   const hayProxima = !!upcoming?.length;
 
+  // ── Stats del día (0 mensajes extra: van dentro de este resumen) ──
+  // 🎯 Pleno del día: acertó el marcador EXACTO de TODOS los partidos del día
+  //    (y los pronosticó todos). Los sancionados con roja (jornada anulada) no cuentan.
+  const exactScore = new Map(dayMatches.map(m => [m.id, `${m.home_score}-${m.away_score}`]));
+  const userExact = new Map<string, number>();
+  const userPreds = new Map<string, number>();
+  for (const pr of dayPreds ?? []) {
+    userPreds.set(pr.user_id, (userPreds.get(pr.user_id) ?? 0) + 1);
+    if (exactScore.get(pr.match_id) === `${pr.user_home}-${pr.user_away}`) {
+      userExact.set(pr.user_id, (userExact.get(pr.user_id) ?? 0) + 1);
+    }
+  }
+  const anulados = new Set(dayCards.filter(c => c.type !== 'yellow').map(c => c.user_id));
+  const plenoNames = (standings ?? [])
+    .filter(p => !anulados.has(p.id)
+      && userPreds.get(p.id) === dayMatches.length
+      && userExact.get(p.id) === dayMatches.length)
+    .map(p => p.username);
+
+  // 🔥 Más en forma: más puntos en los últimos 3 días de juego (incl. hoy).
+  //    "Días seguidos sumando" se satura (casi todos suman algo a diario); el
+  //    acumulado reciente sí separa quién viene caliente. Una sola lectura de los
+  //    pronósticos ya resueltos (tabla chica, 1×/día).
+  const { data: histRows } = await supabaseAdmin
+    .from('predictions')
+    .select('user_id, points_earned, matches!inner(match_date, is_finished)')
+    .eq('matches.is_finished', true);
+  const dayKeyOf = (iso: string) => boliviaDayStart(new Date(iso).getTime()).getTime();
+  const allDays = new Set<number>();
+  const userDayPts = new Map<string, Map<number, number>>();
+  for (const r of histRows ?? []) {
+    const m: any = (r as any).matches;
+    if (!m?.match_date) continue;
+    const dk = dayKeyOf(m.match_date);
+    allDays.add(dk);
+    let um = userDayPts.get(r.user_id);
+    if (!um) { um = new Map(); userDayPts.set(r.user_id, um); }
+    um.set(dk, (um.get(dk) ?? 0) + (r.points_earned ?? 0));
+  }
+  const recientes = [...allDays].sort((x, y) => y - x).slice(0, 3); // 3 más recientes
+  const formaDe = (uid: string): number =>
+    recientes.reduce((s, d) => s + (userDayPts.get(uid)?.get(d) ?? 0), 0);
+  let bestForma = 0;
+  let formaNames: string[] = [];
+  for (const p of standings ?? []) {
+    const f = formaDe(p.id);
+    if (f > bestForma) { bestForma = f; formaNames = [p.username]; }
+    else if (f === bestForma && f > 0) formaNames.push(p.username);
+  }
+
+  const statLines: string[] = [];
+  if (plenoNames.length) statLines.push(`🎯 *Pleno del día* (clavó todos los marcadores): ${plenoNames.join(', ')}`);
+  // Solo si hay historia suficiente y no es un empate masivo (ruido).
+  if (recientes.length >= 2 && bestForma > 0 && formaNames.length <= 3)
+    statLines.push(`🔥 *Más en forma*: ${formaNames.join(', ')} — *${bestForma}* pts en los últimos ${recientes.length} días`);
+
   // 6. Construir mensaje.
   const resultLines = dayMatches.map(m => {
     let s = `${spanishName(m.home_team)} ${teamFlag(m.home_team)} ${m.home_score}–${m.away_score} ${teamFlag(m.away_team)} ${spanishName(m.away_team)}`;
@@ -195,6 +251,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     '📊 *TABLA GENERAL* _(+ puntos de hoy)_',
     ...tableLines,
     ...(cardLines.length ? ['', '🟨🟥 *Tarjetas de hoy*', ...cardLines] : []),
+    ...(statLines.length ? ['', '🌟 *Destacados*', ...statLines] : []),
     ...(hayProxima ? ['', '✍️ _¡La próxima jornada ya está abierta! No olvides cargar tus pronósticos._'] : []),
     '',
     '👉 mundial.tecnocondor.dev/pronosticos',
