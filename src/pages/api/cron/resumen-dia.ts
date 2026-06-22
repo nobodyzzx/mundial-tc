@@ -149,6 +149,17 @@ export const GET: APIRoute = async ({ url, request }) => {
     return `🟥🟥 ${name} — expulsado`;
   });
 
+  // ¿Hay próxima jornada? La página de pronósticos se abre apenas se resuelve el
+  // día actual, así que si quedan partidos por jugar ya se puede cargar la
+  // siguiente. Si el torneo terminó, no se invita a pronosticar.
+  const { data: upcoming } = await supabaseAdmin
+    .from('matches')
+    .select('id')
+    .eq('is_finished', false)
+    .gt('match_date', new Date(nowMs).toISOString())
+    .limit(1);
+  const hayProxima = !!upcoming?.length;
+
   // 6. Construir mensaje.
   const resultLines = dayMatches.map(m => {
     let s = `${spanishName(m.home_team)} ${teamFlag(m.home_team)} ${m.home_score}–${m.away_score} ${teamFlag(m.away_team)} ${spanishName(m.away_team)}`;
@@ -179,6 +190,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     '📊 *TABLA GENERAL* _(+ puntos de hoy)_',
     ...tableLines,
     ...(cardLines.length ? ['', '🟨🟥 *Tarjetas de hoy*', ...cardLines] : []),
+    ...(hayProxima ? ['', '✍️ _¡La próxima jornada ya está abierta! No olvides cargar tus pronósticos._'] : []),
     '',
     '👉 mundial.tecnocondor.dev/pronosticos',
     '_Polla Mundial 2026_ 🏆',
