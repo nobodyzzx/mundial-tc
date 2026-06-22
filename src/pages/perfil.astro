@@ -79,7 +79,12 @@ const sortedPreds = ((predHistory ?? []) as any[]).sort(
   (a, b) => new Date(a.match?.match_date ?? 0).getTime() - new Date(b.match?.match_date ?? 0).getTime(),
 );
 
+// Acumuladores de rendimiento. Distribución, racha y puntos por fase se calculan
+// en este mismo recorrido cronológico (sortedPreds ya viene ordenado por hora).
 let totalPartidos = 0, aciertos = 0, exactos = 0;
+let okOnly = 0, fallos = 0, sinPred = 0, ptsGrupos = 0, ptsElim = 0;
+type SeqItem = { acierto: boolean; icon: string; anulled: boolean };
+const seq: SeqItem[] = [];
 for (const p of sortedPreds) {
   const m = p.match;
   if (!m?.is_finished) continue;
@@ -96,7 +101,22 @@ for (const p of sortedPreds) {
   const cls = exact ? 'text-gold' : ok ? 'text-gol' : !hasPred ? 'text-slate-600' : 'text-slate-500';
 
   // Stats: no cuentan las jornadas anuladas por roja (valen 0, no reflejan acierto real).
-  if (hasPred && !anulledDays.has(dayMs)) { totalPartidos++; if (exact) exactos++; if (exact || ok) aciertos++; }
+  const isAnulled = anulledDays.has(dayMs);
+  if (hasPred && !isAnulled) {
+    totalPartidos++;
+    if (exact) exactos++;
+    else if (ok) okOnly++;
+    else fallos++;
+    if (exact || ok) aciertos++;
+  } else if (!hasPred && !isAnulled) {
+    sinPred++;
+  }
+  // Puntos por fase (points_earned ya es 0 en días anulados).
+  if ((m.stage as string) === 'group') ptsGrupos += p.points_earned ?? 0;
+  else ptsElim += p.points_earned ?? 0;
+  // Secuencia para "forma" y racha (la racha ignora días anulados: castiga fallar,
+  // no haber recibido una roja).
+  seq.push({ acierto: hasPred && (exact || ok), icon, anulled: isAnulled });
 
   let pen = '';
   if (hasPred && p.user_home === p.user_away && p.user_winner_penalties && p.user_home_pen !== null)
@@ -120,12 +140,80 @@ const jornadaHistory = [...jornadaMap.entries()]
   .map(([day, v]) => ({ day, ...v, anulada: anulledDays.has(v.dayMs) }))
   .sort((a, b) => b.dayMs - a.dayMs); // jornada más reciente primero
 
-// Texto para compartir por WhatsApp (mismo estilo que el resumen de los jugadores).
+// ── Rendimiento (panel + compartir) ────────────────────────────────────────
+const pct = totalPartidos ? Math.round((aciertos / totalPartidos) * 100) : 0;
+const distTotal = exactos + okOnly + fallos + sinPred || 1;
+const pctOf = (n: number) => Math.round((n / distTotal) * 100);
+
+// Forma: últimos 5 partidos (🟥 si el día quedó anulado). Racha: aciertos seguidos
+// sobre días jugables (la más reciente y la mejor del torneo).
+const forma = seq.slice(-5).map((s) => (s.anulled ? '🟥' : s.icon));
+const playable = seq.filter((s) => !s.anulled);
+let bestStreak = 0, _run = 0;
+for (const s of playable) { if (s.acierto) { _run++; if (_run > bestStreak) bestStreak = _run; } else _run = 0; }
+let curStreak = 0;
+for (let i = playable.length - 1; i >= 0 && playable[i].acierto; i--) curStreak++;
+
+const playedJornadas = jornadaHistory.filter((j) => !j.anulada);
+const mejorJornada = playedJornadas.reduce((mx, j) => Math.max(mx, j.pts), 0);
+// Pleno = día jugado donde acertó TODOS los partidos (todos ⭐ o ✅).
+const plenos = playedJornadas.filter(
+  (j) => j.matches.length > 0 && j.matches.every((mt) => mt.icon === '⭐' || mt.icon === '✅'),
+).length;
+
+const groupAvg = totalPlayers
+  ? (ranking ?? []).reduce((s: number, p: any) => s + (p.puntos_totales ?? 0), 0) / totalPlayers
+  : 0;
+const vsAvg = Math.round((profile?.puntos_totales ?? 0) - groupAvg);
+
+// Nivel por puntos (umbrales calibrados al rango real del torneo, con margen para
+// eliminatorias). Progreso hacia el siguiente.
+const LEVELS = [
+  { min: 0,  emoji: '🌱', name: 'Hincha' },
+  { min: 15, emoji: '⚽', name: 'Pronosticador' },
+  { min: 30, emoji: '🚀', name: 'Crack' },
+  { min: 45, emoji: '🔮', name: 'Oráculo' },
+  { min: 65, emoji: '👑', name: 'Leyenda' },
+];
+const ptsTot = profile?.puntos_totales ?? 0;
+let lvlIdx = 0;
+for (let i = 0; i < LEVELS.length; i++) if (ptsTot >= LEVELS[i].min) lvlIdx = i;
+const level = LEVELS[lvlIdx];
+const nextLevel = LEVELS[lvlIdx + 1] ?? null;
+const lvlProgress = nextLevel
+  ? Math.round(((ptsTot - level.min) / (nextLevel.min - level.min)) * 100)
+  : 100;
+const toNext = nextLevel ? nextLevel.min - ptsTot : 0;
+
+// Logros. Cada uno se calcula al vuelo desde los datos del torneo.
+type Achievement = { icon: string; name: string; desc: string; got: boolean; count?: number };
+const achievements: Achievement[] = [
+  { icon: '⭐', name: 'Primer exacto',   desc: 'Acertaste un marcador exacto',           got: exactos >= 1 },
+  { icon: '💎', name: 'Francotirador',    desc: '5 marcadores exactos',                   got: exactos >= 5 },
+  { icon: '🔥', name: 'En racha',         desc: '5 aciertos seguidos',                    got: bestStreak >= 5 },
+  { icon: '🎯', name: 'Jornada perfecta', desc: 'Acertaste todos los partidos de un día', got: plenos >= 1, count: plenos },
+  { icon: '🧼', name: 'Juego limpio',     desc: 'Sin tarjetas en todo el torneo',         got: cardItems.length === 0 && !profile?.expulsado },
+  { icon: '👑', name: 'En la cima',       desc: 'Líder del ranking',                      got: rank === 1 },
+  { icon: '📈', name: 'Sobre la media',   desc: 'Por encima del promedio del grupo',      got: vsAvg > 0 },
+];
+const gotCount = achievements.filter((a) => a.got).length;
+const wonBadges = achievements
+  .filter((a) => a.got)
+  .map((a) => (a.count && a.count > 1 ? `${a.icon}×${a.count}` : a.icon))
+  .join(' ');
+
+// Texto para compartir por WhatsApp: tarjeta de rendimiento + desglose por jornada.
 const shareLines: string[] = [
   `📋 *MI RESUMEN · ${profile?.username ?? ''}*`,
-  `_Polla Mundial 2026_ · ${profile?.puntos_totales ?? 0} pts${rank ? ` · ${rank}.º de ${totalPlayers}` : ''}`,
+  `${level.emoji} *${level.name}* · ${ptsTot} pts${rank ? ` · ${rank}.º de ${totalPlayers}` : ''}`,
   '',
+  `🎯 Aciertos ${aciertos}/${totalPartidos} (${pct}%) · ⭐ ${exactos} exactos`,
+  `🔥 Racha ${curStreak} (mejor ${bestStreak}) · 🏅 Mejor jornada +${mejorJornada}`,
+  `🗂️ Grupos ${ptsGrupos} · 🏆 Eliminatorias ${ptsElim}`,
+  `📊 Forma: ${forma.length ? forma.join(' ') : '—'}${vsAvg !== 0 ? ` · ${vsAvg > 0 ? '+' : ''}${vsAvg} vs promedio` : ''}`,
 ];
+if (wonBadges) shareLines.push(`🏆 Logros: ${wonBadges}`);
+shareLines.push('');
 for (const j of jornadaHistory) {
   if (j.anulada) {
     shareLines.push(`🟥 *${cap(j.day)}* — Jornada anulada (0 pts)`, '');
@@ -275,6 +363,102 @@ const firstOpenIdx = jornadaHistory.findIndex((j) => !j.anulada); // abrir la 1�
         <p class="text-[11px] text-slate-600 leading-snug pt-1 border-t border-brand-800/60">
           ⚖️ Amarillas y rojas se limpian cada jornada. Solo la doble roja es expulsión definitiva.
         </p>
+      </div>
+    </div>
+
+    <!-- Rendimiento -->
+    <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">📊 Rendimiento</h2>
+
+      <!-- Nivel -->
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm text-slate-300">
+            <span class="text-lg align-middle">{level.emoji}</span>
+            <span class="font-display text-white align-middle ml-1">{level.name}</span>
+          </span>
+          {nextLevel
+            ? <span class="text-[11px] text-slate-500 text-right">Faltan {toNext} → {nextLevel.emoji} {nextLevel.name}</span>
+            : <span class="text-[11px] text-gold">Nivel máximo 👑</span>}
+        </div>
+        <div class="h-2 bg-brand-800 rounded-full overflow-hidden">
+          <div class="h-full bg-gold rounded-full transition-all" style={`width:${lvlProgress}%`}></div>
+        </div>
+      </div>
+
+      <!-- Forma + Racha -->
+      <div class="grid grid-cols-2 gap-2">
+        <div class="bg-brand-800/50 rounded-xl px-3 py-2.5">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Forma · últimos 5</p>
+          <p class="text-base leading-none tracking-[0.15em]">{forma.length ? forma.join(' ') : '—'}</p>
+        </div>
+        <div class="bg-brand-800/50 rounded-xl px-3 py-2.5">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide mb-1.5">Racha de aciertos</p>
+          <p class="font-display text-xl text-white leading-none">🔥 {curStreak} <span class="text-xs text-slate-500 font-sans">· mejor {bestStreak}</span></p>
+        </div>
+      </div>
+
+      <!-- Distribución de pronósticos -->
+      <div class="space-y-1.5">
+        <div class="flex items-center justify-between text-[11px]">
+          <span class="text-slate-400 uppercase tracking-wide">Distribución</span>
+          <span class="text-slate-500">{pct}% de acierto</span>
+        </div>
+        <div class="flex h-2.5 rounded-full overflow-hidden bg-brand-800">
+          {exactos > 0 && <div class="bg-gold" style={`width:${pctOf(exactos)}%`}></div>}
+          {okOnly > 0 && <div class="bg-gol" style={`width:${pctOf(okOnly)}%`}></div>}
+          {fallos > 0 && <div class="bg-slate-600" style={`width:${pctOf(fallos)}%`}></div>}
+          {sinPred > 0 && <div class="bg-brand-700" style={`width:${pctOf(sinPred)}%`}></div>}
+        </div>
+        <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+          <span class="text-gold">⭐ {exactos} exactos</span>
+          <span class="text-gol">✅ {okOnly} aciertos</span>
+          <span class="text-slate-500">❌ {fallos} fallos</span>
+          {sinPred > 0 && <span class="text-slate-600">– {sinPred} sin pronóstico</span>}
+        </div>
+      </div>
+
+      <!-- Mejor jornada · Plenos · vs promedio -->
+      <div class="grid grid-cols-3 gap-2">
+        <div class="bg-brand-800/50 rounded-xl px-2 py-2.5 text-center">
+          <p class="font-display text-xl text-gold leading-none">+{mejorJornada}</p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">Mejor jornada</p>
+        </div>
+        <div class="bg-brand-800/50 rounded-xl px-2 py-2.5 text-center">
+          <p class="font-display text-xl text-white leading-none">{plenos} <span class="text-sm">🎯</span></p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">Plenos</p>
+        </div>
+        <div class="bg-brand-800/50 rounded-xl px-2 py-2.5 text-center">
+          <p class={`font-display text-xl leading-none ${vsAvg >= 0 ? 'text-gol' : 'text-fifared'}`}>{vsAvg >= 0 ? '+' : ''}{vsAvg}</p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide mt-1">vs promedio</p>
+        </div>
+      </div>
+
+      <!-- Puntos por fase -->
+      <div class="flex items-center gap-2 text-xs">
+        <span class="bg-brand-800/50 rounded-lg px-2.5 py-1.5 text-slate-400">🗂️ Grupos <span class="text-white font-semibold ml-0.5">{ptsGrupos}</span></span>
+        <span class="bg-brand-800/50 rounded-lg px-2.5 py-1.5 text-slate-400">🏆 Eliminatorias <span class="text-white font-semibold ml-0.5">{ptsElim}</span></span>
+      </div>
+    </div>
+
+    <!-- Logros -->
+    <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">🏆 Logros</h2>
+        <span class="text-xs font-semibold text-gold">{gotCount}/{achievements.length}</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {achievements.map((a) => (
+          <div class={`rounded-xl px-3 py-2.5 border ${a.got ? 'bg-gold/8 border-gold/30' : 'bg-brand-800/30 border-brand-800'}`}>
+            <div class="flex items-center gap-2">
+              <span class={`text-xl leading-none flex-shrink-0 ${a.got ? '' : 'opacity-40 grayscale'}`}>{a.got ? a.icon : '🔒'}</span>
+              <div class="min-w-0">
+                <p class={`text-xs font-semibold leading-tight ${a.got ? 'text-white' : 'text-slate-500'}`}>{a.name}{a.count && a.count > 1 ? ` ×${a.count}` : ''}</p>
+                <p class="text-[10px] text-slate-500 leading-tight mt-0.5">{a.desc}</p>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
 
