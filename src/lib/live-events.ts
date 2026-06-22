@@ -164,6 +164,27 @@ async function teaserPuntaje(
   }
 }
 
+/**
+ * Tease para el aviso de gol anulado: ¿quién tenía clavado el marcador que el
+ * VAR borró? Esos "festejaron por adelantado". Conteo bruto (no descuenta
+ * sanciones): es un guiño, no el marcador oficial. Nunca rompe.
+ */
+async function teaserAnulado(matchId: string, ph: number, pa: number): Promise<string> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('predictions')
+      .select('profiles(username)')
+      .eq('match_id', matchId)
+      .eq('user_home', ph)
+      .eq('user_away', pa);
+    if (!data?.length) return '';
+    const nombres = data.map((r: any) => r.profiles?.username ?? 'Alguien');
+    return `🙈 Oh oh... ${listaNombres(nombres)} ya ${verbo(nombres.length, 'festejaba', 'festejaban')} su ${ph}-${pa} por adelantado`;
+  } catch {
+    return '';
+  }
+}
+
 export async function emitLiveEvents(
   fixtures: ApiMatch[],
   dbRows: DbMatchRow[],
@@ -224,17 +245,27 @@ export async function emitLiveEvents(
       // gana la carrera y envía. En dryRun solo se detecta (no borra ni envía).
       if (f.score.fullTime.home != null && f.score.fullTime.away != null) {
         const phantomFilter = `home_score.gt.${curH},away_score.gt.${curA}`;
+        // Corrección + tease a quien ya "festejaba" el marcador anulado (el gol
+        // fantasma de mayor total entre los borrados).
+        const annulMsg = async (rows: { home_score: number; away_score: number }[]) => {
+          const top = rows.reduce((m, r) =>
+            r.home_score + r.away_score > m.home_score + m.away_score ? r : m);
+          const teaser = await teaserAnulado(matchId, top.home_score, top.away_score);
+          const base = annulText(home, away, curH, curA);
+          return teaser ? `${base}\n${teaser}` : base;
+        };
         if (dryRun) {
           const { data: phantom } = await supabaseAdmin
-            .from('match_events').select('id')
-            .eq('match_id', matchId).eq('type', 'goal').or(phantomFilter).limit(1);
-          if (phantom?.length) out.push(annulText(home, away, curH, curA));
+            .from('match_events').select('home_score, away_score')
+            .eq('match_id', matchId).eq('type', 'goal').or(phantomFilter);
+          if (phantom?.length) out.push(await annulMsg(phantom));
         } else {
           const { data: phantom } = await supabaseAdmin
             .from('match_events').delete()
-            .eq('match_id', matchId).eq('type', 'goal').or(phantomFilter).select('id');
+            .eq('match_id', matchId).eq('type', 'goal').or(phantomFilter)
+            .select('home_score, away_score');
           if (phantom?.length) {
-            const text = annulText(home, away, curH, curA);
+            const text = await annulMsg(phantom);
             out.push(text);
             await sendWhatsApp(text, 'live-annul');
           }
