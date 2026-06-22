@@ -81,6 +81,13 @@ function goalText(homeName: string, awayName: string, h: number, a: number, g: P
   ].join('\n');
 }
 
+function annulText(homeName: string, awayName: string, h: number, a: number): string {
+  return [
+    '🚫 *GOL ANULADO* _(VAR)_',
+    `El marcador vuelve a ${teamFlag(homeName)} ${spanishName(homeName)} *${h} - ${a}* ${spanishName(awayName)} ${teamFlag(awayName)}`,
+  ].join('\n');
+}
+
 /** Máximo de nombres listados por bando antes de pasar a "+N". */
 const MAX_NOMBRES = 3;
 
@@ -207,6 +214,31 @@ export async function emitLiveEvents(
           '⚽ ¡Que ruede la pelota! Suerte a todos.',
         ].join('\n');
         await emit(text, 'live-kickoff', { match_id: matchId, type: 'kickoff', home_score: 0, away_score: 0 });
+      }
+
+      // 1.5 Gol anulado (VAR): el marcador en vivo está por debajo de algún gol
+      // ya anunciado. Solo con marcador válido (no null) para no reaccionar a un
+      // glitch transitorio del proveedor. Se borran los goles fantasma (así un
+      // nuevo gol al mismo marcador se vuelve a anunciar) y se avisa la corrección
+      // UNA vez: el DELETE..RETURNING es atómico, solo el poll que borró filas
+      // gana la carrera y envía. En dryRun solo se detecta (no borra ni envía).
+      if (f.score.fullTime.home != null && f.score.fullTime.away != null) {
+        const phantomFilter = `home_score.gt.${curH},away_score.gt.${curA}`;
+        if (dryRun) {
+          const { data: phantom } = await supabaseAdmin
+            .from('match_events').select('id')
+            .eq('match_id', matchId).eq('type', 'goal').or(phantomFilter).limit(1);
+          if (phantom?.length) out.push(annulText(home, away, curH, curA));
+        } else {
+          const { data: phantom } = await supabaseAdmin
+            .from('match_events').delete()
+            .eq('match_id', matchId).eq('type', 'goal').or(phantomFilter).select('id');
+          if (phantom?.length) {
+            const text = annulText(home, away, curH, curA);
+            out.push(text);
+            await sendWhatsApp(text, 'live-annul');
+          }
+        }
       }
 
       // 2. Goles.
