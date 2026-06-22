@@ -113,6 +113,21 @@ export async function sendBackup(reason: 'pre' | 'fin', gameDayMs: number): Prom
   } catch { /* el respaldo nunca debe romper el sync */ }
 }
 
+/** Fuerza un respaldo AHORA (manual, vía ?backup=1). Devuelve el resultado para
+ * poder verificar. No usa dedupe ni los momentos pre/fin: es a demanda. */
+export async function forceBackup(): Promise<{ ok: boolean; path?: string; kb?: number; error?: string }> {
+  if (!GH_TOKEN || !GH_REPO) return { ok: false, error: 'GH_BACKUP_TOKEN/GH_BACKUP_REPO no configurados' };
+  try {
+    const dump = await buildDump('manual');
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+    const path = `backups/manual-${stamp}.sql`;
+    const ok = await commitToGitHub(path, dump, `backup manual ${new Date().toISOString()}`);
+    return { ok, path, kb: Math.round(dump.length / 1024) };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'error' };
+  }
+}
+
 /**
  * Revisa si toca respaldar (se llama en cada corrida de sync). Recorre los días de
  * juego y dispara 'pre' (cutoff pasó y aún no empieza) y 'fin' (todo finalizado
@@ -120,6 +135,10 @@ export async function sendBackup(reason: 'pre' | 'fin', gameDayMs: number): Prom
  */
 export async function runBackupChecks(): Promise<void> {
   if (!GH_TOKEN || !GH_REPO) return;
+  // Throttle: el sync corre cada minuto, pero las ventanas de respaldo son anchas
+  // ('pre' = 2h, 'fin' = 12h). Chequear cada 10 min basta y evita ~1.440
+  // lecturas/día de la tabla matches (ahorra Disk IO del plan free de Supabase).
+  if (new Date().getUTCMinutes() % 10 !== 0) return;
   try {
     const { data: ms } = await supabaseAdmin.from('matches').select('match_date, is_finished');
     if (!ms?.length) return;
@@ -140,4 +159,22 @@ export async function runBackupChecks(): Promise<void> {
       if (d.unfinished === 0 && now - d.last < 12 * 3600 * 1000) await sendBackup('fin', k);
     }
   } catch { /* best-effort */ }
+}
+
+const LOG_RETENTION_DAYS = 30;   // sync_logs: heartbeats + bitácora de envíos
+const EVENT_RETENTION_DAYS = 21; // match_events: ya no sirven tras el partido
+
+/**
+ * Limpieza diaria: borra logs y eventos viejos para no inflar la BD (free 500MB
+ * de Supabase). Filtro por fecha → idempotente; se puede llamar varias veces sin
+ * daño. Las marcas de idempotencia que se borran (>30 días) son de jornadas ya
+ * pasadas, que ningún cron vuelve a mirar. Best-effort: nunca rompe el sync.
+ */
+export async function pruneOldData(): Promise<void> {
+  try {
+    const logCut = new Date(Date.now() - LOG_RETENTION_DAYS * 86_400_000).toISOString();
+    await supabaseAdmin.from('sync_logs').delete().lt('created_at', logCut);
+    const evCut = new Date(Date.now() - EVENT_RETENTION_DAYS * 86_400_000).toISOString();
+    await supabaseAdmin.from('match_events').delete().lt('created_at', evCut);
+  } catch { /* la limpieza nunca debe romper el sync */ }
 }

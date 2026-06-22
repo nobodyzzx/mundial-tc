@@ -12,7 +12,7 @@ import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 import { logEvent } from '@/lib/system-log';
 import { alertGroupError } from '@/lib/whatsapp';
 import { emitLiveEvents } from '@/lib/live-events';
-import { runBackupChecks } from '@/lib/backup';
+import { runBackupChecks, pruneOldData } from '@/lib/backup';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
 
@@ -83,8 +83,14 @@ export const GET: APIRoute = async ({ url, request }) => {
   }
 
   // Respaldos (antes del gate, para que el 'pre' corra aunque no haya partido en
-  // ventana). Best-effort; no-op si N8N_BACKUP_WEBHOOK_URL no está configurada.
-  if (!preview) await runBackupChecks();
+  // ventana). Best-effort; no-op si GH_BACKUP_TOKEN/REPO no están configurados.
+  if (!preview) {
+    await runBackupChecks();
+    // Limpieza de logs/eventos viejos: 1×/día (~05:09 BOT = 09:09 UTC), fuera de
+    // horario de partidos. Best-effort, idempotente por filtro de fecha.
+    const nowD = new Date();
+    if (nowD.getUTCHours() === 9 && nowD.getUTCMinutes() === 9) await pruneOldData();
+  }
 
   // Gate (proveedores por fecha/en-vivo): solo se llama a la API si hay un partido
   // en ventana de juego (chequeo gratis en la BD). Sirve doble: ahorra cuota
