@@ -124,14 +124,19 @@ export const GET: APIRoute = async ({ url, request }) => {
     dayPts.set(pr.user_id, (dayPts.get(pr.user_id) ?? 0) + (pr.points_earned ?? 0));
   }
 
-  // Tarjetas dadas durante este día Bolivia (mismo criterio que anula la jornada).
-  const { data: dayCards } = await supabaseAdmin
+  // Tarjetas que afectan a ESTE día Bolivia. Una tarjeta retroactiva se registra
+  // otro día (created_at) pero castiga la jornada de game_day: se atribuye por
+  // game_day, igual que calculate_match_points (COALESCE(game_day, created_at)).
+  const { data: allCards } = await supabaseAdmin
     .from('sanctions')
-    .select('type, user_id, created_at')
+    .select('type, user_id, created_at, game_day')
     .eq('active', true)
-    .gte('created_at', dayStart.toISOString())
-    .lt('created_at', dayEnd.toISOString())
     .order('created_at', { ascending: true });
+  const inDay = (c: { game_day: string | null; created_at: string }) => {
+    const eff = new Date(c.game_day ?? c.created_at).getTime();
+    return eff >= dayStart.getTime() && eff < dayEnd.getTime();
+  };
+  const dayCards = (allCards ?? []).filter(inDay);
 
   let cardNames = new Map<string, string>();
   if (dayCards?.length) {

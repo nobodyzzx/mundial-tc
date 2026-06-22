@@ -95,15 +95,22 @@ export const GET: APIRoute = async ({ url, request }) => {
   const predMap = new Map<string, any>();
   for (const pr of preds ?? []) predMap.set(`${pr.match_id}:${pr.user_id}`, pr);
 
-  // Sancionados (roja del día Bolivia): su jornada está anulada, se marcan aparte.
-  const { data: dayCards } = await supabaseAdmin
+  // Sancionados cuya jornada de HOY está anulada (roja). Se atribuye por game_day
+  // (la jornada castigada), no por created_at: una roja retroactiva se registra
+  // otro día pero anula el game_day indicado. Igual que calculate_match_points.
+  const { data: allRed } = await supabaseAdmin
     .from('sanctions')
-    .select('user_id')
+    .select('user_id, created_at, game_day')
     .in('type', ['red', 'double_red'])
-    .eq('active', true)
-    .gte('created_at', dayStart.toISOString())
-    .lt('created_at', dayEnd.toISOString());
-  const sanctionedIds = new Set((dayCards ?? []).map(c => c.user_id));
+    .eq('active', true);
+  const sanctionedIds = new Set(
+    (allRed ?? [])
+      .filter(c => {
+        const eff = new Date(c.game_day ?? c.created_at).getTime();
+        return eff >= dayStart.getTime() && eff < dayEnd.getTime();
+      })
+      .map(c => c.user_id),
+  );
 
   // 6. Construir mensaje.
   const lines: string[] = [

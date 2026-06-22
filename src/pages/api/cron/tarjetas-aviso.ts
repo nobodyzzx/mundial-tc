@@ -82,13 +82,16 @@ export const GET: APIRoute = async ({ url, request }) => {
     }
   }
 
-  // 5. Tarjetas (sanciones activas) de ese día Bolivia, por created_at.
-  const { data: sanctions } = await supabaseAdmin
+  // 5. Tarjetas (sanciones activas) que afectan a ESTE día Bolivia, por game_day
+  //    (la jornada castigada); una tarjeta retroactiva se registra otro día.
+  const { data: allSanctions } = await supabaseAdmin
     .from('sanctions')
-    .select('user_id, type')
-    .eq('active', true)
-    .gte('created_at', dayStart.toISOString())
-    .lt('created_at', dayEnd.toISOString());
+    .select('user_id, type, created_at, game_day')
+    .eq('active', true);
+  const sanctions = (allSanctions ?? []).filter(s => {
+    const eff = new Date(s.game_day ?? s.created_at).getTime();
+    return eff >= dayStart.getTime() && eff < dayEnd.getTime();
+  });
 
   const sanctionMap = new Map<string, { yellows: number; reds: number }>();
   for (const s of sanctions ?? []) {
