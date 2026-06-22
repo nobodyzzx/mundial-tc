@@ -279,45 +279,45 @@ let globalFormIdx = 0;
          Guardado / no-guardado / fallo de BD. Imposible de ignorar. El
          estado db_open trae el código de validación grande para capturar. */}
     {modalState && (
-      <div id="result-modal" class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-brand-950/95 backdrop-blur-md">
-        <div class={`relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-3xl border-2 p-7 text-center space-y-4 shadow-2xl ${
-          modalState === 'ok' ? 'border-gol/60 bg-gol/10' :
-          modalState === 'db_open' ? 'border-amarilla/60 bg-amarilla/10' :
-          'border-fifared/60 bg-fifared/10'
+      <div id="result-modal" class="backdropIn fixed inset-0 z-[120] flex items-center justify-center p-4 bg-brand-950/90 backdrop-blur-lg">
+        <div class={`modalIn relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-[28px] p-7 text-center space-y-4 ring-1 bg-gradient-to-b from-brand-900 to-brand-950 ${
+          modalState === 'ok' ? 'ring-gol/30 shadow-[0_24px_70px_-20px_rgba(34,197,94,0.45)]' :
+          modalState === 'db_open' ? 'ring-amarilla/30 shadow-[0_24px_70px_-20px_rgba(245,200,66,0.4)]' :
+          'ring-fifared/30 shadow-[0_24px_70px_-20px_rgba(220,38,38,0.45)]'
         }`}>
 
           {modalState === 'ok' && (
             <Fragment>
-              <div class="text-7xl">✅</div>
+              <div class="iconPop mx-auto w-20 h-20 rounded-full grid place-items-center text-5xl bg-gol/15 ring-1 ring-gol/40 shadow-[0_0_44px_-6px_rgba(34,197,94,0.65)]">✅</div>
               <h2 class="font-display text-3xl tracking-wide text-gol">¡PRONÓSTICOS GUARDADOS!</h2>
-              <p class="text-green-200 text-lg">{okVerified.length} de {okIds.length} verificado{okIds.length !== 1 ? 's' : ''} en la base ✓</p>
-              {okSavedAt && <p class="text-green-300/80 text-sm">🕒 Registrado el {okSavedAt}</p>}
-              <button type="button" data-close-modal class="w-full bg-gol text-brand-950 font-bold py-3.5 rounded-2xl active:bg-green-600 transition text-base min-h-[52px]">Entendido</button>
+              <p class="text-green-200/90 text-base">{okVerified.length} de {okIds.length} verificado{okIds.length !== 1 ? 's' : ''} en la base ✓</p>
+              {okSavedAt && <p class="text-green-300/70 text-sm">🕒 Registrado el {okSavedAt}</p>}
+              <button type="button" data-close-modal class="w-full bg-gradient-to-b from-gol to-green-600 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-gol/25 hover:brightness-110 active:brightness-95 transition text-base min-h-[52px]">Entendido</button>
             </Fragment>
           )}
 
           {modalState === 'partial' && (
             <Fragment>
-              <div class="text-7xl">⚠️</div>
-              <h2 class="font-display text-3xl tracking-wide text-fifared">NO SE GUARDÓ TODO</h2>
+              <div class="iconPop mx-auto w-20 h-20 rounded-full grid place-items-center text-5xl bg-fifared/15 ring-1 ring-fifared/40 shadow-[0_0_44px_-6px_rgba(220,38,38,0.6)]">⚠️</div>
+              <h2 class="font-display text-2xl tracking-wide text-fifared">NO SE GUARDÓ TODO</h2>
               <p class="text-red-200 text-base">Solo <strong>{okVerified.length} de {okIds.length}</strong> quedaron en la base. Cierra y reenvía los que falten — tus marcadores siguen cargados.</p>
-              <button type="button" data-retry class="w-full bg-gold text-brand-950 font-bold py-3.5 rounded-2xl active:bg-gold-dark transition text-base min-h-[52px]">Revisar y reenviar</button>
+              <button type="button" data-retry class="w-full bg-gradient-to-b from-gold to-amber-500 text-brand-950 font-bold py-3.5 rounded-2xl shadow-lg shadow-gold/25 hover:brightness-110 active:brightness-95 transition text-base min-h-[52px]">Revisar y reenviar</button>
             </Fragment>
           )}
 
           {modalState === 'error' && (
             <Fragment>
-              <div class="text-7xl">⚠️</div>
-              <h2 class="font-display text-3xl tracking-wide text-fifared">NO SE GUARDÓ</h2>
+              <div class="iconPop mx-auto w-20 h-20 rounded-full grid place-items-center text-5xl bg-fifared/15 ring-1 ring-fifared/40 shadow-[0_0_44px_-6px_rgba(220,38,38,0.6)]">⚠️</div>
+              <h2 class="font-display text-2xl tracking-wide text-fifared">NO SE GUARDÓ</h2>
               <p class="text-red-200 text-base">{errorText}</p>
-              <p class="text-red-300/70 text-xs">Verifica abajo: si no ves "✓ Guardado", no quedó registrado.</p>
-              <button type="button" data-close-modal class="w-full bg-fifared text-white font-bold py-3.5 rounded-2xl active:opacity-90 transition text-base min-h-[52px]">Entendido</button>
+              <p class="text-red-300/60 text-xs">Verifica abajo: si no ves "✓ Guardado", no quedó registrado.</p>
+              <button type="button" data-close-modal class="w-full bg-gradient-to-b from-fifared to-red-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-fifared/25 hover:brightness-110 active:brightness-95 transition text-base min-h-[52px]">Entendido</button>
             </Fragment>
           )}
 
           {modalState === 'db_open' && (
             <Fragment>
-              <div class="text-7xl">🛟</div>
+              <div class="iconPop mx-auto w-20 h-20 rounded-full grid place-items-center text-5xl bg-amarilla/15 ring-1 ring-amarilla/40 shadow-[0_0_44px_-6px_rgba(245,200,66,0.6)]">🛟</div>
               <h2 class="font-display text-2xl tracking-wide text-amarilla leading-tight">LA BASE FALLÓ AL GUARDAR</h2>
               <p class="text-amber-100 text-base">Tranquilo: tu pronóstico se enviará <strong>automáticamente</strong> al Réferi para que lo valide. <strong>No perdiste nada.</strong></p>
               {codeParam && (
@@ -328,8 +328,8 @@ let globalFormIdx = 0;
               )}
               <p class="text-amber-100/90 text-sm font-semibold">📸 Toma una captura de esta pantalla y mándala al grupo.</p>
               <div class="flex gap-2 pt-1">
-                <button type="button" data-retry class="flex-1 bg-gold text-brand-950 font-bold py-3.5 rounded-2xl active:bg-gold-dark transition min-h-[52px]">Reintentar</button>
-                <button type="button" data-close-modal class="flex-1 bg-brand-800 border border-brand-700 text-slate-300 font-semibold py-3.5 rounded-2xl active:bg-brand-700 transition min-h-[52px]">Cerrar</button>
+                <button type="button" data-retry class="flex-1 bg-gradient-to-b from-gold to-amber-500 text-brand-950 font-bold py-3.5 rounded-2xl shadow-lg shadow-gold/25 hover:brightness-110 active:brightness-95 transition min-h-[52px]">Reintentar</button>
+                <button type="button" data-close-modal class="flex-1 bg-brand-800 border border-brand-700 text-slate-300 font-semibold py-3.5 rounded-2xl hover:bg-brand-700 active:brightness-95 transition min-h-[52px]">Cerrar</button>
               </div>
             </Fragment>
           )}
@@ -342,13 +342,13 @@ let globalFormIdx = 0;
          Si la jornada cierra mientras el jugador está en la página con el
          formulario abierto, este modal lo bloquea: deja claro que ya no hay
          tiempo (lo activa initCountdown al llegar el contador a 0). */}
-    <div id="cierre-modal" data-late-key={lateCierreKey ?? undefined} class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4 bg-brand-950/95 backdrop-blur-md">
-      <div class="relative w-full max-w-md rounded-3xl border-2 border-fifared/60 bg-fifared/10 p-7 text-center space-y-4 shadow-2xl">
-        <div class="text-7xl">🔒</div>
+    <div id="cierre-modal" data-late-key={lateCierreKey ?? undefined} class="hidden fixed inset-0 z-[130] flex items-center justify-center p-4 bg-brand-950/90 backdrop-blur-lg">
+      <div class="modalIn relative w-full max-w-md rounded-[28px] p-7 text-center space-y-4 ring-1 ring-fifared/30 bg-gradient-to-b from-brand-900 to-brand-950 shadow-[0_24px_70px_-20px_rgba(220,38,38,0.45)]">
+        <div class="iconPop mx-auto w-20 h-20 rounded-full grid place-items-center text-5xl bg-fifared/15 ring-1 ring-fifared/40 shadow-[0_0_44px_-6px_rgba(220,38,38,0.6)]">🔒</div>
         <h2 class="font-display text-3xl tracking-wide text-fifared">JORNADA CERRADA</h2>
         <p class="text-red-100 text-base">Se acabó el tiempo para esta jornada. Ya <strong>no se aceptan pronósticos</strong>.</p>
-        <p class="text-red-200/80 text-sm">Si tenías marcadores sin enviar, <strong>no quedaron registrados</strong>.</p>
-        <button type="button" id="cierre-ok" class="w-full bg-fifared text-white font-bold py-3.5 rounded-2xl active:opacity-90 transition text-base min-h-[52px]">Entendido</button>
+        <p class="text-red-200/70 text-sm">Si tenías marcadores sin enviar, <strong>no quedaron registrados</strong>.</p>
+        <button type="button" id="cierre-ok" class="w-full bg-gradient-to-b from-fifared to-red-700 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-fifared/25 hover:brightness-110 active:brightness-95 transition text-base min-h-[52px]">Entendido</button>
       </div>
     </div>
 
@@ -705,16 +705,17 @@ let globalFormIdx = 0;
 
   {/* ── Modal de confirmación antes de enviar ── */}
   <div id="confirm-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" data-confirm-cancel></div>
-    <div class="relative bg-brand-900 border border-brand-700 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
-      <div class="text-center space-y-1">
-        <h3 class="font-display text-xl text-white">¿Confirmar envío?</h3>
+    <div class="backdropIn absolute inset-0 bg-brand-950/80 backdrop-blur-md" data-confirm-cancel></div>
+    <div class="modalIn relative w-full max-w-sm rounded-[28px] p-6 space-y-4 ring-1 ring-brand-700/70 bg-gradient-to-b from-brand-900 to-brand-950 shadow-2xl">
+      <div class="text-center space-y-1.5">
+        <div class="iconPop mx-auto w-14 h-14 rounded-full grid place-items-center text-2xl bg-gold/12 ring-1 ring-gold/40">📋</div>
+        <h3 class="font-display text-xl text-white tracking-wide">¿CONFIRMAR ENVÍO?</h3>
         <p class="text-xs text-slate-500">Revisa tus marcadores. Una vez enviado no se puede cambiar.</p>
       </div>
       <div id="confirm-list" class="space-y-1.5 max-h-[45vh] overflow-y-auto"></div>
       <div class="flex gap-2 pt-1">
-        <button type="button" data-confirm-cancel class="flex-1 bg-brand-800 border border-brand-700 text-slate-300 font-semibold py-3 rounded-xl active:bg-brand-700 transition min-h-[48px]">Volver</button>
-        <button type="button" id="confirm-ok" class="flex-1 bg-gold text-brand-950 font-bold py-3 rounded-xl active:bg-gold-dark transition min-h-[48px]">Confirmar ✅</button>
+        <button type="button" data-confirm-cancel class="flex-1 bg-brand-800 border border-brand-700 text-slate-300 font-semibold py-3 rounded-2xl hover:bg-brand-700 active:brightness-95 transition min-h-[48px]">Volver</button>
+        <button type="button" id="confirm-ok" class="flex-1 bg-gradient-to-b from-gold to-amber-500 text-brand-950 font-bold py-3 rounded-2xl shadow-lg shadow-gold/25 hover:brightness-110 active:brightness-95 transition min-h-[48px]">Confirmar ✅</button>
       </div>
     </div>
   </div>
@@ -1156,3 +1157,26 @@ let globalFormIdx = 0;
   init();
   document.addEventListener('astro:page-load', init);
 </script>
+
+<style>
+  /* Entrada de los modales: el backdrop atenúa y la tarjeta entra con un leve
+     overshoot (pop), el icono rebota un instante después. */
+  .backdropIn { animation: backdropIn .22s ease both; }
+  .modalIn    { animation: modalIn .30s cubic-bezier(.2,.9,.3,1.25) both; }
+  .iconPop    { animation: iconPop .42s .08s cubic-bezier(.2,.9,.3,1.4) both; }
+
+  @keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(10px) scale(.95); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes iconPop {
+    0%   { opacity: 0; transform: scale(.4); }
+    60%  { opacity: 1; transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .backdropIn, .modalIn, .iconPop { animation: none; }
+  }
+</style>
