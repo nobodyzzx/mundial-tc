@@ -119,9 +119,14 @@ export function mapJornada(stage: string, matchday: number | null): string | nul
 export function deriveWinnerPenalties(
   score: ApiMatch['score'],
 ): 'home' | 'away' | null {
-  if (score.duration !== 'PENALTY_SHOOTOUT') return null;
+  // Se deriva del MARCADOR de la tanda, no del string de duración del proveedor.
+  // ESPN solo expone shootoutScore en eliminatorias con penales, así que su mera
+  // presencia ya identifica la tanda; depender de que el estado diga "PEN"/"SHOOTOUT"
+  // era frágil (si ESPN no lo nombra así, winner_penalties quedaba null y el knockout
+  // no podía puntuar). El campo duration sirve de pista pero no es requisito.
   const home = score.penalties?.home ?? null;
   const away = score.penalties?.away ?? null;
   if (home === null || away === null) return null;
+  if (home === away) return null; // sin definición; esperar dato completo
   return home > away ? 'home' : 'away';
 }
