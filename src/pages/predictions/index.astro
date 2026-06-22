@@ -7,6 +7,7 @@ import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart, boliviaDayKey, jornadaLockState, countsUnresolved } from '@/lib/jornada';
 import { fmtFecha } from '@/lib/fechas';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
+import { logEvent } from '@/lib/system-log';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -214,6 +215,22 @@ const errorText =
   errorParam === 'cerrado' ? '🔒 La jornada ya está cerrada.'
   : errorParam === 'en_curso' ? '⏳ El partido ya empezó. Las apuestas para esta jornada están cerradas.'
   : errorParam ? decodeURIComponent(errorParam) : '';
+
+// Breadcrumb: deja constancia de que el jugador VIO la confirmación de guardado.
+// Los rechazos ya se loguean en submit-jornada; faltaba el lado del éxito para
+// diagnosticar "no me salió el popup" con datos en vez de adivinar. El JS limpia
+// el `?ok=` tras pintar, así que una recarga no vuelve a registrar. Best-effort.
+if (modalState === 'ok') {
+  try {
+    await logEvent({
+      category: 'pronostico',
+      event: 'guardado:confirmado',
+      actor: navProfile?.username ?? null,
+      summary: `${navProfile?.username ?? '—'} — vio confirmación de guardado (${okVerified.length}/${okIds.length})`,
+      detail: okIds.join(',') || null,
+    });
+  } catch { /* nunca rompe el render */ }
+}
 
 // Contador global de inputs — evita colisiones de nombre entre jornadas distintas
 let globalFormIdx = 0;
@@ -430,7 +447,7 @@ let globalFormIdx = 0;
           {/* ── Si la jornada está abierta y hay partidos sin pronosticar: form inline ── */}
           {!sanctioned && !closed && !prevPending && !ongoingLock && !allDone ? (
             <Fragment>
-            <form method="POST" action="/api/predictions/submit-jornada" class="space-y-2">
+            <form method="POST" action="/api/predictions/submit-jornada" class="space-y-2" data-astro-reload>
 
               {jornadaMatches.map((m) => {
                 const existing = predMap.get(m.id);
