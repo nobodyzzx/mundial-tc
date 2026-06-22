@@ -202,18 +202,26 @@ const wonBadges = achievements
   .map((a) => (a.count && a.count > 1 ? `${a.icon}×${a.count}` : a.icon))
   .join(' ');
 
-// Texto para compartir por WhatsApp: tarjeta de rendimiento + desglose por jornada.
-const shareLines: string[] = [
-  `📋 *MI RESUMEN · ${profile?.username ?? ''}*`,
+// Compartir #2 (botón del panel de Rendimiento): tarjeta de rendimiento + logros.
+const perfShareText = [
+  `📊 *MI RENDIMIENTO · ${profile?.username ?? ''}*`,
   `${level.emoji} *${level.name}* · ${ptsTot} pts${rank ? ` · ${rank}.º de ${totalPlayers}` : ''}`,
   '',
   `🎯 Aciertos ${aciertos}/${totalPartidos} (${pct}%) · ⭐ ${exactos} exactos`,
   `🔥 Racha ${curStreak} (mejor ${bestStreak}) · 🏅 Mejor jornada +${mejorJornada}`,
   `🗂️ Grupos ${ptsGrupos} · 🏆 Eliminatorias ${ptsElim}`,
   `📊 Forma: ${forma.length ? forma.join(' ') : '—'}${vsAvg !== 0 ? ` · ${vsAvg > 0 ? '+' : ''}${vsAvg} vs promedio` : ''}`,
+  ...(wonBadges ? [`🏆 Logros: ${wonBadges}`] : []),
+  '',
+  '_Polla Mundial 2026_ 🏆',
+].join('\n').replace(/\n{3,}/g, '\n\n').trim();
+
+// Compartir #1 (botón de "Tus puntos por partido"): resumen de puntos por jornada.
+const shareLines: string[] = [
+  `📋 *MI RESUMEN · ${profile?.username ?? ''}*`,
+  `_Polla Mundial 2026_ · ${ptsTot} pts${rank ? ` · ${rank}.º de ${totalPlayers}` : ''}`,
+  '',
 ];
-if (wonBadges) shareLines.push(`🏆 Logros: ${wonBadges}`);
-shareLines.push('');
 for (const j of jornadaHistory) {
   if (j.anulada) {
     shareLines.push(`🟥 *${cap(j.day)}* — Jornada anulada (0 pts)`, '');
@@ -368,7 +376,13 @@ const firstOpenIdx = jornadaHistory.findIndex((j) => !j.anulada); // abrir la 1�
 
     <!-- Rendimiento -->
     <div class="bg-brand-900 border border-brand-700/60 rounded-2xl p-5 space-y-4">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">📊 Rendimiento</h2>
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wide">📊 Rendimiento</h2>
+        <button type="button" data-share={perfShareText}
+          class="js-share text-xs font-semibold px-3 py-1.5 rounded-lg border border-gol/40 bg-gol/10 text-green-300 transition active:bg-gol/20 hover:bg-gol/15 flex-shrink-0">
+          📲 Compartir
+        </button>
+      </div>
 
       <!-- Nivel -->
       <div class="space-y-1.5">
@@ -470,7 +484,7 @@ const firstOpenIdx = jornadaHistory.findIndex((j) => !j.anulada); // abrir la 1�
           <span class="text-gold font-bold text-sm">{profile?.puntos_totales ?? 0} pts</span>
           {jornadaHistory.length > 0 && (
             <button id="share-btn" type="button" data-share={shareText}
-              class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gol/40 bg-gol/10 text-green-300 transition active:bg-gol/20 hover:bg-gol/15">
+              class="js-share text-xs font-semibold px-3 py-1.5 rounded-lg border border-gol/40 bg-gol/10 text-green-300 transition active:bg-gol/20 hover:bg-gol/15">
               📋 Compartir
             </button>
           )}
@@ -647,26 +661,28 @@ const firstOpenIdx = jornadaHistory.findIndex((j) => !j.anulada); // abrir la 1�
       usernameInput.addEventListener('input', updateCounter);
     }
 
-    // Compartir resumen (Web Share API en móvil, copiar al portapapeles en escritorio)
-    var shareBtn = document.getElementById('share-btn');
-    if (shareBtn && !shareBtn._shareInit) {
-      shareBtn._shareInit = true;
-      shareBtn.addEventListener('click', async function() {
-        var text = shareBtn.getAttribute('data-share') || '';
+    // Compartir (Web Share API en móvil, copiar al portapapeles en escritorio).
+    // Cubre ambos botones: "puntos por partido" y "rendimiento" — cada uno con su
+    // propio data-share.
+    document.querySelectorAll('.js-share').forEach(function(btn) {
+      if (btn._shareInit) return;
+      btn._shareInit = true;
+      btn.addEventListener('click', async function() {
+        var text = btn.getAttribute('data-share') || '';
         if (navigator.share) {
           try { await navigator.share({ text: text }); } catch (e) { /* cancelado */ }
           return;
         }
         try {
           await navigator.clipboard.writeText(text);
-          var orig = shareBtn.textContent;
-          shareBtn.textContent = '✓ Copiado';
-          setTimeout(function() { shareBtn.textContent = orig; }, 1800);
+          var orig = btn.textContent;
+          btn.textContent = '✓ Copiado';
+          setTimeout(function() { btn.textContent = orig; }, 1800);
         } catch (e) {
           window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
         }
       });
-    }
+    });
 
     // Validar contraseñas (submit + tiempo real)
     var form = document.getElementById('pw-form');
