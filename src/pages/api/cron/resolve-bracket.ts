@@ -19,7 +19,7 @@
  */
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
-import { resolveGroupCodes, resolveThirdPlaceCodes, type GroupMatch } from '@/lib/bracket';
+import { resolveGroupCodes, resolveThirdPlaceCodes, resolveKnockoutCodes, type GroupMatch, type KnockoutMatch } from '@/lib/bracket';
 import { isPlaceholderName } from '@/lib/match-link';
 import { checkCronSecret, json } from '@/lib/cron';
 
@@ -39,19 +39,24 @@ export const GET: APIRoute = async ({ url, request }) => {
   const thirds = resolveThirdPlaceCodes(groups);
   for (const [slot, team] of thirds.codes) codes.set(slot, team);
 
+  // 2. Eliminatoria: se cargan TODAS (terminadas incluidas) porque las terminadas son
+  //    la fuente de los códigos de avance "W##"/"L##" de las rondas siguientes.
+  const { data: koRows } = await supabaseAdmin
+    .from('matches')
+    .select('id, round, home_team, away_team, match_date, home_score, away_score, winner_penalties, is_finished')
+    .eq('stage', 'knockout');
+  const allKo = (koRows ?? []) as (KnockoutMatch & { id: string })[];
+
+  // Ganadores/perdedores de llaves ya jugadas → "W##"/"L##".
+  for (const [code, team] of resolveKnockoutCodes(allKo)) codes.set(code, team);
+
   if (!codes.size) {
     return json({ ok: true, skipped: true, reason: 'Sin grupos cerrados que resolver', ambiguous, closed, terceros: thirds.blocked });
   }
 
-  // 2. Partidos de eliminatoria con algún lado aún placeholder.
-  const { data: koRows } = await supabaseAdmin
-    .from('matches')
-    .select('id, round, home_team, away_team, match_date, is_finished')
-    .eq('stage', 'knockout')
-    .eq('is_finished', false);
-
   const updates: { id: string; round: string; field: 'home_team' | 'away_team'; from: string; to: string }[] = [];
-  for (const m of koRows ?? []) {
+  for (const m of allKo) {
+    if (m.is_finished) continue; // no se renombra un partido ya jugado
     if (isPlaceholderName(m.home_team) && codes.has(m.home_team))
       updates.push({ id: m.id, round: m.round, field: 'home_team', from: m.home_team, to: codes.get(m.home_team)! });
     if (isPlaceholderName(m.away_team) && codes.has(m.away_team))

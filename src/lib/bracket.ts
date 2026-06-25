@@ -65,6 +65,7 @@ export function computeStandings(matches: GroupMatch[]): Map<string, TeamRow[]> 
 }
 
 import { THIRD_PLACE_TABLE, THIRD_COLS, THIRD_SLOT_BY_FIRST } from './data/third-place-table';
+import { isPlaceholderName } from './match-link';
 
 /** ¿Empatan a, b en los tres criterios olímpicos? → desempate real sin resolver. */
 function tied(a: TeamRow, b: TeamRow): boolean {
@@ -175,4 +176,53 @@ export function resolveThirdPlaceCodes(matches: GroupMatch[]): ThirdResolution {
     codes.set(slot, thirdTeamByGroup.get(grp)!);
   }
   return { codes, blocked: null };
+}
+
+export interface KnockoutMatch {
+  match_date: string;
+  round: string;
+  home_team: string;
+  away_team: string;
+  home_score: number | null;
+  away_score: number | null;
+  winner_penalties: 'home' | 'away' | null;
+  is_finished: boolean;
+}
+
+/** Primer número de partido de eliminatoria (FIFA 2026: R32 arranca en 73). */
+const FIRST_KO_MATCH = 73;
+
+/**
+ * Resuelve los códigos de avance "W##"/"L##" (ganador/perdedor del partido FIFA ##)
+ * a equipos reales, a partir de los resultados de las llaves ya jugadas.
+ *
+ * Numeración: los partidos de eliminatoria se numeran por orden cronológico desde 73
+ * (R32 73-88, R16 89-96, Cuartos 97-100, Semis 101-102, 3º 103, Final 104). El seed
+ * usó esa misma numeración FIFA al escribir los "W##"/"L##" (verificado: las
+ * referencias parten limpio por ronda y cada número se usa una vez).
+ *
+ * Solo emite un código si el partido fuente ya terminó y sus dos equipos son reales
+ * (no placeholders). Empate sin definición de penales → no se resuelve aún.
+ */
+export function resolveKnockoutCodes(matches: KnockoutMatch[]): Map<string, string> {
+  const ordered = [...matches].sort((a, b) => Date.parse(a.match_date) - Date.parse(b.match_date));
+  const byNum = new Map<number, KnockoutMatch>();
+  ordered.forEach((m, i) => byNum.set(FIRST_KO_MATCH + i, m));
+
+  const codes = new Map<string, string>();
+  for (const [num, m] of byNum) {
+    if (!m.is_finished || m.home_score === null || m.away_score === null) continue;
+    if (isPlaceholderName(m.home_team) || isPlaceholderName(m.away_team)) continue; // fuente sin nombrar
+
+    let winner: string, loser: string;
+    if (m.home_score > m.away_score)      { winner = m.home_team; loser = m.away_team; }
+    else if (m.home_score < m.away_score) { winner = m.away_team; loser = m.home_team; }
+    else if (m.winner_penalties === 'home') { winner = m.home_team; loser = m.away_team; }
+    else if (m.winner_penalties === 'away') { winner = m.away_team; loser = m.home_team; }
+    else continue; // empate sin penales definidos
+
+    codes.set(`W${num}`, winner);
+    codes.set(`L${num}`, loser);
+  }
+  return codes;
 }
