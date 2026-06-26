@@ -86,35 +86,30 @@ function fmtDateShort(d: string) {
   });
 }
 
-/** Convierte placeholder a código corto para mostrar en bracket.
- *  "1A" / "2B" / "3BCDEF"  → tal cual
- *  "W73" / "W97"           → tal cual (ganador de partido FIFA)
- *  "L101"                  → tal cual (perdedor, partido 3er puesto)
- *  "TBD"                   → "?"
- */
-function shortCode(name: string | null): string {
-  if (!name) return '?';
-  // Ya es código corto de posición: "1A", "2B", "3BCDEF"
-  if (/^\d[A-Z]+$/i.test(name)) return name.toUpperCase();
-  // Código de ganador/perdedor: "W73", "W97", "L101"
-  if (/^[WL]\d+$/i.test(name)) return name.toUpperCase();
-  // Formatos largos por si acaso
-  const pos = name.match(/^(\d+)(?:st|nd|rd|th)\s+Groups?\s+([A-Z]+)/i);
-  if (pos) return `${pos[1]}${pos[2].toUpperCase()}`;
-  const wm = name.match(/^Winner\s+(?:Match|Playoff)\s*(\d+)/i);
-  if (wm) return `W${wm[1]}`;
-  const wg = name.match(/^Winner\s+Group\s+([A-Z]+)/i);
-  if (wg) return `W${wg[1].toUpperCase()}`;
-  if (/^TBD/i.test(name)) return '?';
-  return name;
-}
-
 /** True si el equipo aún no está determinado (placeholder de bracket) */
 function isPending(name: string | null): boolean {
   if (!name) return true;
   if (/^\d[A-Z]+$/i.test(name)) return true;       // "1A", "2B", "3BCDEF"
   if (/^[WL]\d+$/i.test(name)) return true;         // "W73", "L101"
   return /^(TBD|Winner|1st|2nd|3rd|4th|\d+(?:st|nd|rd|th))/i.test(name);
+}
+
+/** Etiqueta legible para un placeholder de bracket.
+ *  "1F"→"1.º Grupo F" · "3ABCDF"→"3.º (A/B/C/D/F)" · "W74"→"Ganador 74" · "L101"→"Perdedor 101"
+ */
+function prettyPlaceholder(name: string | null): string {
+  if (!name) return 'Por definir';
+  const pos = name.match(/^([123])([A-L]+)$/i);
+  if (pos) {
+    const groups = pos[2].toUpperCase().split('');
+    return groups.length === 1
+      ? `${pos[1]}.º Grupo ${groups[0]}`
+      : `${pos[1]}.º (${groups.join('/')})`;
+  }
+  const wl = name.match(/^([WL])(\d+)$/i);
+  if (wl) return `${wl[1].toUpperCase() === 'W' ? 'Ganador' : 'Perdedor'} ${wl[2]}`;
+  if (/^TBD/i.test(name)) return 'Por definir';
+  return name;
 }
 ---
 
@@ -313,9 +308,10 @@ function isPending(name: string | null): boolean {
                 const as_ = m.away_score as number | null;
                 const homeWon = finished && hs !== null && as_ !== null && (hs > as_ || (hs === as_ && m.winner_penalties === 'home'));
                 const awayWon = finished && hs !== null && as_ !== null && (as_ > hs || (hs === as_ && m.winner_penalties === 'away'));
-                const homePending = isPending(m.home_team);
-                const awayPending = isPending(m.away_team);
-                const useFifaStyle = !finished && (homePending || awayPending);
+                const sides = [
+                  { team: m.home_team, won: homeWon, score: hs },
+                  { team: m.away_team, won: awayWon, score: as_ },
+                ];
 
                 return (
                   <div class={`border rounded-2xl overflow-hidden ${
@@ -323,72 +319,44 @@ function isPending(name: string | null): boolean {
                     is3rd   ? 'border-slate-600/40 bg-brand-900' :
                               'border-brand-700/60 bg-brand-900'
                   }`}>
-
-                    {useFifaStyle ? (
-                      /* ── Formato FIFA: bracket con códigos de posición ── */
-                      <div class="px-4 py-4 text-center space-y-1.5">
-                        {(() => {
-                          const hCode = shortCode(m.home_team);
-                          const aCode = shortCode(m.away_team);
-                          const hasCode = hCode !== '?' || aCode !== '?';
-                          return (
-                            <div class="flex items-center justify-center gap-3">
-                              {hasCode && <span class={`font-display text-2xl font-bold tracking-wide ${isFinal ? 'text-gold' : 'text-slate-300'}`}>{hCode}</span>}
-                              <svg class={`w-6 h-6 flex-shrink-0 ${isFinal ? 'text-gold/50' : 'text-slate-600'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3L3 7v5c0 5.25 3.75 9.75 9 11 5.25-1.25 9-5.75 9-11V7l-9-4z" />
-                              </svg>
-                              <svg class={`w-6 h-6 flex-shrink-0 ${isFinal ? 'text-gold/50' : 'text-slate-600'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3L3 7v5c0 5.25 3.75 9.75 9 11 5.25-1.25 9-5.75 9-11V7l-9-4z" />
-                              </svg>
-                              {hasCode && <span class={`font-display text-2xl font-bold tracking-wide ${isFinal ? 'text-gold' : 'text-slate-300'}`}>{aCode}</span>}
-                            </div>
-                          );
-                        })()}
-                        <p class="text-xs text-slate-600">
-                          {fmtFecha(m.match_date, { weekday: 'short', day: 'numeric', month: 'short' })}
-                        </p>
-                      </div>
-                    ) : (
-                      /* ── Formato normal: equipos conocidos o partido terminado ── */
-                      <>
-                        {!finished && (
-                          <div class="px-4 pt-2 text-center">
-                            <span class="text-[10px] text-slate-600">{fmtDateShort(m.match_date)}</span>
-                          </div>
-                        )}
-                        <div class="px-4 py-3 flex items-center gap-3">
-                          <div class="flex-1 text-right min-w-0 space-y-0.5">
-                            <div class={`flex items-center justify-end gap-1.5 ${finished ? (homeWon ? 'text-white' : 'text-slate-500') : 'text-slate-200'}`}>
-                              <span class="text-sm font-semibold truncate">{spanishName(m.home_team)}</span>
-                              {flagUrl(m.home_team, '20x15') && <img src={flagUrl(m.home_team, '20x15')!} width="20" height="15" class="flex-shrink-0 rounded-sm" loading="lazy" />}
-                            </div>
-                            {finished && homeWon && <span class="text-[10px] text-gold block">GANADOR</span>}
-                          </div>
-                          <div class="flex-shrink-0 text-center min-w-[72px] space-y-0.5">
-                            {finished ? (
-                              <>
-                                <div class={`font-display text-2xl leading-none ${isFinal ? 'text-gold' : 'text-white'}`}>{hs} – {as_}</div>
-                                {m.winner_penalties && (
-                                  <>
-                                    <div class="text-[10px] text-gold/70">{m.home_pen !== null ? `(${m.home_pen}–${m.away_pen} pen)` : '(pen)'}</div>
-                                    <div class="text-[9px] text-slate-500">{m.winner_penalties === 'home' ? spanishName(m.home_team) : spanishName(m.away_team)}</div>
-                                  </>
-                                )}
-                              </>
+                    <div class="px-4 pt-2.5 pb-0.5 text-center">
+                      <span class="text-[10px] text-slate-500">{fmtDateShort(m.match_date)}</span>
+                    </div>
+                    <div class="px-3 pb-2.5 pt-1 space-y-1">
+                      {sides.map((s) => {
+                        const pending = isPending(s.team);
+                        const flag = pending ? null : flagUrl(s.team, '20x15');
+                        return (
+                          <div class={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg ${
+                            finished && s.won ? (isFinal ? 'bg-gold/10' : 'bg-brand-800/70') : ''
+                          }`}>
+                            {flag ? (
+                              <img src={flag} width="20" height="15" class="flex-shrink-0 rounded-sm shadow-sm" loading="lazy" />
                             ) : (
-                              <span class={`font-display text-xl ${isLate ? 'text-gold/30' : 'text-brand-600'}`}>vs</span>
+                              <span class="flex-shrink-0 w-5 h-[15px] rounded-sm border border-dashed border-slate-600/70 bg-brand-800/40" />
                             )}
+                            <span class={`flex-1 min-w-0 truncate text-sm font-semibold ${
+                              pending   ? 'text-slate-500 italic' :
+                              !finished ? 'text-slate-200' :
+                              s.won     ? (isFinal ? 'text-gold' : 'text-white') : 'text-slate-500'
+                            }`}>
+                              {pending ? prettyPlaceholder(s.team) : spanishName(s.team)}
+                            </span>
+                            {finished && s.score !== null && (
+                              <span class={`font-display text-lg leading-none flex-shrink-0 tabular-nums ${
+                                s.won ? (isFinal ? 'text-gold' : 'text-white') : 'text-slate-500'
+                              }`}>{s.score}</span>
+                            )}
+                            {finished && s.won && <span class="flex-shrink-0 text-gold text-xs leading-none">✓</span>}
                           </div>
-                          <div class="flex-1 text-left min-w-0 space-y-0.5">
-                            <div class={`flex items-center gap-1.5 ${finished ? (awayWon ? 'text-white' : 'text-slate-500') : 'text-slate-200'}`}>
-                              {flagUrl(m.away_team, '20x15') && <img src={flagUrl(m.away_team, '20x15')!} width="20" height="15" class="flex-shrink-0 rounded-sm" loading="lazy" />}
-                              <span class="text-sm font-semibold truncate">{spanishName(m.away_team)}</span>
-                            </div>
-                            {finished && awayWon && <span class="text-[10px] text-gold block">GANADOR</span>}
-                          </div>
-                        </div>
-                      </>
-                    )}
+                        );
+                      })}
+                      {finished && m.winner_penalties && (
+                        <p class="text-[10px] text-gold/70 text-center pt-1">
+                          {m.home_pen !== null ? `Penales ${m.home_pen}–${m.away_pen}` : 'Definido por penales'} · gana {spanishName(m.winner_penalties === 'home' ? m.home_team : m.away_team)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}
