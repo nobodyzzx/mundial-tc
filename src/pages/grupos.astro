@@ -308,55 +308,61 @@ function prettyPlaceholder(name: string | null): string {
                 const as_ = m.away_score as number | null;
                 const homeWon = finished && hs !== null && as_ !== null && (hs > as_ || (hs === as_ && m.winner_penalties === 'home'));
                 const awayWon = finished && hs !== null && as_ !== null && (as_ > hs || (hs === as_ && m.winner_penalties === 'away'));
-                const sides = [
-                  { team: m.home_team, won: homeWon, score: hs },
-                  { team: m.away_team, won: awayWon, score: as_ },
-                ];
+                const homePending = isPending(m.home_team);
+                const awayPending = isPending(m.away_team);
+                const homeFlag = homePending ? null : flagUrl(m.home_team, '20x15');
+                const awayFlag = awayPending ? null : flagUrl(m.away_team, '20x15');
+                const nameCls = (pending: boolean, won: boolean) =>
+                  pending   ? 'text-slate-500 italic' :
+                  !finished ? 'text-slate-100' :
+                  won       ? (isFinal ? 'text-gold' : 'text-white') : 'text-slate-600';
+                const badge = (
+                  <span class="flex-shrink-0 w-5 h-[15px] rounded-sm border border-dashed border-slate-600/70 bg-brand-800/40" />
+                );
 
                 return (
-                  <div class={`border rounded-2xl overflow-hidden ${
-                    isFinal ? 'border-gold/40 bg-gradient-to-b from-gold/5 to-brand-900' :
-                    is3rd   ? 'border-slate-600/40 bg-brand-900' :
-                              'border-brand-700/60 bg-brand-900'
+                  <div class={`relative rounded-2xl border overflow-hidden ${
+                    isFinal ? 'border-gold/40 bg-gradient-to-br from-gold/10 via-brand-900 to-brand-900' :
+                    is3rd   ? 'border-slate-600/40 bg-gradient-to-br from-slate-700/20 to-brand-900' :
+                              'border-brand-700/60 bg-gradient-to-br from-brand-800/50 to-brand-900'
                   }`}>
-                    <div class="px-4 pt-2.5 pb-0.5 text-center">
-                      <span class="text-[10px] text-slate-500">{fmtDateShort(m.match_date)}</span>
+                    {isFinal && <div class="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-gold/70 to-transparent" />}
+                    <div class="flex justify-center pt-2.5">
+                      <span class="text-[10px] font-medium text-slate-400 bg-brand-950/50 border border-brand-700/50 rounded-full px-2.5 py-0.5">
+                        {fmtDateShort(m.match_date)}
+                      </span>
                     </div>
-                    <div class="px-3 pb-2.5 pt-1 space-y-1">
-                      {sides.map((s) => {
-                        const pending = isPending(s.team);
-                        const flag = pending ? null : flagUrl(s.team, '20x15');
-                        return (
-                          <div class={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg ${
-                            finished && s.won ? (isFinal ? 'bg-gold/10' : 'bg-brand-800/70') : ''
-                          }`}>
-                            {flag ? (
-                              <img src={flag} width="20" height="15" class="flex-shrink-0 rounded-sm shadow-sm" loading="lazy" />
-                            ) : (
-                              <span class="flex-shrink-0 w-5 h-[15px] rounded-sm border border-dashed border-slate-600/70 bg-brand-800/40" />
-                            )}
-                            <span class={`flex-1 min-w-0 truncate text-sm font-semibold ${
-                              pending   ? 'text-slate-500 italic' :
-                              !finished ? 'text-slate-200' :
-                              s.won     ? (isFinal ? 'text-gold' : 'text-white') : 'text-slate-500'
-                            }`}>
-                              {pending ? prettyPlaceholder(s.team) : spanishName(s.team)}
-                            </span>
-                            {finished && s.score !== null && (
-                              <span class={`font-display text-lg leading-none flex-shrink-0 tabular-nums ${
-                                s.won ? (isFinal ? 'text-gold' : 'text-white') : 'text-slate-500'
-                              }`}>{s.score}</span>
-                            )}
-                            {finished && s.won && <span class="flex-shrink-0 text-gold text-xs leading-none">✓</span>}
-                          </div>
-                        );
-                      })}
-                      {finished && m.winner_penalties && (
-                        <p class="text-[10px] text-gold/70 text-center pt-1">
-                          {m.home_pen !== null ? `Penales ${m.home_pen}–${m.away_pen}` : 'Definido por penales'} · gana {spanishName(m.winner_penalties === 'home' ? m.home_team : m.away_team)}
-                        </p>
-                      )}
+                    <div class="flex items-center gap-1 px-2.5 py-3">
+                      {/* Local */}
+                      <div class={`flex-1 flex items-center justify-end gap-2 min-w-0 rounded-lg py-1.5 px-1.5 ${finished && homeWon ? (isFinal ? 'bg-gold/10' : 'bg-brand-700/25') : ''}`}>
+                        <span class={`text-sm font-bold truncate text-right ${nameCls(homePending, homeWon)}`}>
+                          {homePending ? prettyPlaceholder(m.home_team) : spanishName(m.home_team)}
+                        </span>
+                        {homeFlag ? <img src={homeFlag} width="20" height="15" class="flex-shrink-0 rounded-sm ring-1 ring-black/30 shadow" loading="lazy" /> : badge}
+                      </div>
+                      {/* Centro: VS o marcador */}
+                      <div class="flex-shrink-0 px-1">
+                        {finished ? (
+                          <span class={`font-display text-xl leading-none tabular-nums ${isFinal ? 'text-gold' : 'text-white'}`}>
+                            {hs}<span class="text-slate-600 mx-px">–</span>{as_}
+                          </span>
+                        ) : (
+                          <span class={`flex items-center justify-center w-7 h-7 rounded-full border font-display text-[10px] tracking-wide ${isFinal ? 'border-gold/40 text-gold/70' : 'border-brand-700 text-slate-500'}`}>VS</span>
+                        )}
+                      </div>
+                      {/* Visitante */}
+                      <div class={`flex-1 flex items-center gap-2 min-w-0 rounded-lg py-1.5 px-1.5 ${finished && awayWon ? (isFinal ? 'bg-gold/10' : 'bg-brand-700/25') : ''}`}>
+                        {awayFlag ? <img src={awayFlag} width="20" height="15" class="flex-shrink-0 rounded-sm ring-1 ring-black/30 shadow" loading="lazy" /> : badge}
+                        <span class={`text-sm font-bold truncate ${nameCls(awayPending, awayWon)}`}>
+                          {awayPending ? prettyPlaceholder(m.away_team) : spanishName(m.away_team)}
+                        </span>
+                      </div>
                     </div>
+                    {finished && m.winner_penalties && (
+                      <p class="text-[10px] text-gold/70 text-center pb-2 -mt-1.5">
+                        {m.home_pen !== null ? `Penales ${m.home_pen}–${m.away_pen}` : 'Definido por penales'} · gana {spanishName(m.winner_penalties === 'home' ? m.home_team : m.away_team)}
+                      </p>
+                    )}
                   </div>
                 );
               })}
