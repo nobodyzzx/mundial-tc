@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '@/lib/supabase';
 import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
-import { linkMatches, isPlaceholderName } from '@/lib/match-link';
+import { linkMatches, isPlaceholderName, canonicalTeamName } from '@/lib/match-link';
 import { getAdminUser } from '@/lib/auth-helpers';
 
 const PROVIDER = (import.meta.env.MATCH_PROVIDER ?? 'football-data').toLowerCase();
@@ -34,6 +34,14 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const dbRows = dbMatchesRaw ?? [];
   const dbById = new Map(dbRows.map(d => [d.id, d]));
 
+  // Nombres canónicos reales (no placeholder) de todos los partidos en BD.
+  const { data: allNames } = await supabaseAdmin.from('matches').select('home_team, away_team');
+  const knownNames: string[] = [];
+  for (const row of allNames ?? []) {
+    if (!isPlaceholderName(row.home_team)) knownNames.push(row.home_team);
+    if (!isPlaceholderName(row.away_team)) knownNames.push(row.away_team);
+  }
+
   // ── 1. Rellenar nombres de placeholders de bracket ya definidos ──
   const pending = allFixtures.filter(f =>
     f.status !== 'FINISHED' && f.homeTeam?.name && f.awayTeam?.name
@@ -44,8 +52,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
     const id = pendingLink.get(f);
     if (!id) continue;
     const db = dbById.get(id)!;
-    const newHome = isPlaceholderName(db.home_team) ? f.homeTeam.name : db.home_team;
-    const newAway = isPlaceholderName(db.away_team) ? f.awayTeam.name : db.away_team;
+    const newHome = isPlaceholderName(db.home_team) ? canonicalTeamName(f.homeTeam.name, knownNames) : db.home_team;
+    const newAway = isPlaceholderName(db.away_team) ? canonicalTeamName(f.awayTeam.name, knownNames) : db.away_team;
     if (newHome === db.home_team && newAway === db.away_team) continue;
     await supabaseAdmin.from('matches').update({ home_team: newHome, away_team: newAway }).eq('id', id);
   }
@@ -76,8 +84,8 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
       winner_penalties: deriveWinnerPenalties(f.score),
       is_finished:      true,
     };
-    if (db && isPlaceholderName(db.home_team) && f.homeTeam?.name) update.home_team = f.homeTeam.name;
-    if (db && isPlaceholderName(db.away_team) && f.awayTeam?.name) update.away_team = f.awayTeam.name;
+    if (db && isPlaceholderName(db.home_team) && f.homeTeam?.name) update.home_team = canonicalTeamName(f.homeTeam.name, knownNames);
+    if (db && isPlaceholderName(db.away_team) && f.awayTeam?.name) update.away_team = canonicalTeamName(f.awayTeam.name, knownNames);
 
     const { error } = await supabaseAdmin.from('matches').update(update).eq('id', matchId);
 

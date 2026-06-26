@@ -42,6 +42,13 @@ export function normTeam(name: string): string {
   return ALIAS[base] ?? base;
 }
 
+/** Dado un nombre de API, devuelve el nombre canónico ya usado en la app (de knownNames)
+ *  o apiName tal cual si no hay coincidencia normalizada. */
+export function canonicalTeamName(apiName: string, knownNames: string[]): string {
+  const norm = normTeam(apiName);
+  return knownNames.find(n => normTeam(n) === norm) ?? apiName;
+}
+
 export function teamKey(home: string, away: string): string {
   return [normTeam(home), normTeam(away)].sort().join('|');
 }
