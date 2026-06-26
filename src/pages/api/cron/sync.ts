@@ -8,7 +8,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
-import { linkMatches, isPlaceholderName } from '@/lib/match-link';
+import { linkMatches, isPlaceholderName, canonicalTeamName } from '@/lib/match-link';
 import { logEvent } from '@/lib/system-log';
 import { alertGroupError } from '@/lib/whatsapp';
 import { emitLiveEvents } from '@/lib/live-events';
@@ -140,6 +140,15 @@ export const GET: APIRoute = async ({ url, request }) => {
   const dbRows = dbMatchesRaw ?? [];
   const dbById = new Map(dbRows.map(d => [d.id, d]));
 
+  // Nombres canónicos reales (no placeholder) de todos los partidos en BD.
+  // Se usan para canonizar los nombres que da api-football al rellenar brackets.
+  const { data: allNames } = await supabaseAdmin.from('matches').select('home_team, away_team');
+  const knownNames: string[] = [];
+  for (const row of allNames ?? []) {
+    if (!isPlaceholderName(row.home_team)) knownNames.push(row.home_team);
+    if (!isPlaceholderName(row.away_team)) knownNames.push(row.away_team);
+  }
+
   // ── 0. Eventos en vivo (arranque + gol) ─────────────────────────
   // Reusa los fixtures ya traídos (no llama al proveedor). Best-effort.
   if (preview) {
@@ -161,8 +170,8 @@ export const GET: APIRoute = async ({ url, request }) => {
     const db = dbById.get(id)!;
     // Solo rellenar lados que siguen siendo placeholder; no renombrar equipos reales
     // (los nombres difieren entre proveedores y romperían flags/nombres en español).
-    const newHome = isPlaceholderName(db.home_team) ? f.homeTeam.name : db.home_team;
-    const newAway = isPlaceholderName(db.away_team) ? f.awayTeam.name : db.away_team;
+    const newHome = isPlaceholderName(db.home_team) ? canonicalTeamName(f.homeTeam.name, knownNames) : db.home_team;
+    const newAway = isPlaceholderName(db.away_team) ? canonicalTeamName(f.awayTeam.name, knownNames) : db.away_team;
     if (newHome === db.home_team && newAway === db.away_team) continue;
     await supabaseAdmin.from('matches').update({ home_team: newHome, away_team: newAway }).eq('id', id);
     namesUpdated++;
@@ -196,8 +205,8 @@ export const GET: APIRoute = async ({ url, request }) => {
       is_finished:      true,
     };
     // Rellenar nombres solo si el lado sigue siendo placeholder (knockouts).
-    if (db && isPlaceholderName(db.home_team) && f.homeTeam?.name) update.home_team = f.homeTeam.name;
-    if (db && isPlaceholderName(db.away_team) && f.awayTeam?.name) update.away_team = f.awayTeam.name;
+    if (db && isPlaceholderName(db.home_team) && f.homeTeam?.name) update.home_team = canonicalTeamName(f.homeTeam.name, knownNames);
+    if (db && isPlaceholderName(db.away_team) && f.awayTeam?.name) update.away_team = canonicalTeamName(f.awayTeam.name, knownNames);
 
     const { error } = await supabaseAdmin.from('matches').update(update).eq('id', matchId);
 
