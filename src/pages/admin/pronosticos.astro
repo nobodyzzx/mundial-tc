@@ -1,6 +1,6 @@
 ---
 import Layout from '@/layouts/Layout.astro';
-import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
+import { createRequestClient, supabaseAdmin, fetchAllRows } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart } from '@/lib/jornada';
 import { isoForTeam, spanishName, teamFlag } from '@/lib/isoFlags';
@@ -47,11 +47,15 @@ const sanctionSet = new Set((rawSanctions ?? []).map((s: any) => `${s.user_id}|$
 const isSanctioned = (userId: string, matchDate: string) => sanctionSet.has(`${userId}|${dayTimeOf(matchDate)}`);
 
 const allMatchIds = allMatches.map((m: any) => m.id);
+// Paginado: con todos los partidos del torneo, los pronósticos superan las 1000
+// filas y una sola consulta truncaría (jugadores recientes saldrían como "sin
+// pronóstico"). Ver fetchAllRows en lib/supabase.
 const rawPreds = allMatchIds.length
-  ? (await supabaseAdmin.from('predictions')
+  ? await fetchAllRows<any>((from, to) => supabaseAdmin.from('predictions')
       .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, points_earned, ingresado_por_referi')
       .in('match_id', allMatchIds)
-    ).data ?? []
+      .order('id', { ascending: true })
+      .range(from, to))
   : [];
 
 const predMap: Record<string, Record<string, any>> = {};

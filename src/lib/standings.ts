@@ -12,6 +12,7 @@
  *   "Acierto" = pronóstico que sumó cualquier punto (al menos acertó la dirección).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchAllRows } from './supabase';
 
 export interface TiebreakStat {
   exactos: number;
@@ -35,13 +36,19 @@ export async function tiebreakStats(
   for (const id of userIds) map.set(id, empty());
   if (!userIds.length) return map;
 
-  const { data } = await db
-    .from('predictions')
-    .select('user_id, points_earned')
-    .in('user_id', userIds)
-    .not('points_earned', 'is', null);
+  // Paginado: los pronósticos puntuados de todo el torneo superan las 1000 filas;
+  // truncar undercontaría exactos/aciertos y alteraría el desempate. Ver fetchAllRows.
+  const data = await fetchAllRows<{ user_id: string; points_earned: number | null }>(
+    (from, to) => db
+      .from('predictions')
+      .select('user_id, points_earned')
+      .in('user_id', userIds)
+      .not('points_earned', 'is', null)
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
 
-  for (const p of data ?? []) {
+  for (const p of data) {
     const s = map.get(p.user_id);
     if (s) tally(s, p.points_earned);
   }

@@ -1,7 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import TeamName from '@/components/TeamName.astro';
-import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
+import { createRequestClient, supabaseAdmin, fetchAllRows } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart, REVEAL_BEFORE_MS } from '@/lib/jornada';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
@@ -78,11 +78,14 @@ const nextDay = upcomingDays[0] ?? null; // solo el próximo por revelar (teaser
 
 // Predicciones solo de los días revelados — nada del futuro llega al cliente
 const revealedMatchIds = revealedDays.flatMap(d => d.matches.map((m: any) => m.id));
+// Paginado para no truncar a 1000 filas (ver fetchAllRows): si se cortara, un
+// jugador aparecería como "sin pronóstico" ante TODO el grupo en esta vista.
 const rawPreds = revealedMatchIds.length
-  ? (await supabaseAdmin.from('predictions')
+  ? await fetchAllRows<any>((from, to) => supabaseAdmin.from('predictions')
       .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, points_earned')
       .in('match_id', revealedMatchIds)
-    ).data ?? []
+      .order('id', { ascending: true })
+      .range(from, to))
   : [];
 
 const predMap: Record<string, Record<string, any>> = {};

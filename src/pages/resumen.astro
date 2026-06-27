@@ -1,6 +1,6 @@
 ---
 import Layout from '@/layouts/Layout.astro';
-import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
+import { createRequestClient, supabaseAdmin, fetchAllRows } from '@/lib/supabase';
 import { teamFlag } from '@/lib/isoFlags';
 import { tiebreakStatsFromPreds, compareStandings } from '@/lib/standings';
 
@@ -24,10 +24,14 @@ const [{ data: rawMatches }, { data: rawPlayers }] = await Promise.all([
 const matches  = rawMatches ?? [];
 const matchIds = matches.map((m: any) => m.id);
 
+// Paginado para no truncar a 1000 filas (ver fetchAllRows): el truncado falsearía
+// celdas y subtotales de la tabla del resumen.
 const rawPreds = matchIds.length
-  ? (await supabaseAdmin.from('predictions')
+  ? await fetchAllRows<any>((from, to) => supabaseAdmin.from('predictions')
       .select('user_id, match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, points_earned')
-      .in('match_id', matchIds)).data ?? []
+      .in('match_id', matchIds)
+      .order('id', { ascending: true })
+      .range(from, to))
   : [];
 
 // Desempate (puntos → exactos → aciertos): reordena las columnas de jugadores.

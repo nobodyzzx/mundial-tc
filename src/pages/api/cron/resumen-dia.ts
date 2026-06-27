@@ -12,7 +12,7 @@
  * ?preview=1 → arma el mensaje y lo devuelve SIN idempotencia ni envío.
  */
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabaseAdmin, fetchAllRows } from '@/lib/supabase';
 import { spanishName, teamFlag } from '@/lib/isoFlags';
 import { boliviaDayStart } from '@/lib/jornada';
 import { betaNowMs } from '@/lib/betaTime';
@@ -188,10 +188,14 @@ export const GET: APIRoute = async ({ url, request }) => {
   //    "Días seguidos sumando" se satura (casi todos suman algo a diario); el
   //    acumulado reciente sí separa quién viene caliente. Una sola lectura de los
   //    pronósticos ya resueltos (tabla chica, 1×/día).
-  const { data: histRows } = await supabaseAdmin
+  // Paginado: los pronósticos de partidos terminados superan las 1000 filas;
+  // truncar sesgaría el cálculo de "más en forma". Ver fetchAllRows.
+  const histRows = await fetchAllRows<any>((from, to) => supabaseAdmin
     .from('predictions')
     .select('user_id, points_earned, matches!inner(match_date, is_finished)')
-    .eq('matches.is_finished', true);
+    .eq('matches.is_finished', true)
+    .order('id', { ascending: true })
+    .range(from, to));
   const dayKeyOf = (iso: string) => boliviaDayStart(new Date(iso).getTime()).getTime();
   const allDays = new Set<number>();
   const userDayPts = new Map<string, Map<number, number>>();

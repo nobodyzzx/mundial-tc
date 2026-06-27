@@ -40,6 +40,30 @@ export const supabaseAdmin = createClient(
   import.meta.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+/**
+ * Trae TODAS las filas paginando de a 1000. PostgREST corta cada respuesta a un
+ * máximo de filas (1000 por defecto): una sola consulta `.in(...)` sobre muchos
+ * ids puede truncar en silencio y dejar filas fuera — p.ej. un pronóstico
+ * reciente queda excluido y el jugador aparece como "sin pronóstico" aunque sí
+ * pronosticó. Usar esto siempre que el resultado pueda superar las 1000 filas.
+ *
+ * `makeQuery(from, to)` debe devolver la consulta YA con `.range(from, to)` y un
+ * `.order(...)` ESTABLE (si no, OFFSET/LIMIT puede saltar o duplicar filas).
+ */
+export async function fetchAllRows<T>(
+  makeQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null }>,
+): Promise<T[]> {
+  const PAGE = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await makeQuery(from, from + PAGE - 1);
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
+}
+
 // Tipos de la DB
 export type Profile = {
   id: string;
