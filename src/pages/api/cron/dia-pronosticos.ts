@@ -29,18 +29,6 @@ export const GET: APIRoute = async ({ url, request }) => {
   if (!(await checkCronSecret(url, request))) return json({ error: 'Unauthorized' }, 401);
 
   const preview = url.searchParams.get('preview') === '1';
-
-  // ── Kill switch temporal (27-jun-2026) ──────────────────────────────────────
-  // Envío automático de "pronósticos de todos" al grupo DESACTIVADO a pedido: la
-  // lista podía mostrar a alguien como "sin pronóstico" cuando sí lo había mandado
-  // (vista desactualizada), generando suspicacias en el grupo. Mientras se
-  // estabiliza, el cron no envía. Cambiar a `true` para reactivar. ?preview=1
-  // sigue armando el mensaje sin enviar, para inspeccionarlo.
-  const ENVIO_HABILITADO = false;
-  if (!preview && !ENVIO_HABILITADO) {
-    return json({ skipped: true, reason: 'Envío de pronósticos deshabilitado temporalmente' });
-  }
-
   const nowMs = betaNowMs();
   const nowIso = new Date(nowMs).toISOString();
 
