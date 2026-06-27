@@ -31,6 +31,16 @@ const allMatches = rawMatches ?? [];
 const players    = rawPlayers ?? [];
 const nowMs      = betaNowMs();
 
+// Esta es la vista EN VIVO del réferi: nunca debe servirse vieja (un snapshot
+// previo puede hacerle creer que alguien no pronosticó cuando sí lo hizo). Se
+// fuerza no-store para que el navegador no la guarde en bfcache ni reutilice una
+// copia prefetcheada (prefetchAll está activo a nivel global). Combinado con el
+// auto-refresco del cliente, la página siempre refleja la BD.
+Astro.response.headers.set('Cache-Control', 'no-store, must-revalidate');
+
+// Hora de este render (la que se muestra como "Actualizado HH:MM:SS").
+const renderedAt = fmtFecha(nowMs, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
 // Roja activa por usuario y día Bolivia (frontera 03:00 BOT) → jornada anulada.
 const dayTimeOf = (d: string) => boliviaDayStart(new Date(d).getTime()).getTime();
 const sanctionSet = new Set((rawSanctions ?? []).map((s: any) => `${s.user_id}|${dayTimeOf(s.created_at)}`));
@@ -164,6 +174,11 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
           </div>
           {/* Contraer / expandir todo */}
           <button id="toggle-all" data-mode="expand" class="text-xs text-slate-400 hover:text-white border border-brand-700 rounded-lg px-2.5 py-1.5 transition">⊕ Expandir todo</button>
+          {/* Frescura: hora del render + refresco manual (la página se autorefresca sola) */}
+          <div class="ml-auto flex items-center gap-2 flex-shrink-0">
+            <span class="text-[11px] text-slate-500 whitespace-nowrap">Actualizado <span id="updated-at" class="text-slate-300 tabular-nums">{renderedAt}</span></span>
+            <button id="btn-refresh" class="text-xs text-gol hover:text-white border border-gol/40 bg-gol/10 rounded-lg px-2.5 py-1.5 transition whitespace-nowrap">🔄 Actualizar</button>
+          </div>
         </div>
         {/* Resumen del jugador filtrado (visible solo al aislar) */}
         <div id="player-summary" class="hidden items-center gap-2 flex-wrap text-xs bg-gold/10 border border-gold/30 rounded-lg px-3 py-2">
@@ -616,4 +631,44 @@ const WA_ICON = `<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor
 
   initFilters();
   document.addEventListener('astro:page-load', initFilters);
+
+  // ── Frescura: refresco manual + autorefresco preservando scroll ───────────────
+  // Vista en vivo del réferi: una página vieja puede hacerle creer que alguien no
+  // pronosticó. Se autorefresca cada 60s (solo con la pestaña visible) y restaura
+  // la posición de scroll. NO refresca si hay un filtro activo (jugador aislado o
+  // estado ≠ Todos), para no interrumpir una revisión en curso; el botón siempre
+  // recarga al instante.
+  function isFiltering(): boolean {
+    const root = document.getElementById('pron-root');
+    if (root?.hasAttribute('data-iso')) return true;
+    const active = document.querySelector<HTMLButtonElement>('.status-btn.bg-brand-700');
+    return !!active && active.dataset.statusFilter !== 'all';
+  }
+
+  function initAutoRefresh() {
+    const KEY = 'pron-scroll';
+    const saved = sessionStorage.getItem(KEY);
+    if (saved !== null) {
+      window.scrollTo(0, Number(saved));
+      sessionStorage.removeItem(KEY);
+    }
+    const reload = () => {
+      sessionStorage.setItem(KEY, String(window.scrollY));
+      location.reload();
+    };
+    const btn = document.getElementById('btn-refresh');
+    if (btn && !btn.dataset.init) {
+      btn.dataset.init = '1';
+      btn.addEventListener('click', reload);
+    }
+    // Un solo temporizador por sesión de página, aunque astro:page-load re-dispare.
+    if (!(window as any).__pronRefreshTimer) {
+      (window as any).__pronRefreshTimer = setInterval(() => {
+        if (!document.hidden && !isFiltering()) reload();
+      }, 60000);
+    }
+  }
+
+  initAutoRefresh();
+  document.addEventListener('astro:page-load', initAutoRefresh);
 </script>
