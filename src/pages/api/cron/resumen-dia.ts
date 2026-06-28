@@ -256,7 +256,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     ...tableLines,
     ...(cardLines.length ? ['', '🟨🟥 *Tarjetas de hoy*', ...cardLines] : []),
     ...(statLines.length ? ['', '🌟 *Destacados*', ...statLines] : []),
-    ...(hayProxima ? ['', '✍️ _¡La próxima jornada ya está abierta! No olvides cargar tus pronósticos._'] : []),
+    ...(hayProxima ? ['', '✍️ _La próxima jornada ya está abierta. A ver si mañana le atinan a algo._'] : []),
     '',
     '👉 mundial.tecnocondor.dev/pronosticos',
     '_Polla Mundial 2026_ 🏆',

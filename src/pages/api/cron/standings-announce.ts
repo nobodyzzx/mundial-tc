@@ -102,7 +102,7 @@ export const GET: APIRoute = async ({ url, request }) => {
     ...resultLines,
     '',
     '📊 *TABLA ACTUALIZADA*',
-    '_este partido + acumulado = total_',
+    '_lo de hoy + lo de antes = tu cruda realidad_',
     ...tableLines,
     '',
     '👉 mundial.tecnocondor.dev/pronosticos',

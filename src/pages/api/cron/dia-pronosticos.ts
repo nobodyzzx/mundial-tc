@@ -115,7 +115,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   // 6. Construir mensaje.
   const lines: string[] = [
     `📊 *PRONÓSTICOS DE HOY · ${dayLabel}*`,
-    '_Apuestas cerradas 🔒 — esto puso cada uno_',
+    '_Apuestas cerradas 🔒 — ya no hay excusas, esto firmó cada uno_',
     '',
   ];
   for (const m of dayMatches) {
@@ -134,11 +134,11 @@ export const GET: APIRoute = async ({ url, request }) => {
         return s;
       })
       .filter(Boolean) as string[];
-    lines.push(picks.length ? `  ${picks.join(' · ')}` : '  _(nadie pronosticó)_');
+    lines.push(picks.length ? `  ${picks.join(' · ')}` : '  _(nadie se atrevió 🦗)_');
     const missing = (participants ?? [])
       .filter(p => !sanctionedIds.has(p.id) && !predMap.has(`${m.id}:${p.id}`))
       .map(p => p.username);
-    if (missing.length) lines.push(`  💀 Sin pronóstico: ${missing.join(', ')}`);
+    if (missing.length) lines.push(`  💀 Se borraron: ${missing.join(', ')}`);
     lines.push('');
   }
   const sanctionedNames = (participants ?? [])

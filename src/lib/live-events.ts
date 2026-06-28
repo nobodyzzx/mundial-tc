@@ -268,7 +268,7 @@ export async function emitLiveEvents(
           '🟢 *¡ARRANCÓ EL PARTIDO!*',
           `${teamFlag(home)} *${spanishName(home)}* vs *${spanishName(away)}* ${teamFlag(away)}`,
           '',
-          '⚽ ¡Que ruede la pelota! Suerte a todos.',
+          '⚽ Que empiece el sufrimiento. Suerte la van a necesitar.',
         ].join('\n');
         await emit(text, 'live-kickoff', { match_id: matchId, type: 'kickoff', home_score: 0, away_score: 0 });
       }

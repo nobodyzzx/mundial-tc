@@ -166,14 +166,14 @@ export const GET: APIRoute = async ({ url, request }) => {
     '🔒 *APUESTAS CERRADAS*',
     '_Polla Mundial 2026_',
     '',
-    `⛔ Ya no se puede pronosticar para hoy. El cierre fue a las *${fmtTime(new Date(cutoffMs).toISOString())}* (2h antes del primer partido).`,
+    `⛔ Se acabó. El que no pronosticó, a mirar nomás. Cerró a las *${fmtTime(new Date(cutoffMs).toISOString())}* (2h antes del primer partido).`,
     '',
     '📋 *Partidos de hoy:*',
     ...matchLines,
     '',
     missing.length
-      ? `😬 *Se quedaron sin pronosticar todo:*\n${missing.map(u => `• ${u}`).join('\n')}`
-      : '✅ ¡Todos pronosticaron a tiempo! Suerte ⚽',
+      ? `💀 *Se durmieron y no pronosticaron todo:*\n${missing.map(u => `• ${u}`).join('\n')}`
+      : '✅ Todos llegaron a tiempo, milagro. Que gane el menos malo ⚽',
     '',
     '👉 mundial.tecnocondor.dev',
   ].join('\n');

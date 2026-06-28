@@ -77,7 +77,7 @@ export const GET: APIRoute = async ({ request }) => {
     const m = p.monto_pagado ?? 0;
     lines.push(`⏳ ${p.username} — ${m} Bs dep. · faltan ${PAGO_COMPLETO_BS - m} Bs`);
   });
-  pendientes.forEach(p => lines.push(`❌ ${p.username} — sin pago`));
+  pendientes.forEach(p => lines.push(`❌ ${p.username} — sigue sin pagar 👀`));
 
   const participantes = [...completos, ...parciales];
   const pozo      = participantes.reduce((s, p) => s + aportePozo(p.monto_pagado), 0);

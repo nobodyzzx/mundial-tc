@@ -176,13 +176,13 @@ export const GET: APIRoute = async ({ url, request }) => {
   );
 
   const text = [
-    `✍️ *¡NO OLVIDES TUS PRONÓSTICOS! · ${dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1)}*`,
-    '_La jornada de hoy ya está abierta — carga tus scores_',
+    `✍️ *¡A PRONOSTICAR! · ${dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1)}*`,
+    '_Jornada abierta. A ver quién se hace el adivino hoy._',
     '',
     '📋 *Partidos de la jornada:*',
     ...matchLines,
     '',
-    `⏰ Cierran a las *${fmtTime(cutoffMs)}* (2h antes del primer partido)`,
+    `⏰ Cierran a las *${fmtTime(cutoffMs)}* — después no se aceptan lágrimas (2h antes del primer partido)`,
     '👉 mundial.tecnocondor.dev/predictions',
     '_Polla Mundial 2026_ 🏆',
   ].join('\n');
