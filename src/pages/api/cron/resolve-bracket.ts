@@ -80,5 +80,18 @@ export const GET: APIRoute = async ({ url, request }) => {
     if (!error) applied++;
   }
 
+  // 4. Bitácora: solo cuando se rellenó alguna llave (corre cada ~15 min; loguear
+  //    cada pasada vacía inundaría sync_logs). endpoint = rondas tocadas.
+  if (applied > 0) {
+    const rondas = [...new Set(updates.map((u) => u.round))].sort().join(',');
+    await supabaseAdmin.from('sync_logs').insert({
+      source: 'resolve-bracket',
+      endpoint: rondas,
+      response_status: 200,
+      matches_updated: applied,
+      error: null,
+    });
+  }
+
   return json({ ok: true, aplicados: applied, ...plan });
 };
