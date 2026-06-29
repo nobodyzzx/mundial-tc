@@ -1,0 +1,657 @@
+---
+/**
+ * grupos-v2 — Rediseño experimental de la página de Grupos y Fases.
+ *
+ * Mejoras sobre grupos.astro:
+ *  - Barra de fase del torneo (Groups → R32 → R16 → QF → SF → 3rd → Final)
+ *  - Tabla de grupos compacta con indicador de forma (W/D/L)
+ *  - Ranking de mejores terceros (los 8 avanzan a R32)
+ *  - Partidos en vivo con indicador pulsante
+ *  - Árbol visual de eliminatorias en grid CSS
+ *  - Animaciones y micro-interacciones vía CSS
+ */
+import Layout from '@/layouts/Layout.astro';
+import { createRequestClient } from '@/lib/supabase';
+import { flagUrl } from '@/lib/flags';
+import { spanishName } from '@/lib/isoFlags';
+import { fmtFecha } from '@/lib/fechas';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value;
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
+if (!accessToken || !refreshToken) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const supabase = createRequestClient();
+const { data: { user } } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cookies.delete("sb-refresh-token", { path: "/" }); return Astro.redirect("/login"); }
+
+const [
+  { data: navProfile },
+  { data: rawMatches },
+  { data: knockoutMatches },
+] = await Promise.all([
+  supabase.from('profiles').select('username, puntos_totales, es_referi').eq('id', user.id).single(),
+  supabase.from('matches').select('id, home_team, away_team, home_score, away_score, is_finished, status, group_name, match_date')
+    .eq('stage', 'group').order('group_name').order('match_date'),
+  supabase.from('matches').select('home_team, away_team, home_score, away_score, home_pen, away_pen, winner_penalties, is_finished, status, round, match_date')
+    .eq('stage', 'knockout').order('match_date'),
+]);
+
+// ── Fases del torneo ──
+const PHASES = [
+  { id: 'grupos',     label: 'Grupos',     icon: '📋' },
+  { id: 'r32',        label: 'R32',        icon: '🎯' },
+  { id: 'r16',        label: 'R16',        icon: '🔥' },
+  { id: 'cuartos',    label: 'Cuartos',    icon: '⚔️' },
+  { id: 'semis',      label: 'Semis',      icon: '💫' },
+  { id: 'tercer',     label: '3.º',        icon: '🥉' },
+  { id: 'final',      label: 'Final',      icon: '🏆' },
+];
+
+function currentPhaseLabel(): string {
+  const now = Date.now();
+  const upcoming = (knockoutMatches ?? []).some(m => new Date(m.match_date).getTime() > now);
+  const anyKOFinished = (knockoutMatches ?? []).some(m => m.is_finished);
+  if (!anyKOFinished && !upcoming) return 'Grupos';
+  if (!anyKOFinished) return 'Grupos';
+  for (const r of ['Final', 'Tercer Puesto', 'Semifinal', 'Cuartos', 'R16', 'R32']) {
+    const phaseMatch = (knockoutMatches ?? []).find(m => m.round === r && !m.is_finished);
+    if (phaseMatch && new Date(phaseMatch.match_date).getTime() <= now + 86400000) {
+      return r === 'Tercer Puesto' ? '3.º' : r;
+    }
+  }
+  return 'Eliminatorias';
+}
+
+const ROUND_ORDER = ['Playoffs', 'R32', 'R16', 'Cuartos', 'Semifinal', 'Tercer Puesto', 'Final'];
+const knockoutRounds = new Map<string, any[]>();
+for (const m of (knockoutMatches ?? [])) {
+  const r = (m.round as string) ?? 'Sin ronda';
+  if (!knockoutRounds.has(r)) knockoutRounds.set(r, []);
+  knockoutRounds.get(r)!.push(m);
+}
+const sortedRounds = [...knockoutRounds.entries()].sort(([a], [b]) => {
+  const ia = ROUND_ORDER.indexOf(a), ib = ROUND_ORDER.indexOf(b);
+  return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+});
+
+// ── Tabla de grupos ──
+type TeamRow = { team: string; pj: number; g: number; e: number; p: number; gf: number; gc: number; dg: number; pts: number; form: string[] };
+const groupMap   = new Map<string, Map<string, TeamRow>>();
+const groupMatchesMap = new Map<string, any[]>();
+
+for (const m of (rawMatches ?? [])) {
+  const grp = (m.group_name as string) ?? '—';
+  if (!groupMap.has(grp)) groupMap.set(grp, new Map());
+  if (!groupMatchesMap.has(grp)) groupMatchesMap.set(grp, []);
+  groupMatchesMap.get(grp)!.push(m);
+
+  const table = groupMap.get(grp)!;
+  for (const team of [m.home_team, m.away_team])
+    if (!table.has(team)) table.set(team, { team, pj: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, dg: 0, pts: 0, form: [] });
+
+  if (!m.is_finished) continue;
+  const home = table.get(m.home_team)!, away = table.get(m.away_team)!;
+  const hs = m.home_score as number, as_ = m.away_score as number;
+  home.pj++; away.pj++;
+  home.gf += hs; home.gc += as_;
+  away.gf += as_; away.gc += hs;
+  let hRes: string, aRes: string;
+  if (hs > as_)      { home.g++; home.pts += 3; away.p++; hRes = 'W'; aRes = 'L'; }
+  else if (hs < as_) { away.g++; away.pts += 3; home.p++; hRes = 'L'; aRes = 'W'; }
+  else               { home.e++; home.pts++; away.e++; away.pts++; hRes = 'D'; aRes = 'D'; }
+  home.dg = home.gf - home.gc;
+  away.dg = away.gf - away.gc;
+  home.form.push(hRes);
+  away.form.push(aRes);
+}
+
+const groups = [...groupMap.entries()]
+  .sort(([a], [b]) => (a ?? '').localeCompare(b ?? ''))
+  .map(([name, table]) => {
+    const teams = [...table.values()].sort((a, b) =>
+      b.pts - a.pts || b.dg - a.dg || b.gf - a.gf || a.team.localeCompare(b.team)
+    );
+    const allPlayed = teams.every(t => t.pj === 3);
+    return { name, teams, allPlayed, matches: groupMatchesMap.get(name) ?? [] };
+  });
+
+// ── Ranking de mejores terceros ──
+const thirdPlaced = groups
+  .map(g => g.teams[2] ? { ...g.teams[2], group: g.name } : null)
+  .filter(Boolean) as (TeamRow & { group: string })[];
+thirdPlaced.sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf);
+
+// ── Helpers ──
+function isLive(m: any): boolean {
+  if (m.is_finished || m.status === 'FINISHED') return false;
+  if (m.status === 'IN_PLAY' || m.status === 'PAUSED') return true;
+  const matchTime = new Date(m.match_date).getTime();
+  const now = Date.now();
+  return matchTime <= now && now <= matchTime + 10800000; // 3h ventana
+}
+
+function formColor(r: string): string {
+  return r === 'W' ? 'bg-gol/30 text-gol' : r === 'D' ? 'bg-amber-500/25 text-amber-400' : 'bg-roja/25 text-roja';
+}
+function formLabel(r: string): string {
+  return r === 'W' ? 'G' : r === 'D' ? 'E' : 'P';
+}
+
+function fmtDateShort(d: string) {
+  return fmtFecha(d, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+function fmtTime(d: string) {
+  return fmtFecha(d, { hour: '2-digit', minute: '2-digit' });
+}
+
+function isPending(name: string | null): boolean {
+  if (!name) return true;
+  if (/^\d[A-Z]+$/i.test(name)) return true;
+  if (/^[WL]\d+$/i.test(name)) return true;
+  return /^(TBD|Winner|1st|2nd|3rd|4th|\d+(?:st|nd|rd|th))/i.test(name);
+}
+
+function prettyPlaceholder(name: string | null): string {
+  if (!name) return 'Por definir';
+  const pos = name.match(/^([123])([A-L]+)$/i);
+  if (pos) {
+    const groups = pos[2].toUpperCase().split('');
+    return groups.length === 1 ? `${pos[1]}.º Grupo ${groups[0]}` : `${pos[1]}.º (${groups.join('/')})`;
+  }
+  const wl = name.match(/^([WL])(\d+)$/i);
+  if (wl) return `${wl[1].toUpperCase() === 'W' ? 'Ganador' : 'Perdedor'} ${wl[2]}`;
+  if (/^TBD/i.test(name)) return 'Por definir';
+  return name;
+}
+
+// ── Construcción del bracket visual ──
+const BRACKET_ROUNDS = ['R32', 'R16', 'Cuartos', 'Semifinal', 'Final'];
+const BRACKET_BY_ROUND: Record<string, any[]> = {};
+for (const m of (knockoutMatches ?? [])) {
+  const r = m.round as string;
+  if (BRACKET_ROUNDS.includes(r)) {
+    if (!BRACKET_BY_ROUND[r]) BRACKET_BY_ROUND[r] = [];
+    BRACKET_BY_ROUND[r].push(m);
+  }
+}
+const bracketData = BRACKET_ROUNDS.filter(r => BRACKET_BY_ROUND[r]?.length).map(r => ({ round: r, matches: BRACKET_BY_ROUND[r] }));
+const bracketTeams = new Set<string>();
+for (const m of (knockoutMatches ?? [])) { bracketTeams.add(m.home_team); bracketTeams.add(m.away_team); }
+
+// ---
+
+const activePhase = currentPhaseLabel();
+const showThirdRanking = !groups.every(g => g.allPlayed) || thirdPlaced.length > 0;
+---
+
+<Layout title="Fases • V2" navProfile={navProfile} isAuthed={true}>
+  <div class="space-y-6">
+
+    {/* ── Header ── */}
+    <div class="flex items-center justify-between gap-3">
+      <h1 class="font-display text-4xl text-white tracking-wide">FASES</h1>
+      <span class="text-[10px] text-slate-500 bg-brand-900 border border-brand-700/60 px-3 py-1.5 rounded-full">
+        V2 · Experimental
+      </span>
+    </div>
+
+    {/* ── Barra de progreso de fases ── */}
+    <nav class="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+      {PHASES.map((p) => {
+        const isActive = activePhase === 'Grupos' ? p.id === 'grupos' : p.id !== 'grupos' && (
+          p.id === 'tercer' ? activePhase === '3.º' : p.id === 'final' ? activePhase === 'Final' : activePhase === p.label
+        );
+        const isPast = ['r32', 'r16', 'cuartos', 'semis', 'tercer', 'final'].includes(p.id) &&
+          BRACKET_BY_ROUND[BRACKET_ROUNDS[PHASES.findIndex(x => x.id === p.id) - 1]]?.every((m: any) => m.is_finished);
+        return (
+          <a
+            href={p.id === 'grupos' ? '#grupos' : `#${p.id}`}
+            class={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider border transition-all duration-300
+              ${isActive ? 'bg-gold/15 border-gold/50 text-gold shadow-sm shadow-gold/10 scale-105' :
+                isPast ? 'bg-brand-800/40 border-brand-700/50 text-slate-500' :
+                'bg-brand-900/70 border-brand-700/40 text-slate-400 hover:border-brand-600 hover:text-white'}`}
+          >
+            <span class={`${isActive ? 'opacity-100' : 'opacity-60'} ${isPast ? 'opacity-30' : ''}`}>{p.icon}</span>
+            <span>{p.label}</span>
+          </a>
+        );
+      })}
+    </nav>
+
+    {/* ── Tabs ── */}
+    <div class="flex gap-1 bg-brand-900 border border-brand-700/60 p-1 rounded-xl w-fit" role="tablist">
+      <button id="v2-tab-btn-grupos"
+        class="tab-btn px-5 py-2 min-h-[44px] rounded-lg text-sm font-semibold transition bg-brand-700 text-white"
+        onclick="switchTabV2('grupos')">
+        Grupos {groups.length > 0 && <span class="text-xs text-slate-400 font-normal ml-1">({groups.length})</span>}
+      </button>
+      <button id="v2-tab-btn-eliminatorias"
+        class="tab-btn px-5 py-2 min-h-[44px] rounded-lg text-sm font-semibold transition text-slate-400 hover:text-white"
+        onclick="switchTabV2('eliminatorias')">
+        Eliminatorias {sortedRounds.length > 0 && <span class="text-xs text-slate-500 font-normal ml-1">({sortedRounds.length} rondas)</span>}
+      </button>
+    </div>
+
+    {/* ══════════════════════════════════════════
+        TAB: GRUPOS (V2)
+    ══════════════════════════════════════════ */}
+    <section id="v2-tab-grupos">
+
+      {groups.length === 0 && (
+        <div class="text-center py-20 text-slate-600">
+          <div class="text-5xl mb-4">📋</div>
+          <p class="text-base">No hay partidos de grupo disponibles.</p>
+        </div>
+      )}
+
+      <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        {groups.map(({ name, teams, allPlayed, matches }) => {
+
+          return (
+            <div id={`grupo-${name}`} class="group-card bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden transition hover:border-brand-600/80">
+              {/* Cabecera */}
+              <div class="px-4 py-3 bg-brand-800/50 border-b border-brand-700/60 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-lg bg-brand-800 border border-brand-700 flex items-center justify-center">
+                    <span class="font-display text-sm text-white">{name}</span>
+                  </div>
+                  <div>
+                    <span class="font-display text-lg text-white tracking-wide">GRUPO {name}</span>
+                    {allPlayed && <span class="text-[10px] bg-gol/20 text-gol px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ml-2">Completo</span>}
+                  </div>
+                </div>
+                <span class="text-[10px] text-slate-500 font-mono">{teams.length} equipos</span>
+              </div>
+
+              {/* Tabla compacta */}
+              {teams.map((t, i) => {
+                const zone: 'top' | 'bubble' | 'out' = allPlayed
+                  ? (i < 2 ? 'top' : i === 2 ? 'bubble' : 'out')
+                  : 'out';
+                return (
+                  <div class={`grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2 border-b border-brand-800/30 last:border-0
+                    ${zone === 'top' ? 'bg-gradient-to-r from-gold/5 to-transparent' : ''}
+                    ${zone === 'bubble' && !allPlayed ? 'bg-brand-800/20' : ''}`}>
+                    {/* Posición */}
+                    <div class="flex flex-col items-center w-5">
+                      <span class={`text-xs font-bold tabular-nums ${zone === 'top' ? 'text-gold' : 'text-slate-500'}`}>
+                        {i + 1}
+                      </span>
+                      {zone === 'top' && <span class="text-[7px] text-gold/60 leading-none mt-0.5">✓</span>}
+                    </div>
+                    {/* Equipo + forma + bandera */}
+                    <div class="flex items-center gap-2 min-w-0">
+                      {flagUrl(t.team, '20x15') && (
+                        <img src={flagUrl(t.team, '20x15')!} width="20" height="15" class="flex-shrink-0 rounded-sm ring-1 ring-black/20" loading="lazy" />
+                      )}
+                      <span class={`text-sm font-semibold truncate ${zone === 'top' ? 'text-white' : i < 2 ? 'text-slate-200' : 'text-slate-400'}`}>
+                        {spanishName(t.team)}
+                      </span>
+                      {/* Form indicators */}
+                      {t.form.length > 0 && (
+                        <div class="hidden sm:flex gap-0.5 ml-1">
+                          {t.form.slice(-3).map(r => (
+                            <span class={`w-3.5 h-3.5 rounded-[2px] text-[7px] font-bold flex items-center justify-center ${formColor(r)}`}>
+                              {formLabel(r)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Stats */}
+                    <div class="flex items-center gap-2 text-xs font-mono">
+                      <span class="text-slate-500 w-4 text-center">{t.pj}</span>
+                      <span class="text-slate-500 w-4 text-center hidden sm:inline-block">{t.g}</span>
+                      <span class="text-slate-500 w-4 text-center hidden sm:inline-block">{t.e}</span>
+                      <span class="text-slate-500 w-4 text-center hidden sm:inline-block">{t.p}</span>
+                      <span class="text-slate-500 w-8 text-center hidden sm:inline-block">{t.gf}:{t.gc}</span>
+                      <span class={`w-5 text-center hidden sm:inline-block ${t.dg > 0 ? 'text-gol' : t.dg < 0 ? 'text-roja' : 'text-slate-500'}`}>
+                        {t.dg > 0 ? `+${t.dg}` : t.dg}
+                      </span>
+                      <span class={`w-6 text-center font-bold tabular-nums ${zone === 'top' ? 'text-gold' : 'text-white'}`}>
+                        {t.pts}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Partidos del grupo */}
+              {matches.length > 0 && (
+                <details class="group/det border-t border-brand-800/50">
+                  <summary class="flex items-center justify-between px-4 py-2.5 min-h-[44px] cursor-pointer list-none select-none text-xs text-slate-500 hover:text-slate-300 transition">
+                    <span>Ver partidos ({matches.filter((m: any) => m.is_finished).length}/{matches.length})</span>
+                    <svg class="w-3.5 h-3.5 transition-transform group-open/det:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </summary>
+                  <div class="border-t border-brand-800/30 divide-y divide-brand-800/30 bg-brand-950/30">
+                    {matches.map((m: any) => {
+                      const live = isLive(m);
+                      return (
+                        <div class="px-4 py-2 flex items-center gap-2 text-xs">
+                          {live && <span class="w-1.5 h-1.5 rounded-full bg-gol animate-pulse flex-shrink-0" />}
+                          <div class={`flex-1 flex items-center justify-end gap-1.5 min-w-0 ${m.is_finished ? 'text-slate-300' : live ? 'text-white' : 'text-slate-500'}`}>
+                            <span class="truncate">{spanishName(m.home_team)}</span>
+                            {flagUrl(m.home_team, '16x12') && <img src={flagUrl(m.home_team, '16x12')!} width="16" height="12" class="flex-shrink-0 rounded-sm" loading="lazy" />}
+                          </div>
+                          <div class="flex-shrink-0 text-center w-20">
+                            {live ? (
+                              <span class="text-[10px] text-gol font-semibold flex items-center justify-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-gol animate-pulse" />
+                                {m.home_score ?? 0}–{m.away_score ?? 0}
+                              </span>
+                            ) : m.is_finished ? (
+                              <span class="font-display text-sm text-white">{m.home_score}–{m.away_score}</span>
+                            ) : (
+                              <span class="text-[10px] text-slate-600">{fmtTime(m.match_date)}</span>
+                            )}
+                          </div>
+                          <div class={`flex-1 flex items-center gap-1.5 min-w-0 ${m.is_finished ? 'text-slate-300' : live ? 'text-white' : 'text-slate-500'}`}>
+                            {flagUrl(m.away_team, '16x12') && <img src={flagUrl(m.away_team, '16x12')!} width="16" height="12" class="flex-shrink-0 rounded-sm" loading="lazy" />}
+                            <span class="truncate">{spanishName(m.away_team)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Ranking de mejores terceros ── */}
+      {showThirdRanking && thirdPlaced.length > 0 && (
+        <div class="bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
+          <div class="px-4 py-3 bg-brand-800/50 border-b border-brand-700/60 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-brand-800 border border-brand-700 flex items-center justify-center">
+                <span class="text-sm">🥉</span>
+              </div>
+              <span class="font-display text-lg text-white tracking-wide">MEJORES TERCEROS</span>
+            </div>
+            <span class="text-[10px] text-slate-500 font-mono">Top 8 clasifican</span>
+          </div>
+          <div class="divide-y divide-brand-800/30">
+            {thirdPlaced.map((t, i) => {
+              const qualifies = i < 8;
+              return (
+                <div class={`flex items-center gap-3 px-4 py-2.5 ${qualifies ? 'bg-gradient-to-r from-gol/5 to-transparent' : ''}`}>
+                  <span class={`text-xs font-bold w-6 flex-shrink-0 ${qualifies ? 'text-gol' : 'text-slate-600'}`}>
+                    {i + 1}
+                    {qualifies && <span class="text-[9px] text-gol/60 ml-1">✓</span>}
+                  </span>
+                  {flagUrl(t.team, '20x15') && (
+                    <img src={flagUrl(t.team, '20x15')!} width="20" height="15" class="flex-shrink-0 rounded-sm" loading="lazy" />
+                  )}
+                  <span class={`text-sm font-semibold truncate flex-1 ${qualifies ? 'text-white' : 'text-slate-400'}`}>
+                    {spanishName(t.team)}
+                  </span>
+                  <span class="text-[10px] text-slate-500 font-mono w-6 text-center">G{t.group}</span>
+                  <div class="flex items-center gap-2 text-xs font-mono">
+                    <span class="text-slate-500 w-4 text-center">{t.pj}</span>
+                    <span class="text-slate-500 w-4 text-center hidden sm:inline-block">{t.g}</span>
+                    <span class="text-slate-500 w-4 text-center hidden sm:inline-block">{t.e}</span>
+                    <span class="text-slate-500 w-4 text-center hidden sm:inline-block">{t.p}</span>
+                    <span class="text-slate-500 w-8 text-center hidden sm:inline-block">{t.gf}:{t.gc}</span>
+                    <span class={`w-5 text-center hidden sm:inline-block ${t.dg > 0 ? 'text-gol' : t.dg < 0 ? 'text-roja' : 'text-slate-500'}`}>
+                      {t.dg > 0 ? `+${t.dg}` : t.dg}
+                    </span>
+                    <span class={`w-6 text-center font-bold tabular-nums ${qualifies ? 'text-gol' : 'text-white'}`}>
+                      {t.pts}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Leyenda */}
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 pb-2">
+        <div class="flex items-center gap-1.5">
+          <div class="w-3 h-3 rounded-sm bg-gold/20 border border-gold/30"></div>
+          <span>Clasifican (Top 2 + mejores 8 terceros)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="flex gap-0.5">{['W','D','L'].map(r => <span class={`w-3 h-3 rounded-[2px] text-[7px] font-bold flex items-center justify-center ${formColor(r)}`}>{formLabel(r)}</span>)}</span>
+          <span>Forma (G/E/P últimos 3)</span>
+        </div>
+      </div>
+    </section>
+
+    {/* ══════════════════════════════════════════
+        TAB: ELIMINATORIAS (V2)
+    ══════════════════════════════════════════ */}
+    <section id="v2-tab-eliminatorias" class="hidden space-y-6">
+
+      {sortedRounds.length === 0 && (
+        <div class="text-center py-20 text-slate-600">
+          <div class="text-5xl mb-4">🏆</div>
+          <p class="text-base">Las eliminatorias aún no han comenzado.</p>
+        </div>
+      )}
+
+      {/* ── Bracket visual ── */}
+      {bracketData.length >= 2 && (
+        <div class="bg-brand-900 border border-brand-700/60 rounded-2xl overflow-hidden">
+          <div class="px-4 py-3 bg-brand-800/50 border-b border-brand-700/60">
+            <span class="font-display text-lg text-white tracking-wide">CUADRO</span>
+          </div>
+          <div class="overflow-x-auto pb-4">
+            <div class="bracket-grid" style="display:grid;grid-template-columns:repeat(5,minmax(180px,1fr));gap:1px;min-width:900px;padding:16px;">
+              {BRACKET_ROUNDS.map((round, ri) => {
+                const matches = BRACKET_BY_ROUND[round] ?? [];
+                if (!matches.length) return null;
+                const totalSlots = 16 / Math.pow(2, ri);
+                const emptyBefore = Math.floor(totalSlots / 2) - Math.floor(matches.length / 2);
+                return (
+                  <div class="flex flex-col justify-around gap-1">
+                    <div class={`text-[10px] font-bold uppercase tracking-widest mb-1 text-center py-1 rounded
+                      ${round === 'Final' ? 'text-gold bg-gold/10' : 'text-slate-400 bg-brand-800/40'}`}>
+                      {round === 'R32' ? 'Ronda 1' : round === 'R16' ? 'Ronda 2' : round === 'Cuartos' ? 'Cuartos' : round === 'Semifinal' ? 'Semis' : 'Final'}
+                    </div>
+                    {new Array(emptyBefore).fill(null).map(() => <div class="h-[40px]" />)}
+                    {matches.map((m: any) => {
+                      const finished = m.is_finished;
+                      const hs = m.home_score as number | null;
+                      const as_ = m.away_score as number | null;
+                      const homeWon = finished && hs !== null && as_ !== null && (hs > as_ || (hs === as_ && m.winner_penalties === 'home'));
+                      const awayWon = finished && hs !== null && as_ !== null && (as_ > hs || (hs === as_ && m.winner_penalties === 'away'));
+                      const hp = isPending(m.home_team);
+                      const ap = isPending(m.away_team);
+                      const live = isLive(m);
+                      return (
+                        <div class={`rounded-lg border px-2 py-1.5 text-xs
+                          ${live ? 'border-gol/50 bg-gol/5 animate-pulse' :
+                            finished ? 'border-brand-600/60 bg-brand-800/40' :
+                            'border-brand-700/50 bg-brand-850/50'}`}>
+                          <div class="flex items-center justify-between gap-1">
+                            <div class="flex items-center gap-1 min-w-0 flex-1">
+                              {!hp && flagUrl(m.home_team, '16x12') &&
+                                <img src={flagUrl(m.home_team, '16x12')!} width="14" height="10" class="flex-shrink-0 rounded-sm" loading="lazy" />}
+                              <span class={`truncate ${hp ? 'text-slate-500 italic' : homeWon ? 'text-white font-bold' : 'text-slate-300'}`}>
+                                {hp ? prettyPlaceholder(m.home_team) : spanishName(m.home_team)}
+                              </span>
+                            </div>
+                            {live ? (
+                              <span class="text-[10px] text-gol font-bold tabular-nums flex-shrink-0">{hs ?? 0}</span>
+                            ) : finished ? (
+                              <span class={`text-xs font-bold tabular-nums flex-shrink-0 ${homeWon ? 'text-white' : 'text-slate-500'}`}>{hs}</span>
+                            ) : null}
+                          </div>
+                          <div class="h-px bg-brand-700/40 my-0.5" />
+                          <div class="flex items-center justify-between gap-1">
+                            <div class="flex items-center gap-1 min-w-0 flex-1">
+                              {!ap && flagUrl(m.away_team, '16x12') &&
+                                <img src={flagUrl(m.away_team, '16x12')!} width="14" height="10" class="flex-shrink-0 rounded-sm" loading="lazy" />}
+                              <span class={`truncate ${ap ? 'text-slate-500 italic' : awayWon ? 'text-white font-bold' : 'text-slate-300'}`}>
+                                {ap ? prettyPlaceholder(m.away_team) : spanishName(m.away_team)}
+                              </span>
+                            </div>
+                            {live ? (
+                              <span class="text-[10px] text-gol font-bold tabular-nums flex-shrink-0">{as_ ?? 0}</span>
+                            ) : finished ? (
+                              <span class={`text-xs font-bold tabular-nums flex-shrink-0 ${awayWon ? 'text-white' : 'text-slate-500'}`}>{as_}</span>
+                            ) : null}
+                          </div>
+                          {!finished && !live && (
+                            <div class="text-[8px] text-slate-600 text-center mt-0.5">{fmtTime(m.match_date)}</div>
+                          )}
+                          {finished && m.winner_penalties && (
+                            <div class="text-[8px] text-gold/60 text-center mt-0.5">
+                              pen {m.home_pen}–{m.away_pen}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lista detallada por ronda ── */}
+      <div class="space-y-5">
+        {sortedRounds.map(([round, rMatches]: [string, any[]]) => {
+          const isFinal = round === 'Final';
+          const is3rd   = round === 'Tercer Puesto';
+          return (
+            <div>
+              <div class="flex items-center gap-3 mb-3">
+                <div class={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                  isFinal ? 'bg-gold/15 border-gold/50 text-gold' :
+                  is3rd   ? 'bg-slate-700/40 border-slate-600/50 text-slate-400' :
+                            'bg-brand-800/60 border-brand-700 text-slate-400'
+                }`}>
+                  {isFinal && '🏆 '}{round}
+                </div>
+                <div class="flex-1 h-px bg-brand-800" />
+              </div>
+
+              <div class={`grid gap-2 ${(rMatches?.length ?? 0) > 1 ? 'sm:grid-cols-2' : ''}`}>
+                {(rMatches ?? []).map((m: any) => {
+                  const finished = m.is_finished;
+                  const live = isLive(m);
+                  const hs  = m.home_score as number | null;
+                  const as_ = m.away_score as number | null;
+                  const homeWon = finished && hs !== null && as_ !== null && (hs > as_ || (hs === as_ && m.winner_penalties === 'home'));
+                  const awayWon = finished && hs !== null && as_ !== null && (as_ > hs || (hs === as_ && m.winner_penalties === 'away'));
+                  const homePending = isPending(m.home_team);
+                  const awayPending = isPending(m.away_team);
+                  const homeFlag = homePending ? null : flagUrl(m.home_team, '20x15');
+                  const awayFlag = awayPending ? null : flagUrl(m.away_team, '20x15');
+                  const nameCls = (pending: boolean, won: boolean) =>
+                    pending   ? 'text-slate-500 italic' :
+                    !finished ? (live ? 'text-gol' : 'text-slate-100') :
+                    won       ? (isFinal ? 'text-gold' : 'text-white') : 'text-slate-600';
+                  const badge = <span class="flex-shrink-0 w-5 h-[15px] rounded-sm border border-dashed border-slate-600/70 bg-brand-800/40" />;
+
+                  return (
+                    <div class={`relative rounded-2xl border overflow-hidden ${
+                      live ? 'border-gol/50 bg-gradient-to-br from-gol/10 via-brand-900 to-brand-900' :
+                      isFinal ? 'border-gold/40 bg-gradient-to-br from-gold/10 via-brand-900 to-brand-900' :
+                      is3rd   ? 'border-slate-600/40 bg-gradient-to-br from-slate-700/20 to-brand-900' :
+                                'border-brand-700/60 bg-gradient-to-br from-brand-800/50 to-brand-900'
+                    }`}>
+                      {live && <div class="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-gol to-transparent" />}
+                      {isFinal && <div class="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-gold/70 to-transparent" />}
+                      <div class="flex justify-center pt-2.5">
+                        {live ? (
+                          <span class="text-[10px] font-semibold text-gol bg-gol/10 border border-gol/30 rounded-full px-2.5 py-0.5 flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-gol animate-pulse" /> En vivo
+                          </span>
+                        ) : (
+                          <span class="text-[10px] font-medium text-slate-400 bg-brand-950/50 border border-brand-700/50 rounded-full px-2.5 py-0.5">
+                            {fmtDateShort(m.match_date)}
+                          </span>
+                        )}
+                      </div>
+                      <div class="flex items-center gap-1 px-2.5 py-3">
+                        <div class={`flex-1 flex items-center justify-end gap-2 min-w-0 rounded-lg py-1.5 px-1.5 ${finished && homeWon ? (isFinal ? 'bg-gold/10' : 'bg-brand-700/25') : live ? 'bg-gol/5' : ''}`}>
+                          <span class={`text-sm font-bold truncate text-right ${nameCls(homePending, homeWon)}`}>
+                            {homePending ? prettyPlaceholder(m.home_team) : spanishName(m.home_team)}
+                          </span>
+                          {homeFlag ? <img src={homeFlag} width="20" height="15" class="flex-shrink-0 rounded-sm ring-1 ring-black/30 shadow" loading="lazy" /> : badge}
+                        </div>
+                        <div class="flex-shrink-0 px-1">
+                          {live ? (
+                            <span class="text-xl font-display text-gol tabular-nums">
+                              {hs ?? 0}<span class="text-gol/50 mx-px">–</span>{as_ ?? 0}
+                            </span>
+                          ) : finished ? (
+                            <span class={`font-display text-xl leading-none tabular-nums ${isFinal ? 'text-gold' : 'text-white'}`}>
+                              {hs}<span class="text-slate-600 mx-px">–</span>{as_}
+                            </span>
+                          ) : (
+                            <span class={`flex items-center justify-center w-7 h-7 rounded-full border font-display text-[10px] tracking-wide ${isFinal ? 'border-gold/40 text-gold/70' : 'border-brand-700 text-slate-500'}`}>VS</span>
+                          )}
+                        </div>
+                        <div class={`flex-1 flex items-center gap-2 min-w-0 rounded-lg py-1.5 px-1.5 ${finished && awayWon ? (isFinal ? 'bg-gold/10' : 'bg-brand-700/25') : live ? 'bg-gol/5' : ''}`}>
+                          {awayFlag ? <img src={awayFlag} width="20" height="15" class="flex-shrink-0 rounded-sm ring-1 ring-black/30 shadow" loading="lazy" /> : badge}
+                          <span class={`text-sm font-bold truncate ${nameCls(awayPending, awayWon)}`}>
+                            {awayPending ? prettyPlaceholder(m.away_team) : spanishName(m.away_team)}
+                          </span>
+                        </div>
+                      </div>
+                      {finished && m.winner_penalties && (
+                        <p class="text-[10px] text-gold/70 text-center pb-2 -mt-1.5">
+                          Penales {m.home_pen}–{m.away_pen} · gana {spanishName(m.winner_penalties === 'home' ? m.home_team : m.away_team)}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<style>
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { scrollbar-width: none; }
+  .group-card { transition: border-color .2s, box-shadow .2s; }
+  .group-card:hover { box-shadow: 0 0 0 1px rgba(255,255,255,.04); }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  .animate-pulse { animation: pulse 2s cubic-bezier(.4,0,.6,1) infinite; }
+</style>
+
+<script is:inline>
+  function switchTabV2(tab) {
+    const grupos        = document.getElementById('v2-tab-grupos');
+    const eliminatorias = document.getElementById('v2-tab-eliminatorias');
+    const btnG          = document.getElementById('v2-tab-btn-grupos');
+    const btnE          = document.getElementById('v2-tab-btn-eliminatorias');
+    if (!grupos || !eliminatorias || !btnG || !btnE) return;
+
+    const activeClass   = ['bg-brand-700', 'text-white'];
+    const inactiveClass = ['text-slate-400', 'hover:text-white'];
+
+    if (tab === 'grupos') {
+      grupos.classList.remove('hidden');
+      eliminatorias.classList.add('hidden');
+      btnG.classList.add(...activeClass);    btnG.classList.remove(...inactiveClass);
+      btnE.classList.remove(...activeClass); btnE.classList.add(...inactiveClass);
+    } else {
+      eliminatorias.classList.remove('hidden');
+      grupos.classList.add('hidden');
+      btnE.classList.add(...activeClass);    btnE.classList.remove(...inactiveClass);
+      btnG.classList.remove(...activeClass); btnG.classList.add(...inactiveClass);
+    }
+    localStorage.setItem('grupos-v2-tab', tab);
+  }
+
+  const saved = localStorage.getItem('grupos-v2-tab') ?? 'grupos';
+  switchTabV2(saved);
+</script>

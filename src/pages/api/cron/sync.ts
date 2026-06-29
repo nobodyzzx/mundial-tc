@@ -7,6 +7,7 @@
  */
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '@/lib/supabase';
+import { checkCronSecret, json } from '@/lib/cron';
 import { getFixtures, deriveWinnerPenalties } from '@/lib/football-api';
 import { linkMatches, isPlaceholderName } from '@/lib/match-link';
 import { logEvent } from '@/lib/system-log';
@@ -34,37 +35,8 @@ async function logSync(
   } catch { /* el heartbeat nunca debe romper el sync */ }
 }
 
-async function timingSafeEqual(a: string, b: string): Promise<boolean> {
-  try {
-    const enc = new TextEncoder();
-    const ab = enc.encode(a);
-    const bb = enc.encode(b);
-    // Longitudes distintas → falso, pero seguimos para no filtrar por timing
-    const key = await crypto.subtle.importKey('raw', ab, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const [sigA, sigB] = await Promise.all([
-      crypto.subtle.sign('HMAC', key, ab),
-      crypto.subtle.sign('HMAC', key, bb),
-    ]);
-    const da = new Uint8Array(sigA);
-    const db = new Uint8Array(sigB);
-    let diff = da.length ^ db.length;
-    for (let i = 0; i < Math.min(da.length, db.length); i++) diff |= da[i] ^ db[i];
-    return diff === 0 && ab.byteLength === bb.byteLength;
-  } catch {
-    return false;
-  }
-}
-
 export const GET: APIRoute = async ({ url, request }) => {
-  const expected = import.meta.env.CRON_SECRET;
-
-  // Aceptar secret en Authorization header (preferido) o query param (legacy)
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  const querySecret = url.searchParams.get('secret') ?? '';
-  const secret = bearer || querySecret;
-
-  if (!expected || !secret || !(await timingSafeEqual(secret, expected))) {
+  if (!(await checkCronSecret(url, request))) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
@@ -73,10 +45,14 @@ export const GET: APIRoute = async ({ url, request }) => {
   const preview = url.searchParams.get('preview') === '1';
 
   const t0 = Date.now();
+
+  // TOURNAMENT_CODE/SEASON solo son necesarios para football-data (proveedor por
+  // temporada). ESPN y api-football consultan por fecha y no los requieren.
   const code   = import.meta.env.TOURNAMENT_CODE;
   const season = parseInt(import.meta.env.TOURNAMENT_SEASON ?? '');
+  const needsLegacy = PROVIDER === 'football-data';
 
-  if (!code || isNaN(season)) {
+  if (needsLegacy && (!code || isNaN(season))) {
     await logSync('error:config', { httpStatus: 500, error: 'TOURNAMENT_CODE/SEASON no configurados', t0 });
     await alertGroupError({ source: 'sync', detail: 'Config faltante: TOURNAMENT_CODE/SEASON no configurados.' });
     return json({ error: 'TOURNAMENT_CODE o TOURNAMENT_SEASON no configurados' }, 500);
@@ -221,9 +197,4 @@ export const GET: APIRoute = async ({ url, request }) => {
   return json({ ok: true, provider: PROVIDER, namesUpdated, scoresUpdated, message: `${scoresUpdated} partido(s) sincronizado(s)` });
 };
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
+

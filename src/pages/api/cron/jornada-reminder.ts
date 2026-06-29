@@ -9,6 +9,7 @@
  * el aviso de la misma jornada aunque el cron lo llame varias veces.
  */
 import type { APIRoute } from 'astro';
+import { checkCronSecret, json } from '@/lib/cron';
 import { supabaseAdmin } from '@/lib/supabase';
 import { spanishName, teamFlag } from '@/lib/isoFlags';
 import { boliviaDayStart, JORNADA_CLOSE_MS } from '@/lib/jornada';
@@ -22,33 +23,6 @@ import { fmtFecha, fmtDiaKey } from '@/lib/fechas';
 // esta ventana los partidos todavía no empezaron.)
 const CLOSE_NOTICE_WINDOW_MS = 30 * 60 * 1000; // 30 min tras el cierre
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-async function timingSafeEqual(a: string, b: string): Promise<boolean> {
-  try {
-    const enc = new TextEncoder();
-    const ab = enc.encode(a);
-    const bb = enc.encode(b);
-    const key = await crypto.subtle.importKey('raw', ab, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const [sigA, sigB] = await Promise.all([
-      crypto.subtle.sign('HMAC', key, ab),
-      crypto.subtle.sign('HMAC', key, bb),
-    ]);
-    const da = new Uint8Array(sigA);
-    const db = new Uint8Array(sigB);
-    let diff = da.length ^ db.length;
-    for (let i = 0; i < Math.min(da.length, db.length); i++) diff |= da[i] ^ db[i];
-    return diff === 0 && ab.byteLength === bb.byteLength;
-  } catch {
-    return false;
-  }
-}
-
 function fmtTime(iso: string): string {
   return fmtFecha(iso, {
     hour: '2-digit', minute: '2-digit',
@@ -61,13 +35,7 @@ function boliviaDateKey(ms: number): string {
 }
 
 export const GET: APIRoute = async ({ url, request }) => {
-  const expected = import.meta.env.CRON_SECRET;
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  const querySecret = url.searchParams.get('secret') ?? '';
-  const secret = bearer || querySecret;
-
-  if (!expected || !secret || !(await timingSafeEqual(secret, expected))) {
+  if (!(await checkCronSecret(url, request))) {
     return json({ error: 'Unauthorized' }, 401);
   }
 

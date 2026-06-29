@@ -6,46 +6,13 @@
  * Autenticación por Bearer token o query param ?secret=
  */
 import type { APIRoute } from 'astro';
+import { checkCronSecret, json } from '@/lib/cron';
 import { supabaseAdmin } from '@/lib/supabase';
-import { estadoPago, aportePozo, CUOTA_REFERI_BS, APORTE_POZO_MAX_BS, PAGO_COMPLETO_BS } from '@/lib/payments';
+import { estadoPago, resumenPozo, PAGO_COMPLETO_BS } from '@/lib/payments';
 import { fmtFecha } from '@/lib/fechas';
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-async function timingSafeEqual(a: string, b: string): Promise<boolean> {
-  try {
-    const enc = new TextEncoder();
-    const ab = enc.encode(a);
-    const bb = enc.encode(b);
-    const key = await crypto.subtle.importKey('raw', ab, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-    const [sigA, sigB] = await Promise.all([
-      crypto.subtle.sign('HMAC', key, ab),
-      crypto.subtle.sign('HMAC', key, bb),
-    ]);
-    const da = new Uint8Array(sigA);
-    const db = new Uint8Array(sigB);
-    let diff = da.length ^ db.length;
-    for (let i = 0; i < Math.min(da.length, db.length); i++) diff |= da[i] ^ db[i];
-    return diff === 0 && ab.byteLength === bb.byteLength;
-  } catch {
-    return false;
-  }
-}
-
 export const GET: APIRoute = async ({ url, request }) => {
-  const expected = import.meta.env.CRON_SECRET;
-
-  const authHeader = request.headers.get('authorization') ?? '';
-  const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  const querySecret = url.searchParams.get('secret') ?? '';
-  const secret = bearer || querySecret;
-
-  if (!expected || !secret || !(await timingSafeEqual(secret, expected))) {
+  if (!(await checkCronSecret(url, request))) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
@@ -90,15 +57,12 @@ export const GET: APIRoute = async ({ url, request }) => {
   });
   pendientes.forEach(p => lines.push(`❌ ${p.username} — sigue sin pagar 👀`));
 
-  const participantes = [...completos, ...parciales];
-  const pozo      = participantes.reduce((s, p) => s + aportePozo(p.monto_pagado), 0);
-  const referi    = participantes.length * CUOTA_REFERI_BS;
-  const metaTotal = participantes.length * APORTE_POZO_MAX_BS;
+  const resumen = resumenPozo(all.map(p => p.monto_pagado));
 
   const header = ['💰 *ESTADO DE PAGOS*', '_Polla Mundial 2026_', ...deadlines];
   const footer = [
     '',
-    `💰 Pozo: ${pozo} Bs de ${metaTotal} posibles \u2502 ⚖️ Réferi: ${referi} Bs`,
+    `💰 Pozo: ${resumen.pozo} Bs de ${resumen.pozo + resumen.referi} posibles \u2502 ⚖️ Réferi: ${resumen.referi} Bs`,
     '🔗 mundial.tecnocondor.dev/pago',
   ];
 
@@ -108,11 +72,11 @@ export const GET: APIRoute = async ({ url, request }) => {
     text,
     stats: {
       total: all.length,
-      completos: completos.length,
-      parciales: parciales.length,
-      pendientes: pendientes.length,
-      pozo,
-      metaTotal,
+      completos: resumen.completos,
+      parciales: resumen.parciales,
+      pendientes: resumen.pendientes,
+      pozo: resumen.pozo,
+      metaTotal: resumen.pozo + resumen.referi,
     },
   });
 };

@@ -4,6 +4,7 @@ import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 import { fmtFecha } from '@/lib/fechas';
 import { spanishName } from '@/lib/isoFlags';
 import { pendingCode } from '@/lib/pendingCode';
+import { estadoPago } from '@/lib/payments';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
 const refreshToken = Astro.cookies.get('sb-refresh-token')?.value;
@@ -94,9 +95,9 @@ function formatDate(d: string) {
 
 // Stats (calculadas una vez, usadas en las pestañas Tarjetas y Pagos)
 const participantes = (profiles ?? []).filter((p: any) => p.participa);
-const stPagados   = participantes.filter((p: any) => p.pago_70 && p.pago_50).length;
-const stParcial   = participantes.filter((p: any) => p.pago_70 && !p.pago_50).length;
-const stPendiente = participantes.filter((p: any) => !p.pago_70).length;
+const stPagados   = participantes.filter((p: any) => estadoPago(p.monto_pagado) === 'completo').length;
+const stParcial   = participantes.filter((p: any) => estadoPago(p.monto_pagado) === 'parcial').length;
+const stPendiente = participantes.filter((p: any) => estadoPago(p.monto_pagado) === 'pendiente').length;
 const stSancionados = participantes.filter((p: any) => (sanctionsByUser.get(p.id) ?? []).length > 0).length;
 const stExpulsados  = participantes.filter((p: any) => p.expulsado).length;
 let stAmarillas = 0, stRojas = 0;
@@ -516,11 +517,9 @@ const err = Astro.url.searchParams.get('err');
           <div class="rounded-2xl border bg-brand-900 border-brand-700/60 px-4 py-3 flex items-center gap-2 flex-wrap">
             <span class="font-semibold text-sm text-white">{p.username}</span>
             <span class={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${
-              p.pago_70 && p.pago_50 ? 'bg-gol/10 border-gol/30 text-gol' :
-              p.pago_70             ? 'bg-gold/10 border-gold/30 text-gold' :
-                                      'bg-fifared/10 border-fifared/30 text-fifared'
+              (() => { const e = estadoPago(p.monto_pagado); return e === 'completo' ? 'bg-gol/10 border-gol/30 text-gol' : e === 'parcial' ? 'bg-gold/10 border-gold/30 text-gold' : 'bg-fifared/10 border-fifared/30 text-fifared'; })()
             }`}>
-              {p.pago_70 && p.pago_50 ? '✓ pagado' : p.pago_70 ? '⏳ parcial' : '❌ pendiente'}
+              {(() => { const e = estadoPago(p.monto_pagado); return e === 'completo' ? '✓ pagado' : e === 'parcial' ? '⏳ parcial' : '❌ pendiente'; })()}
             </span>
             <form method="POST" action="/api/admin/set-monto-pagado" class="flex items-center gap-1 ml-auto">
               <input type="hidden" name="user_id" value={p.id} />

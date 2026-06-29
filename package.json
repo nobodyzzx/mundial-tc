@@ -7,7 +7,9 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "check": "astro check"
+    "check": "astro check",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@astrojs/node": "latest",
@@ -22,6 +24,7 @@
     "@types/node": "latest",
     "tailwindcss": "latest",
     "tsx": "^4.21.0",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.9"
   }
 }
