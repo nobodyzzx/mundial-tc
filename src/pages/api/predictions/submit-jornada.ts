@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 import { isValidUUID } from '@/lib/auth-helpers';
+import { isPlaceholderName } from '@/lib/match-link';
 import { boliviaDayStart, jornadaLockState } from '@/lib/jornada';
 import { logEvent } from '@/lib/system-log';
 import { alertReferiPredictionFail } from '@/lib/whatsapp';
@@ -103,7 +104,7 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
   const matchIds = entries.map(e => e.matchId);
   const { data: matchRows } = await supabase
     .from('matches')
-    .select('id, match_date, is_finished, stage, status')
+    .select('id, match_date, is_finished, stage, status, home_team, away_team')
     .in('id', matchIds);
 
   if (!matchRows || matchRows.length === 0) return reject('partidos-no-encontrados', '/predictions');
@@ -112,6 +113,11 @@ export const POST: APIRoute = async ({ request, cookies, redirect }) => {
 
   // Validar finished / en juego
   for (const m of matchRows) {
+    // Llave de eliminatoria con un lado aún sin definir ("W75", "L101"…): no se
+    // puede pronosticar contra un rival desconocido. Salvavidas server-side por si
+    // un form viejo/cacheado intenta enviarla (la página ya las oculta).
+    if (isPlaceholderName(m.home_team) || isPlaceholderName(m.away_team))
+      return reject('llave-sin-definir', `/predictions?error=${encodeURIComponent('Esa llave aún no tiene rival definido')}`);
     if (m.is_finished) return reject('partido-terminado', `/predictions?error=${encodeURIComponent('El partido ya terminó')}`);
     if (m.status && ['IN_PLAY', 'PAUSED', 'FINISHED'].includes(m.status))
       return reject('partido-en-juego', `/predictions?error=${encodeURIComponent('Las apuestas para este partido ya están cerradas')}`);

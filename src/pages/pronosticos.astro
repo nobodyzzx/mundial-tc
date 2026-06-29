@@ -5,6 +5,7 @@ import { createRequestClient, supabaseAdmin, fetchAllRows } from '@/lib/supabase
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart, REVEAL_BEFORE_MS } from '@/lib/jornada';
 import { spanishName, isoForTeam } from '@/lib/isoFlags';
+import { isPlaceholderName } from '@/lib/match-link';
 import { fmtFecha } from '@/lib/fechas';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -35,7 +36,12 @@ const [
   supabaseAdmin.from('profiles').select('id, username, puntos_totales, expulsado').eq('participa', true).order('puntos_totales', { ascending: false }),
 ]);
 
-const allMatches = rawMatches ?? [];
+// Ocultar llaves de eliminatoria aún sin definir ("W74 vs W77", "L101 vs L102",
+// medio-resueltas como "Canada vs W75"): los códigos W##/L## no los atrapa el
+// filtro ilike 'TBD%'/'Winner%' de la query.
+const allMatches = (rawMatches ?? []).filter(
+  m => !isPlaceholderName(m.home_team) && !isPlaceholderName(m.away_team)
+);
 const players    = rawPlayers ?? [];
 
 // Agrupar por día de juego Bolivia (frontera 03:00 BOT)

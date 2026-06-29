@@ -2,11 +2,12 @@
 import Layout from '@/layouts/Layout.astro';
 import TeamName from '@/components/TeamName.astro';
 import CerradaBar from '@/components/CerradaBar.astro';
-import { createRequestClient } from '@/lib/supabase';
+import { createRequestClient, supabaseAdmin } from '@/lib/supabase';
 import { betaNowMs } from '@/lib/betaTime';
 import { boliviaDayStart, boliviaDayKey, jornadaLockState, countsUnresolved } from '@/lib/jornada';
 import { fmtFecha } from '@/lib/fechas';
 import { isoForTeam, spanishName } from '@/lib/isoFlags';
+import { isPlaceholderName } from '@/lib/match-link';
 import { logEvent } from '@/lib/system-log';
 
 const accessToken = Astro.cookies.get('sb-access-token')?.value;
@@ -22,6 +23,14 @@ if (!user) { Astro.cookies.delete("sb-access-token", { path: "/" }); Astro.cooki
 
 const nowMs = betaNowMs();
 
+// Las lecturas con filtro RLS por `auth.uid()` (predictions, sanctions) se hacen
+// con SERVICE-ROLE scopeadas por `user.id` — NUNCA con la sesión RLS. Motivo: si
+// el access token expiró (p.ej. el jugador pronosticó anoche y vuelve hoy), el
+// setSession sin auto-refresh deja la petición como anónima para RLS y la lectura
+// owner-scoped devuelve [] EN SILENCIO. Con predMap vacío la jornada se veía "sin
+// pronosticar" y el formulario se REABRÍA (caso Boris): reenviaba y la BD lo
+// frenaba por duplicado (23505 → "Ya registraste"). `user` ya está validado
+// arriba (si fuera nulo → /login), así que scopear por user.id es seguro.
 const [
   { data: matches },
   { data: navProfile },
@@ -31,10 +40,19 @@ const [
 ] = await Promise.all([
   supabase.from('matches').select('*').eq('is_finished', false).not('home_team', 'ilike', 'TBD%').not('away_team', 'ilike', 'TBD%').not('home_team', 'ilike', 'Winner%').not('away_team', 'ilike', 'Winner%').order('match_date', { ascending: true }),
   supabase.from('profiles').select('username, puntos_totales, es_referi, pago_70, pago_50, expulsado').eq('id', user.id).single(),
-  supabase.from('predictions').select('match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, created_at').eq('user_id', user.id),
+  supabaseAdmin.from('predictions').select('match_id, user_home, user_away, user_home_pen, user_away_pen, user_winner_penalties, created_at').eq('user_id', user.id),
   supabase.from('matches').select('match_date, is_finished').lte('match_date', new Date(nowMs).toISOString()),
-  supabase.from('sanctions').select('type, created_at').eq('user_id', user.id).in('type', ['red', 'double_red']).eq('active', true),
+  supabaseAdmin.from('sanctions').select('type, created_at').eq('user_id', user.id).in('type', ['red', 'double_red']).eq('active', true),
 ]);
+
+// Excluir llaves de eliminatoria aún sin definir: si UN lado es placeholder
+// ("W75", "L101", "2A"…) el partido no se debe pronosticar todavía (rival
+// desconocido). El filtro .not(ilike 'TBD%'/'Winner%') de la query no atrapa los
+// códigos W##/L## que usa el bracket → se colaban "W74 vs W77" y medio-resueltos
+// como "Canada vs W75", dejando la jornada nunca completa y reabriendo el form.
+const visibleMatches = (matches ?? []).filter(
+  m => !isPlaceholderName(m.home_team) && !isPlaceholderName(m.away_team)
+);
 
 const predMap = new Map(myPredictions?.map(p => [p.match_id, p]) ?? []);
 
@@ -76,7 +94,7 @@ type MatchRow = {
 // Agrupar por jornada Bolivia — el día empieza a las 03:00 AM BOT para que
 // partidos de medianoche (00:00-02:59) queden con la noche anterior.
 const grouped = new Map<string, MatchRow[]>();
-for (const m of (matches ?? []) as MatchRow[]) {
+for (const m of visibleMatches as MatchRow[]) {
   const dayStart = boliviaDayStart(new Date(m.match_date).getTime());
   const key = fmtFecha(dayStart, {
     weekday: 'long', day: 'numeric', month: 'long',
@@ -104,7 +122,7 @@ function lockStateFor(jornadaMatches: MatchRow[]) {
     nowMs: now,
     sameDayStarted: daysWithStartedMatch.has(boliviaDayKey(firstMatchMs)),
     hasMatchInProgress,
-    hasEarlierUnfinished: (matches ?? []).some(m => {
+    hasEarlierUnfinished: visibleMatches.some(m => {
       const k = new Date(m.match_date).getTime();
       return k < firstMatchMs && countsUnresolved(k, now);
     }),
@@ -392,7 +410,7 @@ let globalFormIdx = 0;
       const shareData = buildShareData(jornadaMatches, navProfile?.username ?? 'yo');
       // Progreso de pronóstico (va como texto bajo el título, no como botón).
       const showProgress = !sanctioned && (allDone || hasSome || lockState === 'open');
-      const progressLabel = allDone ? '✅ Completa' : `${predCount}/${jornadaMatches.length}`;
+      const progressLabel = allDone ? '✅ Ya pronosticaste' : `${predCount}/${jornadaMatches.length}`;
       const progressColor = allDone ? 'text-gol' : hasSome ? 'text-amarilla' : 'text-slate-400';
 
       return (
@@ -674,6 +692,15 @@ let globalFormIdx = 0;
                         <TeamName team={m.away_team} side="away" class={`font-semibold text-base ${existing ? 'text-white' : 'text-slate-400'}`} />
                       </div>
                     </div>
+                    {/* Marca inequívoca de "este lo pronosticaste tú": el marcador en
+                        verde se confundía con un resultado del partido. */}
+                    {existing && (
+                      <p class="text-center mt-2.5">
+                        <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-gol bg-gol/10 border border-gol/30 rounded-full px-2.5 py-1">
+                          ✓ Tu pronóstico
+                        </span>
+                      </p>
+                    )}
                     {existing && (existing.user_home_pen !== null || existing.user_winner_penalties) && (
                       <p class="text-xs text-slate-500 text-center mt-1.5">
                         Penales: <span class="text-gold">
