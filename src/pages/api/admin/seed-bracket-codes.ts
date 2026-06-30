@@ -4,9 +4,21 @@ import { getAdminUser } from '@/lib/auth-helpers';
 
 /**
  * Bracket completo — FIFA World Cup 2026 (fuente: openfootball/worldcup.json)
- * Los números de partido son los oficiales de FIFA (73–103).
+ * Los números de partido son los oficiales de FIFA (73–104).
  * W73 = Ganador del partido 73, L101 = Perdedor del partido 101.
+ *
+ * Los slots de cada ronda van en ORDEN DE NÚMERO FIFA (73→104). Se colocan en las filas
+ * ordenando por `matches.match_number`, NO por `match_date`: FIFA no numera por hora de
+ * inicio (dentro de un día el orden de pateo no coincide con el número), así que ordenar
+ * por fecha permutaría los códigos. `match_number` es la fuente de verdad y debe estar
+ * sembrado antes (dato propio del calendario; ver migración 20260101000035 y resolver).
+ * Si la columna no está alineada con la numeración esperada, el seed ABORTA en vez de
+ * colocar códigos a ciegas.
  */
+const ROUND_BASE: Record<string, number> = {
+  R32: 73, R16: 89, Cuartos: 97, Semifinal: 101, 'Tercer Puesto': 103, Final: 104,
+};
+
 const BRACKET: Record<string, { home: string; away: string }[]> = {
   R32: [
     { home: '2A',   away: '2B' },      // M73 — 28 jun
@@ -55,17 +67,30 @@ const BRACKET: Record<string, { home: string; away: string }[]> = {
 };
 
 async function seedRound(round: string, slots: { home: string; away: string }[]) {
+  const base = ROUND_BASE[round];
   const { data: matches, error } = await supabaseAdmin
     .from('matches')
-    .select('id, match_date')
+    .select('id, match_number')
     .eq('stage', 'knockout')
     .eq('round', round)
-    .order('match_date', { ascending: true });
+    .order('match_number', { ascending: true });
 
   if (error) throw new Error(`Error leyendo ${round}: ${error.message}`);
   if (!matches?.length) return { round, skipped: true, reason: 'sin partidos en BD' };
   if (matches.length !== slots.length) {
     throw new Error(`${round}: se esperaban ${slots.length} partidos, hay ${matches.length}`);
+  }
+
+  // El slot i corresponde al partido FIFA `base + i`. Las filas vienen ordenadas por
+  // match_number, así que debe calzar 1:1. Si no, la columna no está sembrada/alineada
+  // → abortar (colocar por fecha permutaría los códigos).
+  for (let i = 0; i < matches.length; i++) {
+    if (matches[i].match_number !== base + i) {
+      throw new Error(
+        `${round}: match_number desalineado (fila ${i} = ${matches[i].match_number ?? 'NULL'}, esperaba ${base + i}). ` +
+        `Sembrá matches.match_number con la numeración FIFA antes de los códigos.`
+      );
+    }
   }
 
   for (let i = 0; i < matches.length; i++) {
