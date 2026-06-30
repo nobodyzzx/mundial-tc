@@ -43,7 +43,7 @@ export const GET: APIRoute = async ({ url, request }) => {
   //    la fuente de los códigos de avance "W##"/"L##" de las rondas siguientes.
   const { data: koRows } = await supabaseAdmin
     .from('matches')
-    .select('id, round, home_team, away_team, match_date, home_score, away_score, winner_penalties, is_finished')
+    .select('id, round, home_team, away_team, match_number, home_score, away_score, winner_penalties, is_finished')
     .eq('stage', 'knockout');
   const allKo = (koRows ?? []) as (KnockoutMatch & { id: string })[];
 

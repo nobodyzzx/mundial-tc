@@ -179,7 +179,8 @@ export function resolveThirdPlaceCodes(matches: GroupMatch[]): ThirdResolution {
 }
 
 export interface KnockoutMatch {
-  match_date: string;
+  /** Número de partido FIFA (73-104), sembrado explícito en la columna `match_number`. */
+  match_number: number | null;
   round: string;
   home_team: string;
   away_team: string;
@@ -189,28 +190,23 @@ export interface KnockoutMatch {
   is_finished: boolean;
 }
 
-/** Primer número de partido de eliminatoria (FIFA 2026: R32 arranca en 73). */
-const FIRST_KO_MATCH = 73;
-
 /**
  * Resuelve los códigos de avance "W##"/"L##" (ganador/perdedor del partido FIFA ##)
  * a equipos reales, a partir de los resultados de las llaves ya jugadas.
  *
- * Numeración: los partidos de eliminatoria se numeran por orden cronológico desde 73
- * (R32 73-88, R16 89-96, Cuartos 97-100, Semis 101-102, 3º 103, Final 104). El seed
- * usó esa misma numeración FIFA al escribir los "W##"/"L##" (verificado: las
- * referencias parten limpio por ronda y cada número se usa una vez).
+ * El número FIFA de cada partido viene EXPLÍCITO en `match_number`; NO se deriva del
+ * orden cronológico. FIFA no numera las llaves por hora de inicio: dentro de un mismo
+ * día el orden de pateo no coincide con el número (p.ej. el 29 jun, Brasil/Japón=M76
+ * patea antes que P.Bajos/Marruecos=M75). Derivarlo de la fecha permutaba ganadores
+ * —metía a Paraguay (W75 por hora) donde iba Marruecos (W75 real) contra Canadá—.
  *
- * Solo emite un código si el partido fuente ya terminó y sus dos equipos son reales
- * (no placeholders). Empate sin definición de penales → no se resuelve aún.
+ * Solo emite un código si el partido fuente ya terminó, tiene número y sus dos equipos
+ * son reales (no placeholders). Empate sin definición de penales → no se resuelve aún.
  */
 export function resolveKnockoutCodes(matches: KnockoutMatch[]): Map<string, string> {
-  const ordered = [...matches].sort((a, b) => Date.parse(a.match_date) - Date.parse(b.match_date));
-  const byNum = new Map<number, KnockoutMatch>();
-  ordered.forEach((m, i) => byNum.set(FIRST_KO_MATCH + i, m));
-
   const codes = new Map<string, string>();
-  for (const [num, m] of byNum) {
+  for (const m of matches) {
+    if (m.match_number == null) continue;             // sin número FIFA → no se puede mapear
     if (!m.is_finished || m.home_score === null || m.away_score === null) continue;
     if (isPlaceholderName(m.home_team) || isPlaceholderName(m.away_team)) continue; // fuente sin nombrar
 
@@ -221,8 +217,8 @@ export function resolveKnockoutCodes(matches: KnockoutMatch[]): Map<string, stri
     else if (m.winner_penalties === 'away') { winner = m.away_team; loser = m.home_team; }
     else continue; // empate sin penales definidos
 
-    codes.set(`W${num}`, winner);
-    codes.set(`L${num}`, loser);
+    codes.set(`W${m.match_number}`, winner);
+    codes.set(`L${m.match_number}`, loser);
   }
   return codes;
 }
